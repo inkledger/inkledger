@@ -198,7 +198,8 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       WEATHER: "off",
       // A bare server's admin signs in with this (production otherwise makes a random one).
       INKLEDGER_ADMIN_PASSWORD: "admin",
-      ...extraEnv,
+      // A function: values that need the server's own address (PUBLIC_URL for single sign-on).
+      ...(typeof extraEnv === "function" ? extraEnv({ port, base: `http://127.0.0.1:${port}` }) : extraEnv),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

@@ -25,10 +25,11 @@ async function newKey(): Promise<Key> {
   return { kid, privateKey, jwk: { ...(await exportJWK(publicKey)), kid, alg: "RS256", use: "sig" } };
 }
 
-export async function oidcSimulator(opts: { issuer?: string; clientId?: string; clientSecret?: string; tenantId?: string } = {}) {
+/** `clientSecret: null`: a public client (PKCE only, no client authentication), as the e2e sets one up. */
+export async function oidcSimulator(opts: { issuer?: string; clientId?: string; clientSecret?: string | null; tenantId?: string } = {}) {
   const issuer = (opts.issuer ?? "http://127.0.0.1:47999").replace(/\/+$/, "");
   const clientId = opts.clientId ?? "inkledger-test";
-  const clientSecret = opts.clientSecret ?? "simulator-secret";
+  const clientSecret = opts.clientSecret === undefined ? "simulator-secret" : opts.clientSecret;
   const keys: Key[] = [await newKey()];
   const stranger = await newKey();
   const codes = new Map<string, Code>();
@@ -76,7 +77,7 @@ export async function oidcSimulator(opts: { issuer?: string; clientId?: string; 
       auth = "basic";
     }
     state.tokenRequests.push({ auth, verifier: body.get("code_verifier") ?? "" });
-    if (id !== clientId || secret !== clientSecret) return json({ error: "invalid_client" }, 401);
+    if (id !== clientId || (clientSecret === null ? auth !== "none" : secret !== clientSecret)) return json({ error: "invalid_client" }, 401);
     if (body.get("grant_type") !== "authorization_code") return json({ error: "unsupported_grant_type" }, 400);
     const c = codes.get(body.get("code") ?? "");
     if (!c || c.used || c.clientId !== id || c.redirectUri !== body.get("redirect_uri")) return json({ error: "invalid_grant" }, 400);

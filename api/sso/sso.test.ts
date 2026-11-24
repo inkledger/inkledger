@@ -72,7 +72,7 @@ describe("OIDC: authorization code with PKCE, state and nonce", () => {
     const { getDb } = await import("../queries/connection");
     const { identityProviders } = await import("@db/schema");
     const { eq } = await import("drizzle-orm");
-    [p] = await getDb().update(identityProviders).set({ clientSecretSealed: sealClientSecret(p.id, sim.clientSecret) }).where(eq(identityProviders.id, p.id)).returning();
+    [p] = await getDb().update(identityProviders).set({ clientSecretSealed: sealClientSecret(p.id, sim.clientSecret ?? "") }).where(eq(identityProviders.id, p.id)).returning();
   });
 
   beforeEach(() => {
@@ -171,7 +171,7 @@ describe("OIDC: authorization code with PKCE, state and nonce", () => {
       const { getDb } = await import("../queries/connection");
       const { identityProviders } = await import("@db/schema");
       const { eq } = await import("drizzle-orm");
-      const [withSecret] = await getDb().update(identityProviders).set({ clientSecretSealed: sealClientSecret(tp.id, entra.clientSecret) }).where(eq(identityProviders.id, tp.id)).returning();
+      const [withSecret] = await getDb().update(identityProviders).set({ clientSecretSealed: sealClientSecret(tp.id, entra.clientSecret ?? "") }).where(eq(identityProviders.id, tp.id)).returning();
       const { oidcStart, oidcCallback } = await import("./oidc");
       const ok = await oidcStart(withSecret, { relay: "/", mode: "login" });
       await expect(oidcCallback(withSecret, await entra.signIn(ok.url), ok.state)).resolves.toBeTruthy();
@@ -199,6 +199,17 @@ describe("OIDC: authorization code with PKCE, state and nonce", () => {
     const { accountFor } = await import("./accounts");
     const out = await accountFor(p, { subject: "jit-2", username: "linus@example.com", email: "linus@example.com", name: "Not Linus", groups: [] }, who);
     expect("user" in out && out.user.username).toBe("linus-2");
+  });
+
+  it("a SCIM account without externalId is linked by its userName once; another subject with that username never takes it", async () => {
+    const { q } = await import("../queries/connection");
+    await q("INSERT INTO scim_tokens (provider_id, token_hash, created_at) VALUES (?, 'hash-for-link-test', 1)", p.id);
+    const [{ id }] = await q<{ id: number }>("INSERT INTO users (username, display_name, auth_source, scim_managed, scim_user_name, created_at) VALUES ('kate', 'Kate', 'scim', 1, 'kate@example.com', 1) RETURNING id");
+    const { accountFor } = await import("./accounts");
+    const first = await accountFor(p, { subject: "sub-kate", username: "kate@example.com", email: "", name: "", groups: [] }, who);
+    expect("user" in first && first.user.id).toBe(id);
+    const other = await accountFor(p, { subject: "sub-impostor", username: "kate@example.com", email: "", name: "", groups: [] }, who);
+    expect("user" in other && other.user.id).not.toBe(id);
   });
 
   it("without JIT, an unknown person is not let in", async () => {
