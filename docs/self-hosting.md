@@ -114,8 +114,9 @@ From now on the Docker database is the only live copy. Development uses its own 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `DATABASE_URL` | — | Postgres connection string |
-| `SESSION_SECRET` | `pnpm dev`: fixed; prod, `dev:build`, `preview`, `dev:https`: **required** | Signs sessions and share links; seals tracker credentials when `CREDENTIALS_KEY` is unset |
-| `CREDENTIALS_KEY` (and `CREDENTIALS_KEY_OLD` to rotate) | from `SESSION_SECRET` | Seals tracker credentials (AES-256-GCM, bound to their connection); after a rotation the next start seals them again |
+| `SESSION_SECRET` | `pnpm dev`: fixed; prod, `dev:build`, `preview`, `dev:https`: **required** | Keys module code tokens and module progress files; seals stored secrets and signs share links when `CREDENTIALS_KEY` is unset (sessions are random ids, not signed with it). To change it, see [key rotation](it/runbook-rotation.md) |
+| `CREDENTIALS_KEY` (and `CREDENTIALS_KEY_OLD` to rotate) | from `SESSION_SECRET` | Seals stored secrets (tracker credentials and webhook secrets, mailbox sign-ins, mail copies, idea pictures; AES-256-GCM, bound to what they belong to) and signs share links; after a rotation the next start seals tracker credentials again, `cli.js reseal --apply` the rest ([key rotation](it/runbook-rotation.md)) |
+| `PUBLIC_URL` | unset | The canonical external URL users reach the server at (e.g. `https://time.example.com`), used for sign-in redirects; never taken from the request's `Host` header. Must be an `https://` or `http://` URL without user, query or fragment, otherwise the server refuses to start |
 | `PORT` | `3000` | Production port (Docker: `47823`) |
 | `INKLEDGER_ADMIN_PASSWORD` | prod: random, in `INITIAL_ADMIN_PASSWORD_PATH` (`data/initial-admin-password`, mode 0600); dev: `admin` | The first admin's password on a new server (it must be changed at the first sign-in) |
 | `SESSION_DAYS` | `30` | Lifetime of an unused session (sessions in use are renewed) |
