@@ -11,7 +11,8 @@ import { and, desc, eq, getTableColumns, gte, inArray, isNotNull, isNull, like, 
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { randomUUID } from "node:crypto";
-import { outbox, timerOps, worklogs, worklogSinks, worklogTrash, type Connection, type User } from "@db/schema";
+import { outbox, timerOps, worklogs, worklogSinks, worklogTrash, type Connection, type User, type Worklog } from "@db/schema";
+import { record, type AuditRequest } from "../lib/audit";
 import superjson from "superjson";
 import type { TrackerType } from "@contracts/providers";
 import {
@@ -294,6 +295,15 @@ async function onceLogged<T>(userId: number, opId: string | undefined, run: (log
   }
 }
 
+type Logged = Pick<Worklog, "id" | "userId" | "issueKey" | "connectionId" | "timeSpentSeconds" | "started">;
+type LoggedFields = Pick<Worklog, "issueKey" | "connectionId" | "timeSpentSeconds" | "started">;
+
+/** A worklog written by its user, in the audit log: when, how long, where; never its comment. */
+function auditWorklog(ctx: AuditRequest, action: "worklog.create" | "worklog.update" | "worklog.restore", w: Logged, before: LoggedFields | null, after: LoggedFields) {
+  const fields = (f: LoggedFields) => ({ issueKey: f.issueKey, connectionId: f.connectionId, seconds: f.timeSpentSeconds, started: f.started });
+  return record(ctx, action, { target: { type: "worklog", id: w.id, ownerUserId: w.userId }, before: before ? fields(before) : null, after: fields(after) });
+}
+
 export const worklogsRouter = createRouter({
   /**
    * A worklog changed here and on its tracker: keep this one (sent to the
@@ -331,6 +341,7 @@ export const worklogsRouter = createRouter({
           }
         }
         const [after] = await db.select().from(worklogs).where(eq(worklogs.id, row.id));
+        await record(ctx, "worklog.resolveConflict", { target: { type: "worklog", id: row.id, ownerUserId: row.userId }, after: { issueKey: row.issueKey, keep: input.keep } });
         return after;
       });
     }),
@@ -546,6 +557,7 @@ export const worklogsRouter = createRouter({
           left -= p.seconds;
           saved.push(one);
           logged();
+          await auditWorklog(ctx, "worklog.create", one, null, one);
           // Its time goes to the user's time sinks too, in the background.
           await markForSinks(ctx.user.id, one.id);
         }
@@ -622,6 +634,7 @@ export const worklogsRouter = createRouter({
       });
       await markForSinks(ctx.user.id, saved.id);
       sinksSoon(ctx.user.id);
+      await auditWorklog(ctx, "worklog.update", saved, current ? { started: current.started, timeSpentSeconds: current.seconds, issueKey: saved.issueKey, connectionId: saved.connectionId } : null, saved);
       return { ...saved, previousSeconds };
     }),
 
@@ -668,6 +681,7 @@ export const worklogsRouter = createRouter({
       // Its time goes to the user's time sinks again, as a new worklog's does.
       await markForSinks(ctx.user.id, saved.id);
       sinksSoon(ctx.user.id);
+      await auditWorklog(ctx, "worklog.restore", saved, null, saved);
       return saved;
     });
   }),
@@ -692,6 +706,7 @@ export const worklogsRouter = createRouter({
         try {
           const done = await deleteNow();
           if (whole) sinksSoon(ctx.user.id);
+          await record(ctx, "worklog.delete", { target: { type: "worklog", id: whole?.id ?? input.remoteId, ownerUserId: ctx.user.id }, before: { issueKey: input.issueKey, connectionId: conn.id, seconds: whole?.timeSpentSeconds ?? null } });
           return done;
         } catch (e) {
           // Still here (its tracker refused): its sinks keep their entries.

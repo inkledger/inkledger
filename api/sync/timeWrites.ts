@@ -25,6 +25,7 @@ import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCre
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
 import { trackerOfSink } from "./extraSinks";
 import { callMeta } from "../lib/callMeta";
+import { recordSystem } from "../lib/audit";
 
 /** Where one issue's time goes: its tracker, bound, the issue's reference there, the zone its dates are in. */
 export type ContractTime = { conn: Connection; b: BoundTracker; ref: IssueRef; zone: TimeZone };
@@ -484,7 +485,16 @@ async function queuedWorklog(entry: typeof outbox.$inferSelect, conn: Connection
  * attempt and the queue goes on.
  */
 export function replayContract(conn: Connection): Promise<ReplayResult> {
-  return oneReplay(`${conn.userId}:${conn.id}`, () => withOutboxLock(conn.userId, () => doReplay(conn)));
+  return oneReplay(`${conn.userId}:${conn.id}`, () =>
+    withOutboxLock(conn.userId, async () => {
+      const r = await doReplay(conn);
+      // Queued writes sent (or refused) in this pass: one event, not one per entry.
+      if (r.synced + r.failed > 0) {
+        await recordSystem({ kind: "sync", userId: conn.userId, label: conn.type }, "worklog.replay", { target: { type: "connection", id: conn.id, ownerUserId: conn.userId }, after: { connectionId: conn.id, synced: r.synced, failed: r.failed, remaining: r.remaining } });
+      }
+      return r;
+    }),
+  );
 }
 
 async function doReplay(conn: Connection): Promise<ReplayResult> {
