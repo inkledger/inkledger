@@ -74,6 +74,14 @@ jobs:
       - run: pnpm exec playwright-core install --with-deps chromium-headless-shell
       # One file at a time: two browsers and servers at once overload the runner (timeouts that vary from run to run).
       - run: pnpm build && node --test --test-concurrency=1 --test-timeout=300000 'e2e/*.test.mjs'
+      # A failed test's screenshots, HTML, console and server log (e2e/harness.mjs), to see what it waited on.
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-artifacts
+          path: e2e-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
 
   native:
     # The desktop shell: format, lints and tests (macOS: no system WebKit packages to install).

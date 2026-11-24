@@ -3,10 +3,11 @@
 // never reach a real Jira. Run with `pnpm test:e2e` (builds first).
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { afterEach } from "node:test";
 import { createHash, createCipheriv, randomBytes } from "node:crypto";
 import pg from "pg";
 import { chromium, webkit } from "playwright-core";
@@ -51,6 +52,42 @@ export function adminUrl() {
   if (!m) throw new Error("No Postgres for e2e: start `docker compose up -d db` and set DATABASE_URL in .env");
   return m[1].trim();
 }
+
+/**
+ * What a failed test leaves to look at (CI uploads it): every page's screenshot and HTML,
+ * the browser console, page errors, failed requests and the server log, in
+ * e2e-artifacts/<file>--<test>/. Taken at stop() (the browser closes there), kept only
+ * when the test failed. E2E_ARTIFACTS=0 skips it.
+ */
+export const ARTIFACTS = join(APP, "e2e-artifacts");
+const keepArtifacts = process.env.E2E_ARTIFACTS !== "0";
+/** Snapshots of the apps stopped during the running test. */
+let snapshots = [];
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(no, ms, new Error(`timed out after ${ms} ms`)).unref())]);
+if (keepArtifacts)
+  afterEach(t => {
+    const taken = snapshots;
+    snapshots = [];
+    if (t.passed || taken.length === 0) return;
+    const file = basename(process.argv.find(a => a.endsWith(".test.mjs")) ?? "e2e").replace(/\.test\.mjs$/, "");
+    const slug = `${file}--${t.name}`.replace(/[^\w.-]+/g, "-").slice(0, 120);
+    const dir = join(ARTIFACTS, slug);
+    try {
+      mkdirSync(dir, { recursive: true });
+      taken.forEach((s, i) => {
+        const at = taken.length > 1 ? `app${i + 1}-` : "";
+        writeFileSync(join(dir, `${at}console.log`), s.console.join("\n") + "\n");
+        writeFileSync(join(dir, `${at}server.log`), s.server);
+        s.pages.forEach((p, j) => {
+          if (p.png) writeFileSync(join(dir, `${at}page${j + 1}.png`), p.png);
+          writeFileSync(join(dir, `${at}page${j + 1}.html`), `<!-- ${p.url} · ${p.since} -->\n${p.html}`);
+        });
+      });
+      console.error(`e2e artifacts: ${dir}`);
+    } catch (e) {
+      console.error(`e2e artifacts not saved: ${e}`);
+    }
+  });
 
 /** Raw SQL with "?" placeholders (as tests are written), rows back. */
 function sqlHelper(client) {
@@ -246,6 +283,17 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       };
     }
     const errors = [];
+    // The browser's own account of the test, for the artifacts of a failure (capped: a chatty page can't fill the memory).
+    const consoleLines = [];
+    const note = line => consoleLines.length < 5000 && consoleLines.push(`${new Date().toISOString()} ${line}`);
+    const watch = p => {
+      p.on("console", m => note(`[${m.type()}] ${m.text()}`));
+      p.on("pageerror", e => note(`[pageerror] ${e}`));
+      p.on("requestfailed", r => note(`[requestfailed] ${r.method()} ${r.url()} ${r.failure()?.errorText ?? ""}`));
+      p.on("load", () => note(`[load] ${p.url()}`));
+    };
+    watch(page);
+    context.on("page", watch);
     // WebKit reports a same-origin fetch started while the page unloads (a refetch after a cancelled save) as a page error, caught or not.
     const unloading = e => ENGINE === "webkit" && /^Fetch API cannot load http:\s*\/*([^/\s]+)\/\S* due to access control checks\.$/.exec(String(e))?.[1] === new URL(base).host;
     // Playwright's own service-worker block, refused in a sandboxed frame (WebKit): no error of the app's.
@@ -260,6 +308,19 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       errors,
       log: () => log,
       async stop() {
+        if (keepArtifacts) {
+          // Every page of every context (a test may open its own), as it stands now; never more than a few seconds.
+          const pages = browser.contexts().flatMap(c => c.pages());
+          const shots = await Promise.all(
+            pages.map(async p => ({
+              url: p.url(),
+              since: await withTimeout(p.evaluate(() => `${Math.round(performance.now())} ms since the page loaded`), 2000).catch(() => "?"),
+              png: await withTimeout(p.screenshot({ timeout: 5000 }), 6000).catch(() => null),
+              html: await withTimeout(p.content(), 3000).catch(e => `(no HTML: ${e})`),
+            })),
+          ).catch(() => []);
+          snapshots.push({ pages: shots, console: consoleLines, server: log });
+        }
         await browser.close().catch(() => {});
         const exited = new Promise(r => server.once("exit", r));
         server.kill("SIGTERM");

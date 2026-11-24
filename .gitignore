@@ -17,3 +17,6 @@ studio/
 # Release builds and perf runs (pnpm dist, pnpm perf)
 release/
 perf/
+
+# What a failed e2e test leaves (e2e/harness.mjs)
+/e2e-artifacts/
