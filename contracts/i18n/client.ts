@@ -1,13 +1,14 @@
 // The page's i18n (swapped in for index.ts by vite.config.ts): English in the first
-// load (less the settings' and the server's texts, fetched at start: englishReady), another
+// load (less the texts only on-demand code says, fetched when idle: englishReady), another
 // language fetched when it is chosen (loadLocale, before it is used).
 import type { Locale } from "./core";
 import { hasDictionary, registerDictionary } from "./base";
 
 export * from "./base";
 
-// The rest of English (the settings' and the server's texts): fetched at once, never awaited
-// by the first paint. What needs it (a page other than the first ones, a dialog) awaits it.
+// The rest of English (the settings' and the server's texts, those only on-demand code says):
+// never awaited by the first paint, fetched once the page is idle (main.tsx). What needs it (a
+// page other than the first ones, a dialog) awaits it, and so fetches it first if need be.
 let english: Promise<void> | undefined;
 
 /** Resolves once all of English is here (a failed fetch is tried again on the next call). */
@@ -21,7 +22,6 @@ export function englishReady(): Promise<void> {
   );
   return english;
 }
-if ("window" in globalThis) void englishReady().catch(() => undefined);
 
 /** Fetches a language's texts once; until then its texts fall back to English. */
 export async function loadLocale(locale: Locale): Promise<void> {
