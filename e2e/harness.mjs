@@ -60,7 +60,9 @@ export function adminUrl() {
  * when the test failed. E2E_ARTIFACTS=0 skips it.
  */
 export const ARTIFACTS = join(APP, "e2e-artifacts");
-const keepArtifacts = process.env.E2E_ARTIFACTS !== "0";
+// Only in a test file's run: a script importing the harness (scripts/perf.mjs) gets no test hook or snapshots.
+const testFile = process.argv.find(a => a.endsWith(".test.mjs"));
+const keepArtifacts = process.env.E2E_ARTIFACTS !== "0" && !!testFile;
 /** Snapshots of the apps stopped during the running test. */
 let snapshots = [];
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(no, ms, new Error(`timed out after ${ms} ms`)).unref())]);
@@ -69,7 +71,7 @@ if (keepArtifacts)
     const taken = snapshots;
     snapshots = [];
     if (t.passed || taken.length === 0) return;
-    const file = basename(process.argv.find(a => a.endsWith(".test.mjs")) ?? "e2e").replace(/\.test\.mjs$/, "");
+    const file = basename(testFile).replace(/\.test\.mjs$/, "");
     const slug = `${file}--${t.name}`.replace(/[^\w.-]+/g, "-").slice(0, 120);
     const dir = join(ARTIFACTS, slug);
     try {
@@ -408,6 +410,15 @@ export const allDaySchedule = db =>
 export const minutesToday = () => {
   const d = new Date();
   return d.getHours() * 60 + d.getMinutes();
+};
+
+/**
+ * Too near midnight for a test about "today": in the last `before` ms of a day or its first
+ * `after` ms. For `skip`, when waiting it out (awayFromMidnight) would outlast the test's timeout.
+ */
+export const nearMidnight = (before, after) => {
+  const ms = Date.now() - new Date().setHours(0, 0, 0, 0);
+  return ms < after || 86_400_000 - ms < before;
 };
 
 /** A day as the app keys it (YYYY-MM-DD, local time). */
