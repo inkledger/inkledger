@@ -596,6 +596,9 @@ export const settings: Shape<typeof en> = {
     jiraKeywords: "jira collega sito token credenziali connessione",
     jiraNotConnected: "Non collegato",
     jiraNone: "Nessun tracker collegato: collegane uno per sincronizzare le issue e registrare il tempo.",
+    exportData: "I tuoi dati",
+    exportDataHint: "Uno ZIP con tutto ciò che è tuo su questo server: tempi, timer, pianificazioni, note, to-do, idee, impostazioni, connessioni (senza password né token) e gli eventi di audit che ti riguardano. Il tempo in un tracker si esporta dal tracker.",
+    exportDataButton: "Esporta",
   },
   connections: {
     sink: {
@@ -801,6 +804,13 @@ export const settings: Shape<typeof en> = {
     renameSave: "Salva",
     renamed: "Account rinominato",
     actions: "Azioni per {name}",
+    exportData: "Esporta i dati",
+    erase: "Cancella account…",
+    eraseTitle: "Cancella {name}",
+    eraseHint: "Elimina l'account e tutto ciò che contiene su questo server: tempi, timer, pianificazioni, note, to-do, idee, impostazioni e connessioni. Il log di audit conserva i suoi eventi come erased-user-{id}. Il tempo già in un tracker resta lì, e i backup più vecchi conservano i dati finché non vengono eliminati.",
+    eraseConfirmLabel: "Scrivi {username} per confermare",
+    eraseButton: "Cancella account",
+    erased: "Account cancellato",
     permission: {
       manageUsers: "Utenti",
       manageAuth: "Come si accede",
@@ -943,6 +953,8 @@ export const settings: Shape<typeof en> = {
         rename: "Ha rinominato un account",
         resetPassword: "Ha reimpostato una password",
         setDisabled: "Ha disattivato o riattivato un account",
+        exportData: "Ha esportato i dati di una persona",
+        erase: "Ha cancellato un account",
       },
       roles: {
         create: "Ha creato un ruolo",
