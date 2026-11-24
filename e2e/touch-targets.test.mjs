@@ -87,6 +87,8 @@ test("a dialog's and a sheet's close button is a 24 px target where the icon alw
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(base + "/");
     const size = async scope => {
+      // The open animation (zoom 95 % -> 100 %, slide) runs unless finished: wait for it, or the box is scaled.
+      await scope.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => undefined))));
       const box = await scope.getByRole("button", { name: "Close", exact: true }).last().boundingBox();
       return box && Math.min(box.width, box.height);
     };
