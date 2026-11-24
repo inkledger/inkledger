@@ -5,7 +5,7 @@ import { sessions, users, type User } from "@db/schema";
 import { hashSessionId } from "./lib/security";
 import { readSessionCookie, sessionCookie } from "./lib/session";
 import { env } from "./lib/env";
-import { can } from "./queries/accounts";
+import { holds, withAccess, type Account } from "./queries/accounts";
 import type { Permission } from "@contracts/accounts";
 
 export type TrpcContext = {
@@ -60,11 +60,13 @@ export async function userFromRequest(
  * tRPC holds it to: signed in, its password set (a forced change opens
  * nothing else), and the permission when the route needs one.
  */
-export async function restUser(req: Request, permission?: Permission): Promise<{ user: User } | { status: 401 | 403; error: string }> {
-  const { user } = await userFromRequest(req);
-  if (!user) return { status: 401, error: "Not logged in" };
-  if (user.mustChangePassword) return { status: 403, error: "PASSWORD_CHANGE_REQUIRED" };
-  if (permission && !can(user, permission)) return { status: 403, error: "Not allowed" };
+export async function restUser(req: Request, permission?: Permission): Promise<{ user: Account } | { status: 401 | 403; error: string }> {
+  const { user: found } = await userFromRequest(req);
+  if (!found) return { status: 401, error: "Not logged in" };
+  if (found.mustChangePassword) return { status: 403, error: "PASSWORD_CHANGE_REQUIRED" };
+  // The same resolver as tRPC's permProcedure.
+  const user = await withAccess(found);
+  if (permission && !holds(user, permission)) return { status: 403, error: "Not allowed" };
   return { user };
 }
 

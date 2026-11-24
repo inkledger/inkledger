@@ -63,7 +63,7 @@ export const server = {
     inviteInvalid: "This invite link has expired or was already used. Ask an admin for a new one.",
     noAccountToActivate: "No account to activate with this Jira login. Ask an admin for an invite.",
     alreadyActivated: "This account is already active: sign in with its username and password.",
-    lastAdmin: "The server needs at least one active admin.",
+    lastAdmin: "The server needs at least one active owner.",
     notYourself: "You can't do this to your own account.",
     jiraAccountInUse: "This Jira account is already connected to another inkledger account.",
   },
@@ -155,6 +155,15 @@ export const server = {
   },
   team: {
     notFound: "This account is not on the team report",
+  },
+  roles: {
+    notFound: "That role doesn't exist, or can't be an account's own role.",
+    system: "The roles every server starts with can't be changed.",
+    keyTaken: "A role with that key exists already.",
+  },
+  teams: {
+    notFound: "That team doesn't exist.",
+    nameTaken: "A team with that name exists already.",
   },
   weeks: {
     invalidDate: "Invalid week date",

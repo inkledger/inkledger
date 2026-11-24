@@ -4,32 +4,72 @@
 // the team report's, routers/team.ts, behind viewTeamTime).
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
-import { connections, settings, users, type User } from "@db/schema";
-import { PERMISSIONS } from "@contracts/accounts";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { connections, roleAssignments, settings, teamMembers, teams, users, type User } from "@db/schema";
+import { PERMISSIONS, type TeamRole } from "@contracts/accounts";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { can, createInvite, grantsOf, permissionsOf, roleOf, signOutEverywhere, storedGrants, storedPermissions, userById, within } from "../queries/accounts";
+import {
+  can,
+  createInvite,
+  grantedOf,
+  grantsOf,
+  holdsOwnerOnly,
+  parsePermissions,
+  permissionsOf,
+  roleById,
+  roleByKey,
+  roleOf,
+  scopedPermissionsOf,
+  signOutEverywhere,
+  storedGrants,
+  storedPermissions,
+  teamsOf,
+  userById,
+  withAccess,
+  withAccessAll,
+  within,
+  type Account,
+  type Granted,
+} from "../queries/accounts";
 import { hashPassword, temporaryPassword } from "../lib/password";
 import { assertFreeUsername, renameInput, renameValues, renameWrite } from "./auth";
 
 const manage = permProcedure("manageUsers");
 
 const access = z.object({
-  role: z.enum(["admin", "member"]),
+  /** Kept for older clients: "admin" is the owner role, "member" none (roleId says more). */
+  role: z.enum(["admin", "member"]).optional(),
+  /** The account's server-wide role (roles.list); null: none. Left out: as it is. */
+  roleId: z.number().int().positive().nullable().optional(),
+  /** Its own grants, besides its role's. */
   permissions: z.array(z.enum(PERMISSIONS)).max(PERMISSIONS.length),
   /** The add-on modules the account runs (with useModules); none unless given. */
   modules: z.array(moduleIdSchema).max(64).default([]),
+  /** The teams it is in, and where it leads (a lead reads the team's time). Left out: as they are. */
+  teams: z.array(z.object({ teamId: z.number().int().positive(), lead: z.boolean().default(false) })).max(100).optional(),
 });
 
-const row = (u: User) => ({
+type AccessInput = z.infer<typeof access>;
+type Place = { teamId: number; name: string; role: TeamRole };
+
+const row = (u: Account, places: Place[] = []) => ({
   id: u.id,
   username: u.username,
   displayName: u.displayName,
   role: roleOf(u),
+  /** The account's role: its key (owner for an admin of before roles), null for none */
+  roleId: u.access.role?.id ?? null,
+  roleKey: u.access.owner ? "owner" : (u.access.role?.key ?? null),
+  /** Effective server-wide permissions: its role's and its own */
   permissions: permissionsOf(u),
+  /** Its own grants alone (what the form edits beside the role) */
+  granted: parsePermissions(u.permissions),
+  /** Held only within teams (a lead's viewTeamTime) */
+  scopedPermissions: scopedPermissionsOf(u),
+  teams: places,
   modules: grantsOf(u),
   /** Hasn't set a password yet (invite pending, or an account from before local accounts) */
   pending: !u.passwordHash,
@@ -40,45 +80,109 @@ const row = (u: User) => ({
 
 /** An account as the audit log names it, and its access as it records it. */
 const userTarget = (u: User) => ({ type: "user", id: u.id, ownerUserId: u.id });
-const accessOf = (u: User) => ({ username: u.username, displayName: u.displayName, role: roleOf(u), permissions: permissionsOf(u), modules: grantsOf(u) });
+const accessOf = (u: Account, places: Place[]) => ({
+  username: u.username,
+  displayName: u.displayName,
+  role: u.access.owner ? "owner" : (u.access.role?.key ?? "member"),
+  permissions: permissionsOf(u),
+  modules: grantsOf(u),
+  teams: places.map((p) => `${p.name}${p.role === "lead" ? " (lead)" : ""}`),
+});
+const placesOf = async (id: number) => (await teamsOf([id])).get(id) ?? [];
 
 const notAllowed = () => new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
 
 /**
- * Within what `me` holds: an admin may anything; anyone else (an account manager
- * by permission) never an admin, nor a power it hasn't itself. Otherwise it could
- * hand one to an account it controls, or take over a bigger one (a reset, a link).
+ * Within what `me` holds: an owner may anything; anyone else (an account manager by
+ * permission or role) never the owner role, nor a power it hasn't itself (on the server, or
+ * in the team it is for), nor one only an owner hands out (manageUsers, manageAuth). Otherwise
+ * it could hand one to an account it controls, or take over a bigger one (a reset, a link).
  */
-function assertWithin(me: User, granted: { role: string; permissions: readonly string[]; modules: readonly string[] }) {
+function assertWithin(me: Account, granted: Granted) {
   if (!within(me, granted)) throw notAllowed();
-  // Nor another account manager: a non-admin couldn't manage it afterwards (assertAbove).
-  if (roleOf(me) !== "admin" && granted.permissions.includes("manageUsers")) throw notAllowed();
+  if (!me.access.owner && holdsOwnerOnly(granted)) throw notAllowed();
 }
 
 /**
- * An existing account `me` may change: within what it holds, and, unless `me` is an
- * admin, not another account manager (a peer could otherwise take it over first).
+ * An existing account `me` may change: within what it holds (compared as effective
+ * permission sets), and, unless `me` is an owner, not one holding a power only an owner
+ * hands out (a peer account manager could otherwise take it over first).
  */
-function assertAbove(me: User, user: User) {
-  assertWithin(me, { role: roleOf(user), permissions: permissionsOf(user), modules: grantsOf(user) });
-  if (roleOf(me) !== "admin" && can(user, "manageUsers")) throw notAllowed();
+function assertAbove(me: Account, user: Account) {
+  assertWithin(me, grantedOf(user));
 }
 
-async function target(id: number, me: User): Promise<User> {
+async function target(id: number, me: Account): Promise<Account> {
   if (id === me.id) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.notYourself") });
-  const user = await userById(id);
-  if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+  const found = await userById(id);
+  if (!found) throw new TRPCError({ code: "NOT_FOUND" });
+  const user = await withAccess(found);
   assertAbove(me, user);
   return user;
+}
+
+/** What an access input makes of the account (`current`: as it is now; none for a new one). */
+type Wanted = { roleId: number | null; owner: boolean; teams: { teamId: number; lead: boolean }[] | undefined; granted: Granted };
+
+async function wanted(input: AccessInput, current?: Account): Promise<Wanted> {
+  const ownerRole = await roleByKey("owner");
+  let roleId: number | null;
+  if (input.roleId !== undefined) roleId = input.roleId;
+  else if (input.role === "admin") roleId = ownerRole?.id ?? null;
+  else if (input.role === "member") roleId = current && current.roleId !== ownerRole?.id ? current.roleId : null;
+  else roleId = current?.roleId ?? null;
+  const role = roleId === null ? undefined : await roleById(roleId);
+  // A team role (team-lead) is held within a team, never as the account's own.
+  if (roleId !== null && (!role || role.scope !== "server")) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.roles.notFound") });
+  const owner = role ? role.key === "owner" : input.roleId === undefined && input.role === undefined && current?.role === "admin";
+  const teamsWanted = input.teams ? [...new Map(input.teams.map((p) => [p.teamId, p])).values()] : undefined;
+  if (teamsWanted && teamsWanted.length > 0) {
+    const ids = teamsWanted.map((p) => p.teamId);
+    const known = await getDb().select({ id: teams.id }).from(teams).where(inArray(teams.id, ids));
+    if (known.length !== ids.length) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.teams.notFound") });
+  }
+  const lead = await roleByKey("team-lead");
+  const extra = current?.access.extra ?? [];
+  const otherTeamRoles = (current?.access.teams ?? []).filter((x) => x.role.key !== "team-lead");
+  const leads = teamsWanted ? teamsWanted.filter((p) => p.lead).map((p) => p.teamId) : (current?.access.teams ?? []).filter((x) => x.role.key === "team-lead").map((x) => x.teamId);
+  const permissions = new Set<string>([...input.permissions, ...(role && role.scope === "server" ? role.permissions : []), ...extra.flatMap((r) => r.permissions)]);
+  return {
+    roleId,
+    owner,
+    teams: teamsWanted,
+    granted: {
+      owner,
+      permissions: PERMISSIONS.filter((p) => owner || permissions.has(p)),
+      teams: [...leads.map((teamId) => ({ teamId, permissions: lead?.permissions ?? [] })), ...otherTeamRoles.map((x) => ({ teamId: x.teamId, permissions: x.role.permissions }))],
+      modules: input.modules,
+    },
+  };
+}
+
+/** The account's teams as wanted: its places, and the team-lead role in each team it leads. */
+async function writeTeams(db: Tx, userId: number, places: { teamId: number; lead: boolean }[]) {
+  const lead = await roleByKey("team-lead", db);
+  await db.delete(teamMembers).where(eq(teamMembers.userId, userId));
+  if (lead) await db.delete(roleAssignments).where(and(eq(roleAssignments.userId, userId), eq(roleAssignments.roleId, lead.id), isNotNull(roleAssignments.teamId)));
+  if (places.length === 0) return;
+  await db.insert(teamMembers).values(places.map((p) => ({ teamId: p.teamId, userId, role: p.lead ? "lead" : "member" })));
+  const leads = places.filter((p) => p.lead);
+  if (lead && leads.length > 0) await db.insert(roleAssignments).values(leads.map((p) => ({ userId, roleId: lead.id, teamId: p.teamId })));
 }
 
 /**
  * The account as `target` checked it: a write by a manager matches it only if
  * nobody changed its access meanwhile (else it may be beyond the manager now).
  */
-function asChecked(user: User, me: User) {
-  if (roleOf(me) === "admin") return eq(users.id, user.id);
-  return and(eq(users.id, user.id), eq(users.role, user.role), eq(users.permissions, user.permissions), eq(users.moduleGrants, user.moduleGrants));
+function asChecked(user: User, me: Account) {
+  if (me.access.owner) return eq(users.id, user.id);
+  return and(
+    eq(users.id, user.id),
+    eq(users.role, user.role),
+    sql`${users.roleId} IS NOT DISTINCT FROM ${user.roleId}`,
+    eq(users.permissions, user.permissions),
+    eq(users.moduleGrants, user.moduleGrants),
+  );
 }
 
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
@@ -90,18 +194,19 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
  * each other off at once, or one promoted meanwhile, can't leave the server with none.
  */
 /** Whoever acts, read now: on, and managing accounts (else nothing it asked is done). */
-function assertActing(actor: User | undefined): asserts actor is User {
+function assertActing(actor: Account | undefined): asserts actor is Account {
   if (!actor || actor.disabledAt || !can(actor, "manageUsers")) throw notAllowed();
 }
 
 /** The acting account as it is now, not as signed in (turned off or demoted meanwhile). */
-async function actingNow(me: User): Promise<User> {
-  const actor = await userById(me.id);
+async function actingNow(me: User): Promise<Account> {
+  const found = await userById(me.id);
+  const actor = found ? await withAccess(found) : undefined;
   assertActing(actor);
   return actor;
 }
 
-async function writeAccount<T>(me: User, target: User, takesAway: boolean, write: (db: Tx, me: User) => Promise<T>): Promise<T> {
+async function writeAccount<T>(me: User, target: Account, takesAway: boolean, write: (db: Tx, me: Account) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
     const admins = await tx
       .select({ id: users.id })
@@ -111,7 +216,8 @@ async function writeAccount<T>(me: User, target: User, takesAway: boolean, write
       .for("update");
     // Whoever acts, as now, not as signed in: still on, still managing accounts, still
     // above the account as it was checked (turned off or demoted meanwhile, it writes nothing).
-    const [actor] = await tx.select().from(users).where(eq(users.id, me.id)).for("share");
+    const [found] = await tx.select().from(users).where(eq(users.id, me.id)).for("share");
+    const actor = found ? await withAccess(found, tx) : undefined;
     assertActing(actor);
     assertAbove(actor, target);
     const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt }).from(users).where(eq(users.id, target.id));
@@ -128,6 +234,8 @@ const inviteLink = (token: string) => `/invite/${token}`;
 export const usersRouter = createRouter({
   /** Every account; of their trackers only how many (T6: never which, or what they hold). */
   list: manage.query(async () => {
+    const all = await withAccessAll(await getDb().select().from(users).orderBy(asc(users.id)));
+    const places = await teamsOf(all.map((u) => u.id));
     const counts = new Map(
       (
         await getDb()
@@ -137,7 +245,7 @@ export const usersRouter = createRouter({
           .groupBy(connections.userId)
       ).map((c) => [c.userId, c.n]),
     );
-    return (await getDb().select().from(users).orderBy(asc(users.id))).map((u) => ({ ...row(u), connections: counts.get(u.id) ?? 0 }));
+    return all.map((u) => ({ ...row(u, places.get(u.id)), connections: counts.get(u.id) ?? 0 }));
   }),
 
   /** A new account and its one-time invite link (no mail leaves the server: the admin hands it over). */
@@ -145,19 +253,26 @@ export const usersRouter = createRouter({
     .input(access.extend({ username: z.string().min(1).max(64), displayName: z.string().trim().min(1).max(80) }))
     .mutation(async ({ input, ctx }) => {
       const me = await actingNow(ctx.user);
-      assertWithin(me, input);
+      const want = await wanted(input);
+      assertWithin(me, want.granted);
       const username = input.username.trim().toLowerCase();
       await assertFreeUsername(username);
       // Taken meanwhile (two invites of one name at once): refused as taken.
-      const [user] = await renameWrite(() =>
-        getDb()
-          .insert(users)
-          .values({ username, displayName: input.displayName, role: input.role, permissions: storedPermissions(input.permissions), moduleGrants: storedGrants(input.modules) })
-          .returning(),
+      const [made] = await renameWrite(() =>
+        getDb().transaction(async (tx) => {
+          const out = await tx
+            .insert(users)
+            .values({ username, displayName: input.displayName, role: want.owner ? "admin" : "member", roleId: want.roleId, permissions: storedPermissions(input.permissions), moduleGrants: storedGrants(input.modules) })
+            .returning();
+          if (want.teams) await writeTeams(tx, out[0].id, want.teams);
+          return out;
+        }),
       );
+      const user = await withAccess(made);
+      const places = await placesOf(user.id);
       const { token, expiresAt } = await createInvite(user.id, me.id);
-      ctx.audit.set({ target: userTarget(user), after: accessOf(user) });
-      return { user: row(user), link: inviteLink(token), expiresAt };
+      ctx.audit.set({ target: userTarget(user), after: accessOf(user, places) });
+      return { user: row(user, places), link: inviteLink(token), expiresAt };
     }),
 
   /** A new invite link for an account that hasn't set its password yet (the old link stops working). */
@@ -171,20 +286,27 @@ export const usersRouter = createRouter({
     return { link: inviteLink(token), expiresAt };
   }),
 
+  /** Role, own grants, modules and teams; the owner role and users.role "admin" always go together. */
   setAccess: manage.input(access.extend({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
-    assertWithin(ctx.user, input);
-    const [updated] = await writeAccount(ctx.user, user, input.role !== "admin", (db, me) => {
-      assertWithin(me, input);
-      return db
+    const want = await wanted(input, user);
+    assertWithin(ctx.user, want.granted);
+    const before = await placesOf(user.id);
+    const [updated] = await writeAccount(ctx.user, user, !want.owner, async (db, me) => {
+      assertWithin(me, want.granted);
+      const out = await db
         .update(users)
-        .set({ role: input.role, permissions: storedPermissions(input.permissions), moduleGrants: storedGrants(input.modules) })
+        .set({ role: want.owner ? "admin" : "member", roleId: want.roleId, permissions: storedPermissions(input.permissions), moduleGrants: storedGrants(input.modules) })
         .where(asChecked(user, me))
         .returning();
+      if (out[0] && want.teams) await writeTeams(db, user.id, want.teams);
+      return out;
     });
     if (!updated) throw notAllowed();
-    ctx.audit.set({ target: userTarget(updated), before: accessOf(user), after: accessOf(updated) });
-    return row(updated);
+    const now = await withAccess(updated);
+    const places = await placesOf(now.id);
+    ctx.audit.set({ target: userTarget(now), before: accessOf(user, before), after: accessOf(now, places) });
+    return row(now, places);
   }),
 
   /** Another account's name and username; it stays signed in (its sessions know the account, not its name). */
@@ -196,7 +318,7 @@ export const usersRouter = createRouter({
     );
     if (!updated) throw notAllowed();
     ctx.audit.set({ target: userTarget(updated), before: { username: user.username, displayName: user.displayName }, after: { username: updated.username, displayName: updated.displayName } });
-    return row(updated);
+    return row(await withAccess(updated), await placesOf(updated.id));
   }),
 
   /** A temporary password, shown once; the account must change it at its next sign-in, and is signed out everywhere. */
@@ -228,6 +350,6 @@ export const usersRouter = createRouter({
     if (!updated) throw notAllowed();
     if (input.disabled) await signOutEverywhere(user.id);
     ctx.audit.set({ target: userTarget(updated), before: { username: user.username, disabled: Boolean(user.disabledAt) }, after: { username: updated.username, disabled: Boolean(updated.disabledAt) } });
-    return row(updated);
+    return row(await withAccess(updated), await placesOf(updated.id));
   }),
 });

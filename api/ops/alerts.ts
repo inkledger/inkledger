@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { eq, isNull } from "drizzle-orm";
 import { connections, connectionSync, notifications, users } from "@db/schema";
 import { getDb } from "../queries/connection";
-import { can } from "../queries/accounts";
+import { can, withAccessAll } from "../queries/accounts";
 import { getServerSetting, setServerSetting, updateServerSetting } from "../lib/serverSettings";
 import { openFor, sealFor } from "../lib/crypto";
 import { hmacHex } from "../lib/secrets";
@@ -112,7 +112,7 @@ export async function raiseAlert(alert: Alert, now = Date.now()): Promise<boolea
 /** Who is told in-app: the connection's owner, else every account that runs the server. */
 async function recipients(alert: Alert): Promise<number[]> {
   if (alert.userId !== undefined) return [alert.userId];
-  const rows = await getDb().select({ id: users.id, role: users.role, permissions: users.permissions }).from(users).where(isNull(users.disabledAt));
+  const rows = await withAccessAll(await getDb().select().from(users).where(isNull(users.disabledAt)));
   return rows.filter((u) => can(u, "manageServer")).map((u) => u.id);
 }
 

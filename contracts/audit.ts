@@ -17,7 +17,8 @@ export const REDACTED = "[redacted]";
 export const SIGN_IN_METHODS = ["password", "remembered", "invite", "activation", "sso", "scim"] as const;
 export type SignInMethod = (typeof SIGN_IN_METHODS)[number];
 
-const ACCESS = ["role", "permissions", "modules"] as const;
+const ACCESS = ["role", "permissions", "modules", "teams"] as const;
+const ROLE = ["key", "name", "scope", "permissions"] as const;
 
 /**
  * Every action and the fields of its before/after that are kept as they are. A closed list:
@@ -37,6 +38,15 @@ export const AUDIT_ACTIONS = {
   "users.rename": ["username", "displayName"],
   "users.resetPassword": ["username"],
   "users.setDisabled": ["username", "disabled"],
+  // Roles and teams (Settings › Users, Settings › Teams)
+  "roles.create": ROLE,
+  "roles.update": ROLE,
+  "roles.remove": ROLE,
+  "teams.create": ["name"],
+  "teams.rename": ["name"],
+  "teams.remove": ["name"],
+  "teams.setMember": ["team", "username", "role"],
+  "teams.removeMember": ["team", "username", "role"],
   // One's own settings
   "settings.update": [
     "dailyTargetSeconds",
@@ -96,6 +106,7 @@ export const AUDIT_ACTIONS = {
   "backup.update": ["schedule", "time", "weekday", "keep"],
   "backup.run": ["name", "scheduled"],
   "backup.restore": ["name"],
+  "backup.download": ["name", "size"],
   "restore.completed": ["name", "safety", "preRestoreLastHash"],
   // Reading other people's time
   "team.overview": ["from", "to"],

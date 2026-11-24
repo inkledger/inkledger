@@ -4,50 +4,161 @@ import { randomBytes } from "node:crypto";
 import { sha256Hex } from "../lib/hash";
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
-import { invites, rememberedDevices, sessions, users, type User } from "@db/schema";
-import { DEFAULT_ADMIN, INVITE_DAYS, PERMISSIONS, type Permission, type Role } from "@contracts/accounts";
+import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { invites, rememberedDevices, roleAssignments, roles, sessions, teamMembers, teams, users, type RoleRow, type User } from "@db/schema";
+import { DEFAULT_ADMIN, INVITE_DAYS, OWNER_ONLY_PERMISSIONS, PERMISSIONS, type Permission, type Role, type RoleScope, type TeamRole } from "@contracts/accounts";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { env } from "../lib/env";
 import { parseStringList } from "../lib/json";
 import { hashPassword } from "../lib/password";
-import { getDb } from "./connection";
+import { getDb, type Db } from "./connection";
 
 const isPermission = (x: unknown): x is Permission => typeof x === "string" && (PERMISSIONS as readonly string[]).includes(x);
 
-/** What the user may do on the server: everything for an admin, what was granted otherwise. */
-export function permissionsOf(user: Pick<User, "role" | "permissions">): Permission[] {
-  if (user.role === "admin") return [...PERMISSIONS];
-  const granted = parseStringList(user.permissions);
+/** Known permissions out of stored JSON, in PERMISSIONS order. */
+export const parsePermissions = (stored: string | null | undefined): Permission[] => {
+  const granted = parseStringList(stored ?? "[]");
   return PERMISSIONS.filter((p) => granted.includes(p));
+};
+
+/** A role as access reads it. */
+export type RoleAccess = { id: number; key: string; name: string; scope: RoleScope; system: boolean; permissions: Permission[] };
+
+export const roleAccess = (r: RoleRow): RoleAccess => ({
+  id: r.id,
+  key: r.key,
+  name: r.name,
+  scope: r.scope === "team" ? "team" : "server",
+  system: r.system === 1,
+  // The owner holds every permission, whatever is stored (later ones too).
+  permissions: r.key === "owner" ? [...PERMISSIONS] : parsePermissions(r.permissions),
+});
+
+/**
+ * What an account holds besides its own grants: owner or not, its role (users.role_id),
+ * other roles held server-wide, and roles held within a team (a lead's team-lead).
+ */
+export type Access = {
+  owner: boolean;
+  role: RoleAccess | null;
+  extra: RoleAccess[];
+  teams: { teamId: number; role: RoleAccess }[];
+};
+
+/** An account with its access read (withAccess): what the resolver below takes. */
+export type Account = User & { access: Access };
+
+/** The roles' table, by id (one read per call: access is read per request). */
+/** Where access is read from: the database, or a transaction under way (never the other while one is open). */
+export type Reader = Pick<Db, "select">;
+
+async function rolesById(ids: number[], db: Reader = getDb()): Promise<Map<number, RoleAccess>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db.select().from(roles).where(inArray(roles.id, ids));
+  return new Map(rows.map((r) => [r.id, roleAccess(r)]));
 }
 
-export const can = (user: Pick<User, "role" | "permissions">, permission: Permission) => permissionsOf(user).includes(permission);
+/** The account's access, read now: its role, and the roles assigned to it (server-wide or per team). */
+export async function withAccess(user: User, db: Reader = getDb()): Promise<Account> {
+  const assigned = await db.select({ roleId: roleAssignments.roleId, teamId: roleAssignments.teamId }).from(roleAssignments).where(eq(roleAssignments.userId, user.id));
+  const byId = await rolesById([...new Set([...(user.roleId === null ? [] : [user.roleId]), ...assigned.map((a) => a.roleId)])], db);
+  const role = user.roleId === null ? null : (byId.get(user.roleId) ?? null);
+  const extra: RoleAccess[] = [];
+  const teams: Access["teams"] = [];
+  for (const a of assigned) {
+    const r = byId.get(a.roleId);
+    if (!r) continue;
+    if (a.teamId === null) extra.push(r);
+    else teams.push({ teamId: a.teamId, role: r });
+  }
+  // users.role "admin" is the owner role (older rows, tests, the first admin); role_id names it too.
+  const owner = user.role === "admin" || role?.key === "owner";
+  return { ...user, access: { owner, role, extra, teams } };
+}
 
-type Access = Pick<User, "role" | "permissions" | "moduleGrants">;
+/** Accounts with their access, for several at once. */
+export const withAccessAll = (list: User[]): Promise<Account[]> => Promise.all(list.map((u) => withAccess(u)));
 
-/** The module ids granted to the account, as stored (an admin's don't matter: it runs every module). */
+/**
+ * The single resolver: what the account may do on the whole server. An owner, all of it;
+ * anyone else its role's, the roles held server-wide, and its own grants. A role meant for
+ * teams (team-lead) given as the account's role holds nothing server-wide.
+ */
+export function permissionsOf(user: Account): Permission[] {
+  if (user.access.owner) return [...PERMISSIONS];
+  const held = new Set<Permission>(parsePermissions(user.permissions));
+  for (const r of [user.access.role, ...user.access.extra]) {
+    if (r && (r.scope === "server" || user.access.extra.includes(r))) for (const p of r.permissions) held.add(p);
+  }
+  return PERMISSIONS.filter((p) => held.has(p));
+}
+
+export const can = (user: Account, permission: Permission) => permissionsOf(user).includes(permission);
+
+/** Where the account holds a permission: the whole server, or these teams (none: nowhere). */
+export function scopeOf(user: Account, permission: Permission): "all" | number[] {
+  if (can(user, permission)) return "all";
+  return [...new Set(user.access.teams.filter((t) => t.role.permissions.includes(permission)).map((t) => t.teamId))].sort((a, b) => a - b);
+}
+
+/** Holds it anywhere: server-wide or within a team (what a procedure's gate asks). */
+export const holds = (user: Account, permission: Permission) => {
+  const scope = scopeOf(user, permission);
+  return scope === "all" || scope.length > 0;
+};
+
+/** Permissions held only within teams (a lead's viewTeamTime), for the client. */
+export const scopedPermissionsOf = (user: Account): Permission[] => PERMISSIONS.filter((p) => !can(user, p) && holds(user, p));
+
+/** The module ids granted to the account, as stored (an owner's don't matter: it runs every module). */
 export function grantsOf(user: Pick<User, "moduleGrants">): string[] {
   return parseStringList(user.moduleGrants).filter((g) => moduleIdSchema.safeParse(g).success);
 }
 
-/** Whether the account runs this module: an admin runs every one; anyone else needs useModules and the module granted. */
-export const mayRunModule = (user: Access, id: string) =>
-  roleOf(user) === "admin" || (can(user, "useModules") && grantsOf(user).includes(id));
+/** Whether the account runs this module: an owner runs every one; anyone else needs useModules and the module granted. */
+export const mayRunModule = (user: Account, id: string) => user.access.owner || (can(user, "useModules") && grantsOf(user).includes(id));
+
+/** Access as the escalation guard compares it: owner or not, the effective sets, per team too. */
+export type Granted = {
+  owner: boolean;
+  permissions: readonly string[];
+  teams: readonly { teamId: number; permissions: readonly string[] }[];
+  modules: readonly string[];
+};
+
+/** What an account holds, as `Granted`. */
+export const grantedOf = (user: Account): Granted => ({
+  owner: user.access.owner,
+  permissions: permissionsOf(user),
+  teams: user.access.teams.map((t) => ({ teamId: t.teamId, permissions: t.role.permissions })),
+  modules: grantsOf(user),
+});
 
 /**
- * `granted` is within what `by` holds: an admin holds anything; anyone else never admin,
- * nor a power it lacks, nor a module it doesn't run itself.
+ * `granted` is within what `by` holds: an owner holds anything; anyone else never
+ * the owner role, nor a power it lacks (on the server, or in that team), nor a module it
+ * doesn't run itself.
  */
-export function within(by: Access, granted: { role: string; permissions: readonly string[]; modules: readonly string[] }): boolean {
-  if (roleOf(by) === "admin") return true;
+export function within(by: Account, granted: Granted): boolean {
+  if (by.access.owner) return true;
   const mine: readonly string[] = permissionsOf(by);
   return (
-    granted.role !== "admin" &&
+    !granted.owner &&
     granted.permissions.every((p) => mine.includes(p)) &&
+    granted.teams.every((t) =>
+      t.permissions.every((p) => {
+        if (!isPermission(p)) return false;
+        const scope = scopeOf(by, p);
+        return scope === "all" || scope.includes(t.teamId);
+      }),
+    ) &&
     granted.modules.every((m) => mayRunModule(by, m))
   );
 }
+
+/** Holds a power only an owner hands out (OWNER_ONLY_PERMISSIONS), on the server or in a team. */
+export const holdsOwnerOnly = (g: Granted) =>
+  g.owner || g.permissions.some((p) => (OWNER_ONLY_PERMISSIONS as readonly string[]).includes(p)) || g.teams.some((t) => t.permissions.some((p) => (OWNER_ONLY_PERMISSIONS as readonly string[]).includes(p)));
 
 /** Permissions as stored: known ones only, in a stable order. */
 export const storedPermissions = (granted: readonly unknown[]) => JSON.stringify(PERMISSIONS.filter((p) => granted.some((g) => isPermission(g) && g === p)));
@@ -56,7 +167,45 @@ export const storedPermissions = (granted: readonly unknown[]) => JSON.stringify
 export const storedGrants = (granted: readonly string[]) =>
   JSON.stringify([...new Set(granted.filter((g) => moduleIdSchema.safeParse(g).success))].sort());
 
+/** users.role as older builds read it: "admin" for an owner. */
 export const roleOf = (user: Pick<User, "role">): Role => (user.role === "admin" ? "admin" : "member");
+
+/** A role by its key (the system ones always exist: their migration seeds them). */
+export async function roleByKey(key: string, db: Reader = getDb()): Promise<RoleAccess | undefined> {
+  const [row] = await db.select().from(roles).where(eq(roles.key, key)).limit(1);
+  return row ? roleAccess(row) : undefined;
+}
+
+export async function roleById(id: number, db: Reader = getDb()): Promise<RoleAccess | undefined> {
+  return (await rolesById([id], db)).get(id);
+}
+
+/** Every role, system ones first. */
+export async function listRoles(): Promise<RoleAccess[]> {
+  const rows = await getDb().select().from(roles).orderBy(desc(roles.system), asc(roles.id));
+  return rows.map(roleAccess);
+}
+
+/** The teams an account is in, with its place in each. */
+export async function teamsOf(userIds: number[]): Promise<Map<number, { teamId: number; name: string; role: TeamRole }[]>> {
+  const out = new Map<number, { teamId: number; name: string; role: TeamRole }[]>(userIds.map((id) => [id, []]));
+  if (userIds.length === 0) return out;
+  const rows = await getDb()
+    .select({ userId: teamMembers.userId, teamId: teams.id, name: teams.name, role: teamMembers.role })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+    .where(inArray(teamMembers.userId, userIds))
+    .orderBy(asc(teams.name));
+  for (const r of rows) out.get(r.userId)?.push({ teamId: r.teamId, name: r.name, role: r.role === "lead" ? "lead" : "member" });
+  return out;
+}
+
+/** The accounts in these teams. */
+export async function membersOf(teamIds: readonly number[]): Promise<number[]> {
+  if (teamIds.length === 0) return [];
+  const rows = await getDb().selectDistinct({ userId: teamMembers.userId }).from(teamMembers).where(inArray(teamMembers.teamId, [...teamIds]));
+  return rows.map((r) => r.userId);
+}
 
 export async function userByUsername(username: string): Promise<User | undefined> {
   const [row] = await getDb()
@@ -98,10 +247,12 @@ export async function ensureAdmin(o: { production?: boolean; password?: string |
     chmodSync(file, 0o600);
     console.log(`[accounts] the "${DEFAULT_ADMIN}" account's first password is in ${file}: sign in and change it`);
   }
+  const owner = await roleByKey("owner");
   await db.insert(users).values({
     username: DEFAULT_ADMIN,
     displayName: "Admin",
     role: "admin",
+    roleId: owner?.id ?? null,
     passwordHash: await hashPassword(password),
     mustChangePassword: 1,
   });
@@ -169,9 +320,10 @@ export async function inviteUser(token: string): Promise<{ inviteId: string; use
     .where(and(eq(invites.id, id), isNull(invites.usedAt), gt(invites.expiresAt, new Date()), isNull(users.disabledAt), isNull(users.passwordHash)))
     .limit(1);
   if (!row) return null;
-  const maker = row.createdBy === null ? null : await userById(row.createdBy);
+  const found = row.createdBy === null ? undefined : await userById(row.createdBy);
+  const maker = found ? await withAccess(found) : null;
   // Its maker must still be able to make it: on, managing accounts, holding what the account has.
-  if (maker && (maker.disabledAt || !can(maker, "manageUsers") || !within(maker, { role: roleOf(row.user), permissions: permissionsOf(row.user), modules: grantsOf(row.user) }))) return null;
+  if (maker && (maker.disabledAt || !can(maker, "manageUsers") || !within(maker, grantedOf(await withAccess(row.user))))) return null;
   return { inviteId: id, user: row.user };
 }
 

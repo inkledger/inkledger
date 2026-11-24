@@ -71,6 +71,14 @@ const CASES: Record<string, { input: (t: { member: number }) => unknown; action?
   "users.rename": { input: ({ member }) => ({ id: member, displayName: "Renamed", username: `ren${Date.now()}` }) },
   "users.resetPassword": { input: ({ member }) => ({ id: member }) },
   "users.setDisabled": { input: ({ member }) => ({ id: member, disabled: false }) },
+  "roles.create": { input: () => ({ key: `r${Date.now()}`, name: "Ops", permissions: ["manageServer"] }) },
+  "roles.update": { input: () => ({ id: 999_999, name: "Gone", permissions: [] }) },
+  "roles.remove": { input: () => ({ id: 999_999 }) },
+  "teams.create": { input: () => ({ name: `Team ${Date.now()}` }) },
+  "teams.rename": { input: () => ({ id: 999_999, name: "Gone" }) },
+  "teams.remove": { input: () => ({ id: 999_999 }) },
+  "teams.setMember": { input: ({ member }) => ({ teamId: 999_999, userId: member, role: "member" }) },
+  "teams.removeMember": { input: ({ member }) => ({ teamId: 999_999, userId: member }) },
 };
 
 let n = 0;
@@ -145,6 +153,25 @@ describe("every mutation behind a permission writes exactly one event", () => {
     const [e] = await since(before);
     expect(JSON.parse(e.before ?? "{}")).toMatchObject({ role: "member", permissions: [] });
     expect(JSON.parse(e.after ?? "{}")).toMatchObject({ role: "member", permissions: ["viewAudit"] });
+  });
+
+  it("a role or a team given keeps what it was and what it became; a lead made in Teams too", async () => {
+    const admin = await account("admin");
+    const member = await account("member");
+    const [auditor] = await q<{ id: number }>("SELECT id FROM roles WHERE key = 'auditor'");
+    const team = await admin.caller.teams.create({ name: `Audited ${Date.now()}` });
+    let before = await lastId();
+    await admin.caller.users.setAccess({ id: member.id, roleId: auditor.id, permissions: [], modules: [], teams: [{ teamId: team.id, lead: false }] });
+    const [e] = await since(before);
+    expect([e.action, e.outcome]).toEqual(["users.setAccess", "ok"]);
+    expect(JSON.parse(e.before ?? "{}")).toMatchObject({ role: "member", permissions: [], teams: [] });
+    expect(JSON.parse(e.after ?? "{}")).toMatchObject({ role: "auditor", permissions: ["viewAudit", "exportAudit"], teams: [team.name] });
+    before = await lastId();
+    await admin.caller.teams.setMember({ teamId: team.id, userId: member.id, role: "lead" });
+    const [lead] = await since(before);
+    expect([lead.action, lead.outcome, lead.actor_user_id]).toEqual(["teams.setMember", "ok", admin.id]);
+    expect(JSON.parse(lead.before ?? "{}")).toMatchObject({ role: "member" });
+    expect(JSON.parse(lead.after ?? "{}")).toMatchObject({ role: "lead" });
   });
 });
 
