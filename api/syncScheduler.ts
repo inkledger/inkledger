@@ -30,7 +30,7 @@ function credentialsRejected(e: unknown): boolean {
 
 /**
  * Users with at least one live session and a tracker connection working or
- * out of reach: a logout stops their background sync, an account with nothing
+ * out of reach, never a disabled account: a logout stops their background sync, an account with nothing
  * connected has nothing to sync, and a connection waiting to be reconnected is
  * left alone.
  */
@@ -39,7 +39,8 @@ export async function activeUsers(now: Date = new Date()): Promise<User[]> {
     .selectDistinct({ user: users })
     .from(users)
     .innerJoin(sessions, and(eq(sessions.userId, users.id), gt(sessions.expiresAt, now)))
-    .innerJoin(connections, and(eq(connections.userId, users.id), isNull(connections.archivedAt), inArray(connections.status, RETRIED)));
+    .innerJoin(connections, and(eq(connections.userId, users.id), isNull(connections.archivedAt), inArray(connections.status, RETRIED)))
+    .where(isNull(users.disabledAt));
   return rows.map((r) => r.user);
 }
 
