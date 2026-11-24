@@ -106,13 +106,13 @@ function IdeaFields({ idea, doc, onPromote, onDiscard, onDelete, markDirty }: { 
     },
   });
   const save = (patch: Omit<Parameters<typeof update.mutate>[0], "id">) => {
-    // The lists are sent whole and the server replaces them: shown at once, so the next action (before
-    // any read comes back) builds on this one's list, not on the one before it.
+    // Cached at once, so a close and immediate reopen cannot put back an older field. The lists are
+    // sent whole and replaced: the next action builds on this one's list, even before a read comes back.
     pendingSaves.current++;
     void utils.ideas.get.cancel({ id: idea.id });
-    const { acceptance, questions, labels } = patch;
+    const { title, body, acceptance, questions, labels } = patch;
     utils.ideas.get.setData({ id: idea.id }, old =>
-      old ? { ...old, ...(acceptance ? { acceptance } : {}), ...(questions ? { questions } : {}), ...(labels ? { labels } : {}) } : old
+      old ? { ...old, ...(title !== undefined ? { title } : {}), ...(body !== undefined ? { body } : {}), ...(acceptance ? { acceptance } : {}), ...(questions ? { questions } : {}), ...(labels ? { labels } : {}) } : old
     );
     update.mutate({ id: idea.id, ...patch });
   };
