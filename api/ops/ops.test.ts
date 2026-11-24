@@ -94,6 +94,8 @@ describe("routes", { timeout: 60_000 }, () => {
       "inkledger_connections",
       "inkledger_outbox_depth",
       "inkledger_backup_last_success_timestamp_seconds",
+      "inkledger_backup_offsite_last_success_timestamp_seconds",
+      "inkledger_backup_drill_success",
       "inkledger_sse_streams",
       "inkledger_sync_passes_total",
       "inkledger_login_failures_total",

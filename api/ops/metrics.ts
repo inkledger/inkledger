@@ -22,6 +22,10 @@ export type Gauges = {
   connections: () => Promise<{ type: string; status: string; count: number }[]>;
   outbox: () => Promise<number>;
   backupLastOk: () => Promise<number | null>;
+  /** When the last off-site copy landed (ms), null when none or off */
+  offsiteLastOk: () => Promise<number | null>;
+  /** The last restore drill: passed or not, null when none yet */
+  drillOk: () => Promise<boolean | null>;
   streams: () => number;
 };
 
@@ -83,6 +87,17 @@ function withGauges(m: Metrics): Metrics {
   scraped(reg, "inkledger_backup_last_success_timestamp_seconds", "When the last backup succeeded (Unix time; 0 when none yet)", [], async (gauge) => {
     const read = gauges()?.backupLastOk;
     if (read) gauge.set({}, ((await read()) ?? 0) / 1000);
+  });
+  scraped(reg, "inkledger_backup_offsite_last_success_timestamp_seconds", "When the last off-site copy of a backup landed (Unix time; 0 when none or off)", [], async (gauge) => {
+    const read = gauges()?.offsiteLastOk;
+    if (read) gauge.set({}, ((await read()) ?? 0) / 1000);
+  });
+  scraped(reg, "inkledger_backup_drill_success", "The last restore drill: 1 passed, 0 failed, -1 none yet", [], async (gauge) => {
+    const read = gauges()?.drillOk;
+    if (read) {
+      const ok = await read();
+      gauge.set({}, ok === null ? -1 : ok ? 1 : 0);
+    }
   });
   scraped(reg, "inkledger_sse_streams", "Open live-event streams (server-sent events)", [], (gauge) => {
     const read = gauges()?.streams;
