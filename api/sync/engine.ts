@@ -16,6 +16,8 @@ import { syncIssues, type IssuePassResult } from "./issues";
 import { entriesOf, syncEntries } from "./worklogs";
 import { liveTombs, tombsEnded } from "./timeWrites";
 import { acquire, failed, HEARTBEAT_MS, LeaseLostError, renew, succeeded } from "./state";
+import { normalizeError } from "../providers/core/errors";
+import { noteSyncFailure, noteSyncPass } from "../ops/metrics";
 import { observePass } from "./observe";
 import { insertNotifications } from "../routers/notifications";
 import { callMeta } from "../lib/callMeta";
@@ -31,7 +33,7 @@ export type StreamRun<R> =
  * says so).
  */
 export async function withStream<R>(
-  conn: Pick<Connection, "id">,
+  conn: Pick<Connection, "id"> & Partial<Pick<Connection, "type">>,
   stream: Stream,
   opts: { full: boolean; background: boolean },
   /** `full`: what the pass ran, when it decides (a first sync is always full). */
@@ -46,11 +48,15 @@ export async function withStream<R>(
     const out = await pass(opts.full ? null : (got.state.checkpoint as Checkpoint | null));
     clearInterval(beat);
     await succeeded(conn.id, stream, { checkpoint: out.checkpoint, full: out.full ?? opts.full });
+    noteSyncPass(conn.type ?? "unknown", stream);
     return { ran: true, result: out.result };
   } catch (e) {
     clearInterval(beat);
     // Lost to another process: its state stands, nothing of this pass is recorded on it.
-    if (!(e instanceof LeaseLostError)) await failed(conn.id, stream, e).catch(() => undefined);
+    if (!(e instanceof LeaseLostError)) {
+      noteSyncFailure(conn.type ?? "unknown", stream, normalizeError(e).kind);
+      await failed(conn.id, stream, e).catch(() => undefined);
+    }
     throw e;
   }
 }

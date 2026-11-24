@@ -125,6 +125,22 @@ export const server = {
     notFound: "Backup not found",
     busy: "A restore is already under way: wait for it to finish.",
   },
+  alerts: {
+    test: "A test alert from inkledger: this webhook works.",
+    authFailed: "{name} refused the saved credentials: reconnect it in Settings → Connections.",
+    unreadable: "The saved credentials of {name} can't be opened with the server's keys: reconnect it.",
+    unreachable: "{name} has been out of reach for several syncs: they go on, within a growing wait.",
+    failures: "{name} failed {count} syncs in a row.",
+    backup: "The last backup failed: see Settings → Backup.",
+    licence: "The licence for {name} could not be renewed: see Settings → Store.",
+    certificate: "The HTTPS certificate ends in {count} days: renew it.",
+    certificateExpired: "The HTTPS certificate has ended: browsers refuse the HTTPS address until it is renewed.",
+    open: "Open",
+    noWebhook: "No alert webhook is set.",
+  },
+  rateLimit: {
+    tooMany: "Too many requests: try again in {count} s.",
+  },
   outbox: {
     unknownOperation: "Unknown outbox operation: {kind}",
   },
