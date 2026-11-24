@@ -22,11 +22,11 @@ This list covers the server only. Browsers and the native apps load the app from
 
 ## Trackers and time services
 
-A tracker is only contacted after a user adds a connection to it. Hosted services use a fixed API host; self-hosted ones use the address the user enters. Attachments shown in the app are fetched by the server from the same tracker.
+A tracker is only contacted after a user adds a connection to it. Hosted services use a fixed API host; self-hosted ones use the address the user enters. Attachments shown in the app are fetched by the server from the tracker's own host. Two exceptions follow other hosts: Jira Cloud redirects attachment content to Atlassian's media CDN (an HTTPS host it names in a signed redirect, followed without credentials), and GitHub serves files from the `githubusercontent.com` hosts listed below. Other redirects to another origin are refused.
 
 | Service | Host |
 | --- | --- |
-| Jira (Cloud or Server/Data Center) | The site address entered (e.g. `<site>.atlassian.net`, or your own server) |
+| Jira (Cloud or Server/Data Center) | The site address entered (e.g. `<site>.atlassian.net`, or your own server); Cloud attachments also from Atlassian's media CDN (by redirect) |
 | Tempo | `api.tempo.io` |
 | GitHub | `api.github.com`, `github.com`; attachments from `user-images.githubusercontent.com`, `private-user-images.githubusercontent.com`, `objects.githubusercontent.com` |
 | GitLab, Gitea, YouTrack, Azure DevOps, Plane, OpenProject, Redmine | The address entered (self-hosted, or the vendor's cloud address) |
@@ -50,7 +50,7 @@ Self-hosted addresses: in production, only an admin may connect a host that is n
 
 ## Microsoft (mailbox search)
 
-Off by default. With `MS_CLIENT_ID` (your own Entra app, see [Outlook](../outlook.md)) and `MS_TENANT`, users may sign in to their mailbox with a device code; the server then calls `login.microsoftonline.com` (sign-in and token refresh) and `graph.microsoft.com` (search, read). Pasting or dropping mails and the Outlook add-in work without it; the add-in is loaded by Outlook from this server, which is inbound only. `MAIL_COPIES=off` stops storing copies of pinned mails but does not change outbound traffic.
+Off by default. With `MS_CLIENT_ID` (your own Entra app, see [Outlook](../outlook.md)) and `MS_TENANT`, users may sign in to their mailbox with a device code; the server then calls `login.microsoftonline.com` (sign-in and token refresh) and `graph.microsoft.com` (search, read). Pasting or dropping mails and the Outlook add-in work without it. The add-in is a page Outlook loads from this server; the server makes no call to Outlook for it. `MAIL_COPIES=off` stops storing copies of pinned mails but does not change outbound traffic.
 
 ## Module store and licences
 

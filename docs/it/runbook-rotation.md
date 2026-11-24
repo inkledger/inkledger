@@ -62,6 +62,7 @@ Run `keys-status` first. If it warns that `CREDENTIALS_KEY` is not set, or that 
 
 ## When values became unreadable
 
-- Put the key they were sealed with back as `CREDENTIALS_KEY_OLD` (for values sealed under an old `SESSION_SECRET`, put that old secret there), recreate the container, then run `reseal --apply` and `keys-status`. Connections marked "unreadable" work again once their secret opens.
+- Values sealed with an old `CREDENTIALS_KEY`: put that key back as `CREDENTIALS_KEY_OLD`, recreate the container, then run `reseal --apply` and `keys-status`. Connections marked "unreadable" work again once their secret opens.
+- Values sealed with the key derived from an old `SESSION_SECRET` (`SESSION_SECRET` was changed before `CREDENTIALS_KEY` sealed everything): put the old value back in `SESSION_SECRET`, keep the current `CREDENTIALS_KEY`, recreate the container, then follow Procedure A from step 4. Giving the old session secret as `CREDENTIALS_KEY_OLD` is not enough: a 64-hex value there is read as a raw key, while the session-derived key is a hash of the secret, so only the oldest unbound connection format opens that way.
 - If no key is left, the affected users reconnect their trackers and sign in to their mailbox again; mail copies and idea pictures sealed with the lost key cannot be recovered.
 - To go back completely, restore the backup taken before the rotation, with the keys stored next to it.
