@@ -4,18 +4,19 @@ import { QrCode } from "@/components/app/QrCode";
 import { useState } from "react";
 import { Copy, MoreHorizontal, UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import { INVITE_DAYS, PERMISSIONS, type Permission, type Role, DEFAULT_PERMISSIONS } from "@contracts/accounts";
+import { INVITE_DAYS, OWNER_ONLY_PERMISSIONS, PERMISSIONS, SYSTEM_ROLES, type Permission, type SystemRole, DEFAULT_PERMISSIONS } from "@contracts/accounts";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../../api/router";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { SettingsGroup } from "@/components/settings/SettingsGroup";
-import { SegmentedControl } from "@/components/app/SegmentedControl";
+import { Chip } from "@/components/app/Chip";
 import { FormError } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -32,7 +33,39 @@ import { useDirtyClose } from "@/components/app/DirtyClose";
 import { RenameForm } from "@/components/settings/RenameForm";
 
 type Account = inferRouterOutputs<AppRouter>["users"]["list"][number];
-type Access = { role: Role; permissions: Permission[]; modules: string[] };
+type RoleView = inferRouterOutputs<AppRouter>["roles"]["list"][number];
+type TeamView = inferRouterOutputs<AppRouter>["teams"]["list"]["teams"][number];
+/** What the form edits: the role, the account's own grants beside it, its modules and teams. */
+type Access = { roleId: number | null; permissions: Permission[]; modules: string[]; teams: { teamId: number; lead: boolean }[] };
+
+const isSystemRole = (key: string): key is SystemRole => (SYSTEM_ROLES as readonly string[]).includes(key);
+
+const SYSTEM_ROLE_LABEL: Record<SystemRole, () => string> = {
+  owner: () => t("settings.users.roleName.owner"),
+  "it-admin": () => t("settings.users.roleName.it-admin"),
+  "team-lead": () => t("settings.users.roleName.team-lead"),
+  auditor: () => t("settings.users.roleName.auditor"),
+  member: () => t("settings.users.roleName.member"),
+};
+
+/** A role's name: the system ones translated, the server's own as named. */
+const roleLabel = (r: { key: string; name: string; system: boolean }) => (r.system && isSystemRole(r.key) ? SYSTEM_ROLE_LABEL[r.key]() : r.name);
+
+function roleHint(role: RoleView | undefined): string {
+  if (!role) return t("settings.users.roleHint.none");
+  switch (role.system ? role.key : "") {
+    case "owner":
+      return t("settings.users.roleHint.owner");
+    case "it-admin":
+      return t("settings.users.roleHint.it-admin");
+    case "auditor":
+      return t("settings.users.roleHint.auditor");
+    case "member":
+      return t("settings.users.roleHint.member");
+    default:
+      return t("settings.users.roleHint.custom");
+  }
+}
 
 /** The add-on modules installed here, each granted on its own: none for a new account. */
 function ModuleGrants({ value, onChange, admin }: { value: Access; onChange: (v: Access) => void; admin: boolean }) {
@@ -57,41 +90,91 @@ function ModuleGrants({ value, onChange, admin }: { value: Access; onChange: (v:
   );
 }
 
-/** Role, what a member may manage (an admin may manage everything), and the modules it runs. */
-function AccessFields({ value, onChange }: { value: Access; onChange: (v: Access) => void }) {
-  const admin = value.role === "admin";
-  // Only an admin makes an account manager (the server refuses it to anyone else).
-  const byAdmin = useAuth().user?.role === "admin";
+/** The teams an account is in, and where it leads (a lead reads that team's time). */
+function TeamPlaces({ value, onChange, teams }: { value: Access; onChange: (v: Access) => void; teams: TeamView[] }) {
+  const place = (teamId: number) => value.teams.find(p => p.teamId === teamId);
+  const set = (teamId: number, next: { lead: boolean } | null) =>
+    onChange({ ...value, teams: [...value.teams.filter(p => p.teamId !== teamId), ...(next ? [{ teamId, ...next }] : [])] });
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="mb-1 text-body-sm font-medium">{t("settings.users.teams")}</legend>
+      <p className="text-caption text-muted-foreground">{teams.length === 0 ? t("settings.users.noTeams") : t("settings.users.teamsHint")}</p>
+      {teams.map(team => {
+        const at = place(team.id);
+        return (
+          <div key={team.id} className="flex items-center gap-3 text-body-sm">
+            <label className="flex min-w-0 flex-1 items-center gap-2">
+              <Checkbox checked={Boolean(at)} onCheckedChange={on => set(team.id, on === true ? { lead: false } : null)} />
+              <span className="truncate">{team.name}</span>
+            </label>
+            <label className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
+              <Checkbox
+                checked={at?.lead ?? false}
+                disabled={!at}
+                aria-label={`${t("settings.users.lead")}: ${team.name}`}
+                onCheckedChange={on => set(team.id, { lead: on === true })}
+              />
+              {t("settings.users.lead")}
+            </label>
+          </div>
+        );
+      })}
+    </fieldset>
+  );
+}
+
+/**
+ * Role, what the account may manage besides it (an owner may manage everything), its
+ * modules and its teams. Only an owner makes an owner or hands out manageUsers or
+ * manageAuth (the server refuses it to anyone else).
+ */
+function AccessFields({ value, onChange, roles, teams }: { value: Access; onChange: (v: Access) => void; roles: RoleView[]; teams: TeamView[] | null }) {
+  const byOwner = useAuth().user?.role === "admin";
+  const serverRoles = roles.filter(r => r.scope === "server");
+  const role = serverRoles.find(r => r.id === value.roleId);
+  const owner = role?.key === "owner";
+  const fromRole: readonly Permission[] = role?.permissions ?? [];
   return (
     <>
-      <SegmentedControl
-        label={t("settings.users.role")}
-        value={value.role}
-        onChange={role => onChange({ ...value, role })}
-        className="w-full [&>button]:flex-1 [&>button]:justify-center"
-        options={[
-          { value: "member", label: t("settings.users.member") },
-          { value: "admin", label: t("settings.users.admin") },
-        ]}
-      />
+      <div className="grid gap-2">
+        <Label htmlFor="access-role">{t("settings.users.role")}</Label>
+        <Select value={value.roleId === null ? "none" : String(value.roleId)} onValueChange={v => onChange({ ...value, roleId: v === "none" ? null : Number(v) })}>
+          <SelectTrigger id="access-role">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">{t("settings.users.noRole")}</SelectItem>
+            {serverRoles.map(r => (
+              <SelectItem key={r.id} value={String(r.id)} disabled={r.key === "owner" && !byOwner}>
+                {roleLabel(r)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-caption text-muted-foreground">{roleHint(role)}</p>
+      </div>
       <fieldset className="grid gap-2">
-        <legend className="mb-1 text-body-sm font-medium">{t("settings.users.permissions")}</legend>
-        {admin && <p className="text-caption text-muted-foreground">{t("settings.users.adminHint")}</p>}
-        {PERMISSIONS.filter(p => p !== "useModules").map(p => (
-          <label key={p} className="flex items-center gap-2 text-body-sm">
-            <Checkbox
-              checked={admin || value.permissions.includes(p)}
-              disabled={admin || (p === "manageUsers" && !byAdmin && !value.permissions.includes(p))}
-              onCheckedChange={on =>
-                onChange({ ...value, permissions: on === true ? [...value.permissions, p] : value.permissions.filter(x => x !== p) })
-              }
-            />
-            {t(`settings.users.permission.${p}`)}
-          </label>
-        ))}
+        <legend className="mb-1 text-body-sm font-medium">{role ? t("settings.users.ownPermissions") : t("settings.users.permissions")}</legend>
+        {owner && <p className="text-caption text-muted-foreground">{t("settings.users.adminHint")}</p>}
+        {PERMISSIONS.filter(p => p !== "useModules").map(p => {
+          const held = owner || fromRole.includes(p);
+          return (
+            <label key={p} className="flex items-center gap-2 text-body-sm">
+              <Checkbox
+                checked={held || value.permissions.includes(p)}
+                disabled={held || (OWNER_ONLY_PERMISSIONS.includes(p) && !byOwner && !value.permissions.includes(p))}
+                onCheckedChange={on =>
+                  onChange({ ...value, permissions: on === true ? [...value.permissions, p] : value.permissions.filter(x => x !== p) })
+                }
+              />
+              {t(`settings.users.permission.${p}`)}
+            </label>
+          );
+        })}
         <span className="mt-1 text-body-sm">{t("settings.users.permission.useModules")}</span>
-        <ModuleGrants value={value} onChange={onChange} admin={admin} />
+        <ModuleGrants value={value} onChange={onChange} admin={owner} />
       </fieldset>
+      {teams && <TeamPlaces value={value} onChange={onChange} teams={teams} />}
     </>
   );
 }
@@ -128,7 +211,18 @@ function HandOver({ shown, onClose }: { shown: { title: string; hint: string; va
   );
 }
 
-const newInvite = (): { username: string; displayName: string; access: Access } => ({ username: "", displayName: "", access: { role: "member", permissions: [...DEFAULT_PERMISSIONS], modules: [] } });
+const newInvite = (): { username: string; displayName: string; access: Access } => ({ username: "", displayName: "", access: { roleId: null, permissions: [...DEFAULT_PERMISSIONS], modules: [], teams: [] } });
+
+/** An account's own access, as the form edits it. */
+const accessOf = (u: Account): Access => ({ roleId: u.roleId, permissions: u.granted, modules: u.modules, teams: u.teams.map(p => ({ teamId: p.teamId, lead: p.role === "lead" })) });
+
+/** What an account is, in one line: its role (or its grants), and the teams it leads. */
+function accessLine(u: Account, roles: RoleView[]): string {
+  const role = roles.find(r => r.id === u.roleId);
+  if (u.role === "admin") return t("settings.users.admin");
+  const own = u.granted.map(p => t(`settings.users.permission.${p}`));
+  return [role ? roleLabel(role) : null, ...own].filter(Boolean).join(", ") || t("settings.users.member");
+}
 
 const absolute = (path: string) => new URL(path, window.location.origin).toString();
 const linkHint = (expiresAt: Date) => t("settings.users.linkHint", { date: mediumDate(expiresAt) });
@@ -137,6 +231,10 @@ export function UsersSection() {
   const { user: me } = useAuth();
   const utils = trpc.useUtils();
   const list = trpc.users.list.useQuery();
+  const roles = trpc.roles.list.useQuery().data ?? [];
+  // Teams to pick from only for whoever may manage them; the others see an account's teams as they are.
+  const canTeams = (me?.permissions ?? []).includes("manageTeams");
+  const teams = trpc.teams.list.useQuery(undefined, { enabled: canTeams }).data?.teams ?? null;
   const refresh = () => void utils.users.list.invalidate();
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
@@ -145,7 +243,9 @@ export function UsersSection() {
   const renameGuard = useDirtyClose(() => setRenaming(null));
   const [shown, setShown] = useState<{ title: string; hint: string; value: string; qr?: boolean } | null>(null);
   const [form, setForm] = useState(newInvite);
-  const [access, setAccess] = useState<Access>({ role: "member", permissions: [], modules: [] });
+  const [access, setAccess] = useState<Access>(newInvite().access);
+  /** What a save sends: teams only when this account may manage them (left out, they stay as they are). */
+  const sent = (a: Access) => ({ ...a, teams: canTeams ? a.teams : undefined });
   const [error, setError] = useState<string | null>(null);
 
   const invite = trpc.users.invite.useMutation({
@@ -212,7 +312,7 @@ export function UsersSection() {
               <p className="truncate text-caption text-muted-foreground">
                 {[
                   u.username,
-                  u.role === "admin" ? t("settings.users.admin") : u.permissions.map(p => t(`settings.users.permission.${p}`)).join(", ") || t("settings.users.member"),
+                  accessLine(u, roles),
                   u.pending && t("settings.users.pending"),
                   t("settings.users.trackers", { count: u.connections }),
                   u.disabled && t("settings.users.disabled"),
@@ -220,6 +320,15 @@ export function UsersSection() {
                   .filter(Boolean)
                   .join(" · ")}
               </p>
+              {u.teams.length > 0 && (
+                <p className="mt-1 flex flex-wrap gap-1">
+                  {u.teams.map(p => (
+                    <Chip key={p.teamId} variant={p.role === "lead" ? "dot" : "soft"} tone={p.role === "lead" ? "info" : "neutral"}>
+                      {p.role === "lead" ? `${p.name} · ${t("settings.users.lead")}` : p.name}
+                    </Chip>
+                  ))}
+                </p>
+              )}
             </div>
             {u.id !== me?.id && (
               <DropdownMenu>
@@ -241,7 +350,7 @@ export function UsersSection() {
                   <DropdownMenuItem
                     onSelect={() => {
                       setError(null);
-                      setAccess({ role: u.role, permissions: u.permissions, modules: u.modules });
+                      setAccess(accessOf(u));
                       setEditing(u);
                     }}
                   >
@@ -274,7 +383,7 @@ export function UsersSection() {
             onSubmit={e => {
               e.preventDefault();
               setError(null);
-              invite.mutate({ username: form.username, displayName: form.displayName, ...form.access });
+              invite.mutate({ username: form.username, displayName: form.displayName, ...sent(form.access) });
             }}
           >
             <div className="grid gap-2">
@@ -285,7 +394,7 @@ export function UsersSection() {
               <Label htmlFor="invite-username">{t("settings.users.username")}</Label>
               <Input id="invite-username" value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} autoCapitalize="none" autoComplete="off" required />
             </div>
-            <AccessFields value={form.access} onChange={a => setForm({ ...form, access: a })} />
+            <AccessFields value={form.access} onChange={a => setForm({ ...form, access: a })} roles={roles} teams={teams} />
             <FormError message={error} />
             <Button type="submit" disabled={invite.isPending}>
               {t("settings.users.create")}
@@ -304,10 +413,10 @@ export function UsersSection() {
             className="grid gap-4"
             onSubmit={e => {
               e.preventDefault();
-              if (editing) saveAccess.mutate({ id: editing.id, ...access });
+              if (editing) saveAccess.mutate({ id: editing.id, ...sent(access) });
             }}
           >
-            <AccessFields value={access} onChange={setAccess} />
+            <AccessFields value={access} onChange={setAccess} roles={roles} teams={teams} />
             <FormError message={error} />
             <Button type="submit" disabled={saveAccess.isPending}>
               {t("settings.users.saveAccess")}

@@ -8,7 +8,7 @@ import App from "./App.tsx";
 import { firstPage } from "@/lib/firstPage";
 import { installNativeShell, isNative } from "@/lib/native";
 import { isPartFailure } from "@/components/app/lazyPart";
-import { currentLocale, LOCALES, loadLocale } from "@contracts/i18n";
+import { currentLocale, englishReady, LOCALES, loadLocale } from "@contracts/i18n";
 import { readSSRState } from "@/ssrState";
 import { SSRClockProvider } from "@/ssrClock";
 import { dayKey } from "@contracts/time";
@@ -45,13 +45,17 @@ holdCommandPaletteShortcut();
 const ssr = readSSRState();
 
 // The chosen language's texts before the first paint (English is in the bundle; another one
-// comes on demand), then the others while idle (a name in another language is recognized).
-// Over the server's markup, the first page's code too: hydrated with it, that markup takes clicks
-// at once (a page still loading would keep the whole app without handlers, clicks lost).
+// comes on demand), then the others while idle (a name in another language is recognized), with
+// the rest of English (contracts/i18n/client.ts). Over the server's markup, the first page's code
+// too: hydrated with it, that markup takes clicks at once (a page still loading would keep the
+// whole app without handlers, clicks lost).
 void Promise.all([loadLocale(currentLocale()).catch(() => undefined), ssr ? firstPage.loaded() : undefined])
   .finally(() => {
     render();
-    const rest = () => LOCALES.forEach(l => void loadLocale(l).catch(() => undefined));
+    const rest = () => {
+      void englishReady().catch(() => undefined);
+      LOCALES.forEach(l => void loadLocale(l).catch(() => undefined));
+    };
     if ("requestIdleCallback" in window) window.requestIdleCallback(rest);
     else setTimeout(rest, 2000);
   });

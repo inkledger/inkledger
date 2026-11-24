@@ -1,4 +1,5 @@
 import type { Tree } from "../core";
+import { pinboard, placement, workSchedule } from "./serverShell";
 
 export const server = {
   maintenance: "The server is restoring a backup: try again in a minute.",
@@ -63,7 +64,7 @@ export const server = {
     inviteInvalid: "This invite link has expired or was already used. Ask an admin for a new one.",
     noAccountToActivate: "No account to activate with this Jira login. Ask an admin for an invite.",
     alreadyActivated: "This account is already active: sign in with its username and password.",
-    lastAdmin: "The server needs at least one active admin.",
+    lastAdmin: "The server needs at least one active owner.",
     notYourself: "You can't do this to your own account.",
     jiraAccountInUse: "This Jira account is already connected to another inkledger account.",
   },
@@ -156,6 +157,15 @@ export const server = {
   team: {
     notFound: "This account is not on the team report",
   },
+  roles: {
+    notFound: "That role doesn't exist, or can't be an account's own role.",
+    system: "The roles every server starts with can't be changed.",
+    keyTaken: "A role with that key exists already.",
+  },
+  teams: {
+    notFound: "That team doesn't exist.",
+    nameTaken: "A team with that name exists already.",
+  },
   weeks: {
     invalidDate: "Invalid week date",
     closed: "Week closed: reopen it to edit the worklogs.",
@@ -171,15 +181,7 @@ export const server = {
     travelIssueRequired: "Link this travel plan to an issue before converting it.",
     noFuture: "This tracker doesn't accept worklogs starting in the future.",
   },
-  workSchedule: {
-    invalidDate: "Invalid date",
-    weekClosed: "The week of {week} is closed: pick a later date or reopen it.",
-    firstCannotDelete: "The first schedule can't be deleted",
-    invalidTime: "Invalid time (HH:MM)",
-    endAfterStart: "The end must be after the start",
-    invalidBreak: "Invalid break",
-    breaksOrder: "Breaks must fall within working hours, in order and without overlapping",
-  },
+  workSchedule,
   issueNotes: {
     notFound: "Note not found",
     empty: "Write something first.",
@@ -300,27 +302,7 @@ export const server = {
     noteElsewhere: "That private note is on another issue",
     workDone: "This TODO is done: untick it to work on it again",
   },
-  pinboard: {
-    followReadOnly: "This board follows a tag: it shows what the tracker says: nothing is pinned, written or taken off by hand.",
-    trackerNotFound: "This tracker isn't among yours.",
-    defaultBoard: "My board",
-    todoLink: "A TODO's post-it shows its TODO's issue: tie the TODO to one instead.",
-    boardNotFound: "Board not found",
-    bucketNotFound: "Bucket not found",
-    noteNotFound: "Note not found",
-    sameBoard: "The note is already on this board",
-    maxBoards: {
-      one: "At most {count} board.",
-      other: "At most {count} boards.",
-    },
-    needBoard: "At least one board is needed.",
-    boardFullNotes: {
-      one: "The board is full ({count} note): remove something first.",
-      other: "The board is full ({count} notes): remove something first.",
-    },
-    boardFull: "The board is full.",
-    nameRequired: "Give the board a name",
-  },
+  pinboard,
   decisions: {
     notStopped: "The timer of {key} is not stopped: nothing to log yet.",
   },
@@ -355,13 +337,7 @@ export const server = {
     splitNotTimer: "Shares of time together only apply to a timer's log.",
     overlapHint: "{message}: move or shorten one of the two worklogs.",
   },
-  placement: {
-    overlaps: "Overlaps {list}",
-    invalidDuration: "Invalid duration",
-    noRoomBeforeStop: "No free space of this length before the stop",
-    noRoomBeforeNow: "No free space of this length before now",
-    dayFull: "The day has no room after the last worklog",
-  },
+  placement,
   issues: {
     cannotManage: "{provider} can't do this from here yet.",
     syncBusy: "A sync of this connection is already running on another server process: try again in a minute.",

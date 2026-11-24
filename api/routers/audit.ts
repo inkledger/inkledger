@@ -40,7 +40,7 @@ export const auditRouter = createRouter({
   })),
 
   /** A server setting: whoever manages the server sets it (never under the minimum). */
-  setRetention: permProcedure("manageServer")
+  setRetention: permProcedure("manageRetention")
     .input(z.object({ days: z.number().int().min(AUDIT_RETENTION_MIN_DAYS).max(AUDIT_RETENTION_MAX_DAYS) }))
     .mutation(async ({ input, ctx }) => {
       const before = await auditRetentionDays();

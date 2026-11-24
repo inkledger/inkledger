@@ -2,7 +2,7 @@ import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { MODULES_FRAME_PATH, MODULES_PATH, MODULES_RUN_PATH } from "@contracts/modules";
 import { restUser } from "../context";
-import { can, mayRunModule, userById } from "../queries/accounts";
+import { can, mayRunModule, userById, withAccess } from "../queries/accounts";
 import { extraKey } from "./keys";
 import { frameCsp, frameDocument, framedCode } from "./frame";
 import { frameEntry, installBundle, moduleFile } from "./registry";
@@ -44,7 +44,8 @@ export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     const userId = runTokenUser(token, id, hash);
     if (userId === null) return notFound();
     // Held to what the cookie route holds the account to, now: a revoked grant doesn't last the hour.
-    const user = await userById(userId);
+    const found = await userById(userId);
+    const user = found ? await withAccess(found) : undefined;
     if (!user || user.disabledAt || user.mustChangePassword || !can(user, "useModules") || !mayRunModule(user, id)) return notFound();
     let file: string;
     try {

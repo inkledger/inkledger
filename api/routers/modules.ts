@@ -4,7 +4,7 @@ import { and, count, eq, gte, not, like } from "drizzle-orm";
 import { createHmac } from "node:crypto";
 import { sameSecret } from "../lib/secrets";
 import { createRouter, permProcedure, protectedProcedure } from "../middleware";
-import { can, mayRunModule } from "../queries/accounts";
+import { can, mayRunModule, withAccess } from "../queries/accounts";
 import type { User } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { moduleStorage, worklogs } from "@db/schema";
@@ -66,7 +66,8 @@ const fileRef = z.object({ moduleId: moduleIdSchema, key: z.string().regex(/^[\w
 const FILE_MAX_B64 = Math.ceil(FILE_MAX_BYTES / 3) * 4;
 
 /** Storage is the module's own, and only while it is active and granted to this account. */
-async function requireActive(user: User, moduleId: string) {
+async function requireActive(found: User, moduleId: string) {
+  const user = await withAccess(found);
   if (!mayRunModule(user, moduleId) || !(await isActive(moduleId))) {
     throw new TRPCError({ code: "FORBIDDEN", message: t("server.modules.inactive") });
   }
@@ -189,15 +190,16 @@ export const modulesRouter = createRouter({
       .from(moduleStorage)
       .where(and(eq(moduleStorage.userId, ctx.user.id), eq(moduleStorage.key, OFF)));
     // Who may not use modules runs none (a store manager still sees them, to manage).
-    const modules = await listModules((id, hash) => (can(ctx.user, "useModules") && mayRunModule(ctx.user, id) ? runToken(ctx.user.id, id, hash) : null));
+    const me = await withAccess(ctx.user);
+    const modules = await listModules((id, hash) => (can(me, "useModules") && mayRunModule(me, id) ? runToken(me.id, id, hash) : null));
     return {
       modules,
       licenses,
       extraKey: extraKey() !== null,
       off: off.map((r) => r.moduleId),
-      canUse: can(ctx.user, "useModules"),
+      canUse: can(me, "useModules"),
       // The ones this account runs (the Store still lists them all, to manage).
-      granted: modules.filter((m) => mayRunModule(ctx.user, m.id)).map((m) => m.id),
+      granted: modules.filter((m) => mayRunModule(me, m.id)).map((m) => m.id),
     };
   }),
 

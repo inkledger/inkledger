@@ -1,7 +1,7 @@
 import type { Shape } from "../core";
-import type { pages as en } from "../en/pages";
+import type { en } from "../en";
 
-export const pages: Shape<typeof en> = {
+export const pages: Shape<(typeof en)["pages"]> = {
   notFound: {
     title: "Pagina non trovata",
     message: "L'indirizzo non corrisponde a nessuna pagina dell'app.",

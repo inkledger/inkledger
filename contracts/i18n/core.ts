@@ -1,7 +1,9 @@
 /**
  * Translations shared by the app and the server. English is the default,
  * Italian the alternative; the dictionaries live in ./en and ./it, one file
- * per area, and the Italian one must have every English key (typecheck).
+ * per area, and the Italian one must have every English key (typecheck). In ./en, a text the
+ * first load says (the shell, Login, the Dashboard) stays in its area's file or *Shell file; one
+ * only on-demand code says may go in a *Rest file (en/shell.ts, client.ts).
  *
  * Where the locale comes from depends on the side: the browser keeps the
  * user's choice, the server the one of the request being answered

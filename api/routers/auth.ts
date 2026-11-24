@@ -13,7 +13,7 @@ import { clearedSessionCookies, clientIp, readRememberCookie, rememberCookie, se
 import { normalizeSiteUrl } from "../lib/siteUrl";
 import { decoyHash, hashPassword, verifyPassword } from "../lib/password";
 import { confirmJiraLogin, jiraLoginInput } from "../lib/jiraLogin";
-import { consumeInvite, forgetInitialAdminPassword, inviteUser, permissionsOf, roleOf, signOutEverywhere, userByUsername } from "../queries/accounts";
+import { consumeInvite, forgetInitialAdminPassword, inviteUser, permissionsOf, roleOf, scopedPermissionsOf, signOutEverywhere, userByUsername, withAccess } from "../queries/accounts";
 import { DEFAULT_ADMIN, PASSWORD_MIN_LENGTH, USERNAME_RE } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
 import { record, recordSignIn } from "../lib/audit";
@@ -33,7 +33,8 @@ type Ctx = Pick<TrpcContext, "req" | "resHeaders" | "remoteAddress">;
 /** Bounded, so a huge "password" can't cost the server more than a normal one. */
 const passwordInput = z.string().min(1).max(1024);
 
-export function publicUser(u: User) {
+export async function publicUser(found: User) {
+  const u = await withAccess(found);
   return {
     id: u.id,
     username: u.username,
@@ -41,6 +42,8 @@ export function publicUser(u: User) {
     avatarUrl: u.avatarUrl,
     role: roleOf(u),
     permissions: permissionsOf(u),
+    /** Held only within teams (a lead's viewTeamTime): the page narrows to them */
+    scopedPermissions: scopedPermissionsOf(u),
     mustChangePassword: Boolean(u.mustChangePassword),
     email: u.email,
   };
@@ -338,7 +341,7 @@ export const authRouter = createRouter({
     return { ok: true };
   }),
 
-  me: publicQuery.query(({ ctx }) => (ctx.user ? publicUser(ctx.user) : null)),
+  me: publicQuery.query(async ({ ctx }) => (ctx.user ? publicUser(ctx.user) : null)),
 
   /** One's own name and username. Sessions and remembered devices stay: they know the account, not its name. */
   rename: protectedProcedure.input(renameInput).mutation(async ({ input, ctx }) => {

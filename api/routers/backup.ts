@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createRouter, permProcedure } from "../middleware";
 import { env } from "../lib/env";
-import { roleOf } from "../queries/accounts";
+import { can } from "../queries/accounts";
 import { parseCookies } from "../context";
 import { readRememberCookie } from "../lib/session";
 import { hashSessionId } from "../lib/security";
@@ -27,8 +27,11 @@ function rememberedDeviceId(req: Request): string | undefined {
   return token ? hashSessionId(token) : undefined;
 }
 
-/** Server-wide: for whoever may manage backups. */
-const backups = permProcedure("manageBackups");
+/** Server-wide: for whoever may run backups (and set their schedule). */
+const backups = permProcedure("runBackups");
+
+/** Restoring one: restoreBackups, and an owner besides (see restore). */
+const restoring = permProcedure("restoreBackups");
 
 /**
  * What went wrong, said to whoever manages backups: a name or file that can't be, or the
@@ -46,7 +49,7 @@ const fail = (e: unknown) => {
 
 export const backupRouter = createRouter({
   /** Settings → Backup: schedule, state, the folder and its backups. */
-  get: backups.query(async () => {
+  get: backups.query(async ({ ctx }) => {
     const settings = await getBackupSettings();
     return {
       settings,
@@ -57,6 +60,10 @@ export const backupRouter = createRouter({
       scheduled: env.isProduction,
       next: env.isProduction ? (nextRun(settings, new Date())?.getTime() ?? null) : null,
       files: listBackups(),
+      /** Whether this account may take a dump off the server (GET /api/backups/:name, downloadBackups) */
+      canDownload: can(ctx.user, "downloadBackups"),
+      /** Whether this account may restore one (an owner with restoreBackups) */
+      canRestore: ctx.user.access.owner && can(ctx.user, "restoreBackups"),
     };
   }),
 
@@ -78,11 +85,11 @@ export const backupRouter = createRouter({
   }),
 
   /**
-   * Admins only: the backup's accounts come back with it, so whoever restores could take
-   * back an access it no longer has (managing backups is not managing accounts).
+   * Owners only: the backup's accounts come back with it, so whoever restores could take
+   * back an access it no longer has (running backups is not managing accounts).
    */
-  restore: backups.input(z.object({ name: z.string().max(100) })).mutation(async ({ input, ctx }) => {
-    if (roleOf(ctx.user) !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
+  restore: restoring.input(z.object({ name: z.string().max(100) })).mutation(async ({ input, ctx }) => {
+    if (!ctx.user.access.owner) throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
     ctx.audit.set({ target: { type: "backup", id: input.name }, after: { name: input.name } });
     try {
       const keep = ctx.sessionId && ctx.user.username ? { id: ctx.sessionId, userId: ctx.user.id, username: ctx.user.username, deviceId: rememberedDeviceId(ctx.req) } : undefined;

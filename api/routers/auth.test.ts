@@ -273,11 +273,11 @@ describe("auth: sessions, cookies, login hardening", () => {
         await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
       }
       // Granted one, it has that one only.
-      await q("UPDATE users SET permissions = '[\"manageBackups\"]' WHERE username = 'member1'");
+      await q("UPDATE users SET permissions = '[\"runBackups\"]' WHERE username = 'member1'");
       const granted = await session({ username: "member1" });
       await expect(appRouter.createCaller(granted).backup.get()).resolves.toBeTruthy();
       await expect(appRouter.createCaller(granted).store.pending()).rejects.toMatchObject({ code: "FORBIDDEN" });
-      // Restoring brings the backup's accounts back with it: admins only.
+      // Restoring brings the backup's accounts back with it: owners only.
       await expect(appRouter.createCaller(granted).backup.restore({ name: "inkledger-20200101-000000.dump" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
 
@@ -347,7 +347,7 @@ describe("auth: sessions, cookies, login hardening", () => {
       await expect(k.users.invite({ username: "x2", displayName: "X", role: "admin", permissions: [] })).rejects.toMatchObject(forbidden);
       await expect(k.users.invite({ username: "x3", displayName: "X", role: "member", permissions: ["manageServer"] })).rejects.toMatchObject(forbidden);
       await expect(k.users.setAccess({ id: plain.id, role: "admin", permissions: [] })).rejects.toMatchObject(forbidden);
-      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageBackups"] })).rejects.toMatchObject(forbidden);
+      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["runBackups"] })).rejects.toMatchObject(forbidden);
       // Nor sight of everyone's time.
       await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["viewTeamTime"] })).rejects.toMatchObject(forbidden);
       // An admin, or an account with a power it lacks: no password reset, no new link, no change, no turning off.

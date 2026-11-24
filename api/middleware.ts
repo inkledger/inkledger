@@ -12,7 +12,7 @@ import { TimerConflictError } from "./lib/timerConflict";
 import { StaleDraftError } from "./workspace/staleDraft";
 import { t as tr } from "@contracts/i18n";
 import type { Permission } from "@contracts/accounts";
-import { can } from "./queries/accounts";
+import { holds, withAccess } from "./queries/accounts";
 import { recordProcedure, UNAUDITED_PROCEDURES, type AuditDetails } from "./lib/audit";
 import type { AuditAction } from "@contracts/audit";
 import { markConnection, markJiraConnection } from "./providers/connections";
@@ -130,20 +130,23 @@ function inputFields(raw: unknown): Record<string, unknown> | null {
 }
 
 /**
- * For what a permission covers (contracts/accounts.ts): an admin has them all. Every
+ * For what a permission covers (contracts/accounts.ts): an owner has them all; anyone else
+ * what its role and grants hold, server-wide or within a team (a lead's viewTeamTime: the
+ * handler narrows to its teams, scopeOf). The account's access is read per request. Every
  * mutation behind one writes exactly one audit event: done, failed or refused (input the
  * parser refused is no action). A handler adds its details through ctx.audit.
  */
 export const permProcedure = (permission: Permission) =>
   protectedProcedure.use(async ({ ctx, next, type, path, getRawInput }) => {
     const audited = type === "mutation" && !(path in UNAUDITED_PROCEDURES);
-    if (!can(ctx.user, permission)) {
+    const user = await withAccess(ctx.user);
+    if (!holds(user, permission)) {
       if (audited) await recordProcedure(ctx, path, { outcome: "denied" });
       throw new TRPCError({ code: "FORBIDDEN", message: tr("server.auth.notAllowed") });
     }
     let told: AuditDetails & { action?: AuditAction } = {};
     const audit: AuditScope = { set: (details) => (told = { ...told, ...details }) };
-    const result = await next({ ctx: { audit } });
+    const result = await next({ ctx: { audit, user } });
     if (!audited || (!result.ok && result.error.cause instanceof ZodError)) return result;
     const input = told.after === undefined ? inputFields(await getRawInput().catch(() => null)) : undefined;
     const id = input?.id;

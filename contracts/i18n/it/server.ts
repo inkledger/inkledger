@@ -64,7 +64,7 @@ export const server: Shape<typeof en> = {
     inviteInvalid: "Questo invito è scaduto o è già stato usato. Chiedine uno nuovo a un amministratore.",
     noAccountToActivate: "Nessun account da attivare con questo accesso Jira. Chiedi un invito a un amministratore.",
     alreadyActivated: "Questo account è già attivo: accedi con nome utente e password.",
-    lastAdmin: "Il server deve avere almeno un amministratore attivo.",
+    lastAdmin: "Il server deve avere almeno un proprietario attivo.",
     notYourself: "Non puoi farlo sul tuo stesso account.",
     jiraAccountInUse: "Questo account Jira è già collegato a un altro account inkledger.",
   },
@@ -156,6 +156,15 @@ export const server: Shape<typeof en> = {
   },
   team: {
     notFound: "Questo account non è nel resoconto del team",
+  },
+  roles: {
+    notFound: "Questo ruolo non esiste, o non può essere il ruolo di un account.",
+    system: "I ruoli con cui nasce ogni server non si possono modificare.",
+    keyTaken: "Esiste già un ruolo con questa chiave.",
+  },
+  teams: {
+    notFound: "Questo team non esiste.",
+    nameTaken: "Esiste già un team con questo nome.",
   },
   weeks: {
     invalidDate: "Data settimana non valida",

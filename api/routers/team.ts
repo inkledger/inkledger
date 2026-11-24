@@ -1,4 +1,5 @@
-// The team report, for whoever may see everyone's time (viewTeamTime): each
+// The team report, for whoever may see other people's time (viewTeamTime): on the whole
+// server everyone's, as a team lead its teams' people only. Each visible
 // active account's logged hours over a range, day by day, against its own
 // target, one account's period (its projects and issues) and one account's
 // day. Read only; nothing here changes anyone's time.
@@ -12,6 +13,7 @@ import type { PlannedInterval } from "@contracts/planned";
 import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { recordRead } from "../lib/audit";
+import { membersOf, scopeOf, type Account } from "../queries/accounts";
 import { getDb } from "../queries/connection";
 import { issueOfWorklog } from "../queries/worklogScope";
 import { dayOverridesOf, scheduleVersionsOf, timeFreshness } from "../queries/teamTime";
@@ -34,13 +36,25 @@ async function vacations(userIds: number[], from: Date, to: Date): Promise<Map<n
   return out;
 }
 
-/** An active account, or NOT_FOUND (turned off, or never there). */
-async function activePerson(userId: number): Promise<{ id: number }> {
-  const [person] = await getDb()
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.id, userId), isNull(users.disabledAt)))
-    .limit(1);
+/**
+ * Whose time the reader may see: everyone's (viewTeamTime on the whole server), else the
+ * people of the teams it leads (viewTeamTime held within them), itself included.
+ */
+async function visibleTo(reader: Account): Promise<"all" | number[]> {
+  const scope = scopeOf(reader, "viewTeamTime");
+  return scope === "all" ? "all" : membersOf(scope);
+}
+
+/** An active account the reader may see, or NOT_FOUND (turned off, never there, or not in its teams). */
+async function activePerson(userId: number, reader: Account): Promise<{ id: number }> {
+  const visible = await visibleTo(reader);
+  const [person] = visible === "all" || visible.includes(userId)
+    ? await getDb()
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, userId), isNull(users.disabledAt)))
+        .limit(1)
+    : [];
   if (!person) throw new TRPCError({ code: "NOT_FOUND", message: t("server.team.notFound") });
   return person;
 }
@@ -116,10 +130,12 @@ export const teamRouter = createRouter({
       const { from, to } = rangeOf(input);
       await recordRead(ctx, "team.overview", { target: { type: "team" }, after: { from: input.from, to: input.to } });
       const now = new Date();
+      // A lead sees its teams' people only; a server-wide reader everyone.
+      const visible = await visibleTo(ctx.user);
       const people = await getDb()
         .select({ id: users.id, displayName: users.displayName, username: users.username, avatarUrl: users.avatarUrl })
         .from(users)
-        .where(isNull(users.disabledAt))
+        .where(and(isNull(users.disabledAt), ...(visible === "all" ? [] : [inArray(users.id, visible.length > 0 ? visible : [-1])])))
         .orderBy(asc(users.id));
       const ids = people.map((p) => p.id);
       const length = Math.round((to.getTime() - from.getTime()) / 86_400_000);
@@ -160,7 +176,7 @@ export const teamRouter = createRouter({
     .input(z.object({ userId: z.number().int().positive(), from: z.string().min(1), to: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
       const { from, to } = rangeOf(input);
-      const person = await activePerson(input.userId);
+      const person = await activePerson(input.userId, ctx.user);
       await recordRead(ctx, "team.person", { target: { type: "user", id: person.id, ownerUserId: person.id }, after: { userId: person.id, from: input.from, to: input.to } });
       const db = getDb();
       const where = and(eq(worklogs.userId, person.id), gte(worklogs.started, from), lt(worklogs.started, to));
@@ -205,7 +221,7 @@ export const teamRouter = createRouter({
       const day = parseDayKey(input.day);
       if (!day) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.reports.invalidRange") });
       const next = addDays(day, 1);
-      const person = await activePerson(input.userId);
+      const person = await activePerson(input.userId, ctx.user);
       await recordRead(ctx, "team.day", { target: { type: "user", id: person.id, ownerUserId: person.id }, after: { userId: person.id, date: input.day } });
       const entries = await getDb()
         .select({

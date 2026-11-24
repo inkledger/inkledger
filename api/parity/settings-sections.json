@@ -31,6 +31,12 @@
       "permission": "manageUsers"
     },
     {
+      "id": "teams",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": "manageTeams"
+    },
+    {
       "id": "schedule",
       "nativeOnly": false,
       "desktopOnly": false,
@@ -100,7 +106,7 @@
       "id": "backup",
       "nativeOnly": false,
       "desktopOnly": false,
-      "permission": "manageBackups"
+      "permission": "runBackups"
     },
     {
       "id": "audit",

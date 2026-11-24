@@ -1096,6 +1096,22 @@
     "type": "query"
   },
   {
+    "path": "roles.create",
+    "type": "mutation"
+  },
+  {
+    "path": "roles.list",
+    "type": "query"
+  },
+  {
+    "path": "roles.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "roles.update",
+    "type": "mutation"
+  },
+  {
     "path": "settings.get",
     "type": "query"
   },
@@ -1178,6 +1194,30 @@
   {
     "path": "team.person",
     "type": "query"
+  },
+  {
+    "path": "teams.create",
+    "type": "mutation"
+  },
+  {
+    "path": "teams.list",
+    "type": "query"
+  },
+  {
+    "path": "teams.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "teams.removeMember",
+    "type": "mutation"
+  },
+  {
+    "path": "teams.rename",
+    "type": "mutation"
+  },
+  {
+    "path": "teams.setMember",
+    "type": "mutation"
   },
   {
     "path": "timers.discard",

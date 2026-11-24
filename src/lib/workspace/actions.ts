@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import type { DiscoveryState, Draft, Scope } from "@contracts/workspace/model";
 import type { StaleDraftInfo } from "@contracts/workspace/repropose";
 import { t } from "@/i18n";
+import { englishReady } from "@contracts/i18n";
 import { UserFacingError } from "@/lib/errorText";
 import { whenWorkspaceIdle, workspaceInteractionEpoch, workspaceTaskActive } from "./client";
 import { renderersReady } from "./renderers";
@@ -63,7 +64,11 @@ export function useWorkspaceActions(scope: Scope, clientInstanceId: string) {
         if (ready.draft.status !== "ready") return { status: "conflict" as const, preview: ready.preview };
         if (interrupted()) return { status: "deferred" as const };
         // The code that draws the page first (§15.2): a layout this tab could not show is not prepared.
-        if (!(await renderersReady(scope.surfaceId))) throw new UserFacingError(t("settings.categories.workspace.renderersMissing"));
+        if (!(await renderersReady(scope.surfaceId))) {
+          // A settings' text, not in the first load (contracts/i18n/client.ts).
+          await englishReady().catch(() => undefined);
+          throw new UserFacingError(t("settings.categories.workspace.renderersMissing"));
+        }
         if (interrupted()) return { status: "deferred" as const };
         const prepared = await prepare({
           scope,

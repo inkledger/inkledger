@@ -309,6 +309,8 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     // Playwright's own service-worker block, refused in a sandboxed frame (WebKit): no error of the app's.
     const blockRefused = e => ENGINE === "webkit" && serviceWorkers === "block" && String(e) === "SecurityError: Service Worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag";
     page.on("pageerror", e => unloading(e) || blockRefused(e) || errors.push(String(e)));
+    // A text asked for before the rest of English arrived (contracts/i18n/base.ts): the first load lacks it.
+    page.on("console", m => m.type() === "error" && m.text().startsWith("[i18n]") && errors.push(m.text()));
     return {
       base,
       dir,

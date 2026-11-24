@@ -206,6 +206,8 @@ From **Settings → Devices** you can add a phone or another computer. Use Tails
 - `HttpOnly` / `SameSite=Lax` cookies (`Secure` over HTTPS), session ids stored as hashes, `Origin` check on writes, rate-limited sign-in.
 - Remembered devices hold only a rotating token. The remembered token is rotated on every use.
 - Tracker URL guard (no loopback or link-local), host allowlists, security headers, body limits, global per-account and per-address rate limits.
+- **Roles and teams** (Settings → Users, Settings → Teams). An account holds its role's permissions plus its own grants. The seeded roles are owner (everything), IT admin (accounts, sign-in, server, Store, running backups, the audit log), team lead (reads its own teams' time, read only), auditor (reads and exports the audit log) and member. Nobody reads other people's time without `viewTeamTime`, IT admins included. Only an owner gives or edits `manageUsers` / `manageAuth`, and only an owner restores a backup, because a restore brings back the accounts it holds.
+- **Backups and personal data.** Running backups (`runBackups`) doesn't let anyone take one away. Downloading a dump (`GET /api/backups/<name>`) needs `downloadBackups`, and each download is recorded in the audit log. This only limits what the app hands out. Anyone with access to the host, its backup folder (`INKLEDGER_BACKUP_DIR`) or the database can read every dump and every row, so restrict access to the host too.
 
 ## Architecture
 
