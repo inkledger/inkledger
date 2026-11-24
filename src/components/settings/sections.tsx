@@ -325,8 +325,9 @@ export const CATEGORIES: SettingsCategory[] = [
     get keywords() { return t("settings.categories.audit.keywords"); },
     Content: AuditSection,
     Summary: function AuditSummary() {
-      const v = trpc.audit.verify.useQuery(undefined, { staleTime: 60_000 }).data;
-      return v ? (v.ok ? t("settings.audit.verifyOk", { count: v.checked }) : t("settings.audit.verifyBroken", { id: v.badId })) : null;
+      // How long events stay (cheap); the chain is checked in the section itself.
+      const days = trpc.audit.settings.useQuery(undefined, { staleTime: 60_000 }).data?.retentionDays;
+      return days === undefined ? null : t("settings.audit.retentionDays", { count: days });
     },
   },
   {

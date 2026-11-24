@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { addDays, parseDayKey } from "@contracts/time";
+import { addDays, dayKey, parseDayKey } from "@contracts/time";
+import { DateJump } from "@/components/app/DateJump";
 import { AUDIT_OUTCOMES, auditDiff, isAuditAction, type AuditEventView, type AuditOutcome } from "@contracts/audit";
 import { t } from "@/i18n";
 
@@ -235,6 +236,8 @@ function Retention({ canSet }: { canSet: boolean }) {
 export function AuditSection() {
   const permissions = useAuth().user?.permissions ?? [];
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // The date fields keep what is typed until it is a day: cleared, they are drawn again.
+  const [cleared, setCleared] = useState(0);
   const filtered = filters.group !== "all" || filters.outcome !== "all" || filters.from !== "" || filters.to !== "";
   const set = (patch: Partial<Filters>) => setFilters(f => ({ ...f, ...patch }));
   return (
@@ -281,14 +284,21 @@ export function AuditSection() {
           </label>
           <label className="grid gap-1 text-caption text-muted-foreground">
             {t("settings.audit.from")}
-            <Input type="date" className="w-40" value={filters.from} onChange={e => set({ from: e.target.value })} />
+            <DateJump key={`from-${cleared}`} className="w-40" value={filters.from} onPick={d => set({ from: dayKey(d) })} />
           </label>
           <label className="grid gap-1 text-caption text-muted-foreground">
             {t("settings.audit.to")}
-            <Input type="date" className="w-40" value={filters.to} onChange={e => set({ to: e.target.value })} />
+            <DateJump key={`to-${cleared}`} className="w-40" value={filters.to} onPick={d => set({ to: dayKey(d) })} />
           </label>
           {filtered && (
-            <Button variant="ghost" size="sm" onClick={() => setFilters(NO_FILTERS)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFilters(NO_FILTERS);
+                setCleared(n => n + 1);
+              }}
+            >
               {t("settings.audit.clear")}
             </Button>
           )}
