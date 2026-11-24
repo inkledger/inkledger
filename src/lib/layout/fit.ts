@@ -1,5 +1,27 @@
 import { useLayoutEffect, type RefObject } from "react";
 
+/** Shows as many of `list`'s items as its box holds, hides the rest, and `more` when any is hidden. */
+function fitList(list: HTMLElement, box: HTMLElement, more: HTMLElement | null, alwaysMore: boolean) {
+  const items = [...list.children] as HTMLElement[];
+  for (const item of items) item.hidden = false;
+  // More than the list holds (cut before it came here): the link stays whatever the room.
+  if (more) more.hidden = !alwaysMore;
+  // The room the list has: its box's height minus what stands with it (its head, the "more" link).
+  const room = box.clientHeight - (list.offsetTop - box.offsetTop);
+  if (list.scrollHeight <= room + 1) return;
+  if (more) more.hidden = false;
+  const limit = room - (more ? more.offsetHeight + 8 : 0);
+  let anyHidden = false;
+  for (const item of items) {
+    const bottom = item.offsetTop - list.offsetTop + item.offsetHeight;
+    if (anyHidden || bottom > limit) {
+      item.hidden = true;
+      anyHidden = true;
+    }
+  }
+  if (more) more.hidden = !anyHidden && !alwaysMore;
+}
+
 /**
  * A list that fills the height its row gives it (the Dashboard's bento row): as many items as fit are
  * shown, the rest `hidden` (out of the tab order and the accessibility tree, never clipped half-way by a
@@ -11,32 +33,15 @@ export function useFitToHeight(list: RefObject<HTMLElement | null>, more: RefObj
     const el = list.current;
     const box = el?.parentElement;
     if (!el || !box) return;
-    let frame = 0;
-    const fit = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const items = [...el.children] as HTMLElement[];
-        for (const item of items) item.hidden = false;
-        // More than the list holds (cut before it came here): the link stays whatever the room.
-        if (more.current) more.current.hidden = !alwaysMore;
-        // The room the list has: its box's height minus what stands with it (its head, the "more" link).
-        const room = box.clientHeight - (el.offsetTop - box.offsetTop);
-        if (el.scrollHeight <= room + 1) return;
-        if (more.current) more.current.hidden = false;
-        const limit = room - (more.current ? more.current.offsetHeight + 8 : 0);
-        let anyHidden = false;
-        for (const item of items) {
-          const bottom = item.offsetTop - el.offsetTop + item.offsetHeight;
-          if (anyHidden || bottom > limit) {
-            item.hidden = true;
-            anyHidden = true;
-          }
-        }
-        if (more.current) more.current.hidden = !anyHidden && !alwaysMore;
-      });
-    };
+    const fit = () => fitList(el, box, more.current, alwaysMore);
+    // Fitted before the first paint: deferred to a frame, the list could be drawn whole first (its link
+    // pushed out of the room), then cut, a layout shift. A resize later refits in the next frame.
     fit();
-    const ro = new ResizeObserver(fit);
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
+    });
     ro.observe(box);
     return () => {
       cancelAnimationFrame(frame);

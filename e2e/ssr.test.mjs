@@ -70,6 +70,31 @@ test("a local layout opts out before the first paint, without hydration errors o
   }
 });
 
+test("My issues are cut to their room before the first paint, not a frame later", async () => {
+  const app = await start();
+  try {
+    // Timers and frames on Playwright's clock: a frame asked for during a commit runs after the paint, as
+    // on a loaded machine. Cut in that frame, the column would be drawn whole first, then its link moves in.
+    await app.page.clock.install({ time: new Date() });
+    await app.page.addInitScript(() => {
+      window.__shifts = [];
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) if (!entry.hadRecentInput) window.__shifts.push(...entry.sources.map(source => source.node?.textContent ?? ""));
+      }).observe({ type: "layout-shift", buffered: true });
+    });
+    await app.page.goto(`${app.base}/`);
+    for (let i = 0; i < 2; i++) {
+      await app.page.reload();
+      await app.page.getByRole("link", { name: /^Show all \(\d+\)/ }).waitFor();
+      await app.page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      assert.deepEqual(await app.page.evaluate(() => window.__shifts), []);
+    }
+    assert.deepEqual(app.errors, []);
+  } finally {
+    await app.stop();
+  }
+});
+
 test("login is server-rendered and a signed-out dashboard redirects to it", async () => {
   const app = await start({ bare: true });
   try {

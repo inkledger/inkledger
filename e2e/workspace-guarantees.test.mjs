@@ -200,7 +200,11 @@ test("Two tabs editing the layout: the second is told it changed, nothing is ove
   withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base, db, context }) => {
     const other = await context.newPage();
     await page.goto(`${base}/settings/workspace`);
+    // The second tab has read the layout before the first tab drafts on it: read after (a slow load), it
+    // would show that draft and build on it, rightly, with nothing to be told.
+    const read = other.waitForResponse(response => trpcProcs(response.url()).includes("workspace.get"));
     await other.goto(`${base}/settings/workspace`);
+    await read;
     await page.locator('[data-anchor="dashboard.stats"]').getByRole("button", { name: /^Show / }).click();
     await page.getByText(/Preview, not applied yet/).waitFor();
     // The second tab still shows the layout before the first tab's draft, and edits it.
