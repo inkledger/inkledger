@@ -62,11 +62,23 @@ export const users = pgTable("users", {
   mustChangePassword: integer("must_change_password").notNull().default(0),
   /** Set when an admin turns the account off: no sign-in, sessions gone */
   disabledAt: ms("disabled_at"),
+  /** How the account came: "local" (password, invite), "sso" (made at its first single sign-on), "scim" (provisioned) */
+  authSource: text("auth_source").notNull().default("local"),
+  /** 1 = keeps password sign-in while single sign-on is enforced (set by an admin; at least one owner while enforcing) */
+  breakGlass: integer("break_glass").notNull().default(0),
+  /** The identity provider's id for the account (SCIM externalId) */
+  externalId: text("external_id"),
+  /** 1 = provisioned and managed by SCIM (the identity provider turns it on and off) */
+  scimManaged: integer("scim_managed").notNull().default(0),
+  /** The userName SCIM knows the account by (often an address; the username is made from it) */
+  scimUserName: text("scim_user_name"),
   createdAt: ms("created_at")
     .notNull()
     .$defaultFn(() => new Date()),
 }, (t) => [
   uniqueIndex("uq_users_username").on(sql`lower(${t.username})`),
+  uniqueIndex("uq_users_scim_user_name").on(sql`lower(${t.scimUserName})`),
+  check("users_auth_source", sql`${t.authSource} IN ('local','sso','scim')`),
 ]);
 
 /**
@@ -141,6 +153,118 @@ export const roleAssignments = pgTable(
 
 export type RoleRow = typeof roles.$inferSelect;
 export type Team = typeof teams.$inferSelect;
+
+/**
+ * Identity providers people sign in through (single sign-on): OpenID Connect (Entra ID,
+ * Google, Okta, Keycloak…) or SAML 2.0. The client secret is sealed (sealFor "idp:<id>").
+ */
+export const identityProviders = pgTable(
+  "identity_providers",
+  {
+    id: serial("id").primaryKey(),
+    /** "oidc" | "saml" */
+    kind: text("kind").notNull(),
+    name: text("name").notNull(),
+    /** OIDC: the issuer (discovered from it unless discovery_url says otherwise); SAML: the IdP's entity id */
+    issuer: text("issuer").notNull().default(""),
+    clientId: text("client_id").notNull().default(""),
+    clientSecretSealed: text("client_secret_sealed"),
+    /** OIDC: where its configuration is read (default: issuer + /.well-known/openid-configuration) */
+    discoveryUrl: text("discovery_url"),
+    /** Entra ID multi-tenant: the one tenant (tid) accepted */
+    tenantId: text("tenant_id"),
+    /** SAML: the IdP's sign-in URL (HTTP-Redirect binding) */
+    samlEntryPoint: text("saml_entry_point"),
+    /** SAML: the IdP's signing certificate(s), PEM */
+    samlIdpCert: text("saml_idp_cert"),
+    scopes: text("scopes").notNull().default("openid email profile"),
+    /** JSON: which claim holds subject, username, email, name, groups */
+    claimMap: text("claim_map").notNull().default("{}"),
+    /** JSON: [{ group, roleId?, permissions?, teamIds? }] */
+    groupMap: text("group_map").notNull().default("[]"),
+    /** 1 = an unknown person signing in gets an account (just in time) */
+    jitEnabled: integer("jit_enabled").notNull().default(0),
+    /** JSON: what an account made here gets when no group maps: { roleId?, permissions?, teamIds? } */
+    defaultAccess: text("default_access").notNull().default("{}"),
+    /** 1 = everyone signs in through single sign-on, except break-glass accounts */
+    enforced: integer("enforced").notNull().default(0),
+    disabledAt: ms("disabled_at"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [check("identity_providers_kind", sql`${t.kind} IN ('oidc','saml')`)],
+);
+
+/** An account's identity at a provider: never linked by address, only by the provider's subject. */
+export const userIdentities = pgTable(
+  "user_identities",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    providerId: integer("provider_id")
+      .notNull()
+      .references(() => identityProviders.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull(),
+    emailAtLink: text("email_at_link").notNull().default(""),
+    lastLoginAt: ms("last_login_at"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [uniqueIndex("uq_user_identities_subject").on(t.providerId, t.subject), index("idx_user_identities_user").on(t.userId)],
+);
+
+/** Bearer tokens SCIM provisioning uses: only their hash is kept. */
+export const scimTokens = pgTable(
+  "scim_tokens",
+  {
+    id: serial("id").primaryKey(),
+    providerId: integer("provider_id")
+      .notNull()
+      .references(() => identityProviders.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    label: text("label").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    lastUsedAt: ms("last_used_at"),
+    revokedAt: ms("revoked_at"),
+  },
+  (t) => [uniqueIndex("uq_scim_tokens_hash").on(t.tokenHash), index("idx_scim_tokens_provider").on(t.providerId)],
+);
+
+/**
+ * A sign-in under way at a provider (minutes): keyed by the hash of the OIDC state or the
+ * SAML request id (InResponseTo), taken once. Purged with the sessions.
+ */
+export const ssoStates = pgTable(
+  "sso_states",
+  {
+    id: text("id").primaryKey(),
+    providerId: integer("provider_id")
+      .notNull()
+      .references(() => identityProviders.id, { onDelete: "cascade" }),
+    nonce: text("nonce").notNull().default(""),
+    pkceVerifier: text("pkce_verifier").notNull().default(""),
+    /** Where the browser goes after signing in (a path of this app) */
+    relay: text("relay").notNull().default("/"),
+    /** "login" | "test" (an admin trying the provider: nobody is signed in) */
+    mode: text("mode").notNull().default("login"),
+    /** The admin testing (mode "test") */
+    userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: ms("expires_at").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [index("idx_sso_states_expires").on(t.expiresAt)],
+);
+
+export type IdentityProvider = typeof identityProviders.$inferSelect;
 
 /**
  * A one-time link an admin hands to a new person (no mail leaves the server):
