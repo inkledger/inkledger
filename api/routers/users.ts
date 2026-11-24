@@ -19,6 +19,7 @@ import {
   holdsOwnerOnly,
   lockOwners,
   assertOwnerStays,
+  breakGlassOwners,
   OwnerLockError,
   type Tx,
   parsePermissions,
@@ -245,8 +246,10 @@ export const ownerLockRefusal = (e: OwnerLockError) =>
  * bypass the provider, and enforcement with it). Stricter than "while enforced": a password
  * it was given could never be used, since password sign-in refuses those accounts anyway.
  */
-function assertPasswordAllowed(user: User) {
+function assertPasswordAllowed(user: User, enforced: boolean) {
   if (user.authSource !== "local") throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.passwordRefused") });
+  // While single sign-on is enforced only a break-glass account signs in with a password: one for anyone else could never be used.
+  if (enforced && user.breakGlass !== 1) throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.passwordRefused") });
 }
 
 const inviteLink = (token: string) => `/invite/${token}`;
@@ -272,6 +275,8 @@ export const usersRouter = createRouter({
   invite: manage
     .input(access.extend({ username: z.string().min(1).max(64), displayName: z.string().trim().min(1).max(80) }))
     .mutation(async ({ input, ctx }) => {
+      // An invite sets a password: while single sign-on is enforced, new people come through the provider.
+      if (await ssoEnforced()) throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.inviteEnforced") });
       const me = await actingNow(ctx.user);
       const want = await wanted(input);
       assertWithin(me, want.granted);
@@ -301,8 +306,8 @@ export const usersRouter = createRouter({
     const user = await target(input.id, me);
     // A link sets the password: for an account that has one, it would be a takeover.
     if (user.passwordHash) throw notAllowed();
-    // One that signs in through single sign-on gets no password while that is enforced.
-    assertPasswordAllowed(user);
+    // One that signs in through single sign-on gets no password (nor anyone but break-glass while that is enforced).
+    assertPasswordAllowed(user, await ssoEnforced());
     const { token, expiresAt } = await createInvite(user.id, me.id);
     ctx.audit.set({ target: userTarget(user), after: { username: user.username } });
     return { link: inviteLink(token), expiresAt };
@@ -346,7 +351,7 @@ export const usersRouter = createRouter({
   /** A temporary password, shown once; the account must change it at its next sign-in, and is signed out everywhere. */
   resetPassword: manage.input(z.object({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
-    assertPasswordAllowed(user);
+    assertPasswordAllowed(user, await ssoEnforced());
     const password = temporaryPassword();
     const passwordHash = await hashPassword(password);
     const done = await writeAccount(ctx.user, user, false, (db, me) =>
@@ -361,6 +366,30 @@ export const usersRouter = createRouter({
   }),
 
   /** Turns an account off (signed out everywhere, no sign-in) or on again. Its data stays. */
+  /**
+   * Keeps password sign-in while single sign-on is enforced (owner only: it decides who can
+   * get past the identity provider). The last break-glass owner keeps it while enforcing.
+   */
+  setBreakGlass: permProcedure("manageAuth").input(z.object({ id: z.number().int(), breakGlass: z.boolean() })).mutation(async ({ input, ctx }) => {
+    const user = await target(input.id, ctx.user);
+    if (input.breakGlass && user.authSource !== "local") throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.passwordRefused") });
+    const enforced = await ssoEnforced();
+    const [updated] = await writeAccount(ctx.user, user, false, async (db, me) => {
+      if (!input.breakGlass && enforced) {
+        const spare = (await breakGlassOwners(db)).filter((id) => id !== user.id);
+        if (spare.length === 0 && (await breakGlassOwners(db)).includes(user.id)) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.sso.lastBreakGlass") });
+      }
+      return db
+        .update(users)
+        .set({ breakGlass: input.breakGlass ? 1 : 0 })
+        .where(asChecked(user, me))
+        .returning();
+    });
+    if (!updated) throw notAllowed();
+    ctx.audit.set({ target: userTarget(updated), before: { username: user.username, breakGlass: user.breakGlass === 1 }, after: { username: updated.username, breakGlass: updated.breakGlass === 1 } });
+    return row(await withAccess(updated), await placesOf(updated.id));
+  }),
+
   setDisabled: manage.input(z.object({ id: z.number().int(), disabled: z.boolean() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
     const [updated] = await writeAccount(ctx.user, user, input.disabled, (db, me) =>

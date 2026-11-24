@@ -252,7 +252,10 @@ export const authRouter = createRouter({
       // A link that doesn't work is refused at once (no hash for it); one that does is
       // checked again after the hash (its maker's rights, the account's access), right
       // before the write: the hash leaves time for either to change.
-      if (!(await inviteUser(input.token))) throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.inviteInvalid") });
+      const invited = await inviteUser(input.token);
+      if (!invited) throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.inviteInvalid") });
+      // A password while single sign-on is enforced: only for a break-glass account.
+      if (invited.user.breakGlass !== 1 && (await ssoEnforced())) throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.useProvider") });
       const passwordHash = await hashPassword(input.password);
       const found = await inviteUser(input.token);
       if (!found || !(await consumeInvite(found.inviteId))) {

@@ -75,7 +75,7 @@ export const server = {
     noBreakGlass: "Before enforcing single sign-on, mark at least one owner with a password as break-glass.",
     providerNotFound: "That identity provider is gone.",
     tokenNotFound: "That SCIM token is gone.",
-    invalidJson: "Not valid JSON: {field}.",
+    inviteEnforced: "Single sign-on is enforced: new people sign in through the identity provider instead of an invite.",
   },
   url: {
     invalid: "Invalid URL",

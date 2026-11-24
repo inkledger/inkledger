@@ -79,6 +79,13 @@ const CASES: Record<string, { input: (t: { member: number }) => unknown; action?
   "teams.remove": { input: () => ({ id: 999_999 }) },
   "teams.setMember": { input: ({ member }) => ({ teamId: 999_999, userId: member, role: "member" }) },
   "teams.removeMember": { input: ({ member }) => ({ teamId: 999_999, userId: member }) },
+  "users.setBreakGlass": { input: ({ member }) => ({ id: member, breakGlass: false }) },
+  "sso.createProvider": { input: () => ({ kind: "oidc", name: "Idp", issuer: "https://203.0.113.10", clientId: "client", clientSecret: "SECRET-client" }) },
+  "sso.updateProvider": { input: () => ({ id: 999_999, kind: "oidc", name: "Gone", issuer: "https://203.0.113.10", clientId: "client", clientSecret: "SECRET-client" }) },
+  "sso.removeProvider": { input: () => ({ id: 999_999 }) },
+  "sso.setEnforced": { input: () => ({ id: 999_999, enforced: true }) },
+  "sso.createScimToken": { input: () => ({ providerId: 999_999, label: "Entra" }) },
+  "sso.revokeScimToken": { input: () => ({ id: 999_999 }) },
 };
 
 let n = 0;

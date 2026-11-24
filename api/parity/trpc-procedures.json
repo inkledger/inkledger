@@ -1148,6 +1148,42 @@
     "type": "mutation"
   },
   {
+    "path": "sso.createProvider",
+    "type": "mutation"
+  },
+  {
+    "path": "sso.createScimToken",
+    "type": "mutation"
+  },
+  {
+    "path": "sso.list",
+    "type": "query"
+  },
+  {
+    "path": "sso.loginOptions",
+    "type": "query"
+  },
+  {
+    "path": "sso.removeProvider",
+    "type": "mutation"
+  },
+  {
+    "path": "sso.revokeScimToken",
+    "type": "mutation"
+  },
+  {
+    "path": "sso.setEnforced",
+    "type": "mutation"
+  },
+  {
+    "path": "sso.testResult",
+    "type": "query"
+  },
+  {
+    "path": "sso.updateProvider",
+    "type": "mutation"
+  },
+  {
     "path": "stats.dashboard",
     "type": "query"
   },
@@ -1341,6 +1377,10 @@
   },
   {
     "path": "users.setAccess",
+    "type": "mutation"
+  },
+  {
+    "path": "users.setBreakGlass",
     "type": "mutation"
   },
   {

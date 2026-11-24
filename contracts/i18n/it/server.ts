@@ -75,7 +75,7 @@ export const server: Shape<typeof en> = {
     noBreakGlass: "Prima di rendere obbligatorio il single sign-on, segna come break-glass almeno un proprietario con password.",
     providerNotFound: "Quel provider di identità non esiste più.",
     tokenNotFound: "Quel token SCIM non esiste più.",
-    invalidJson: "JSON non valido: {field}.",
+    inviteEnforced: "Il single sign-on è obbligatorio: le nuove persone accedono dal provider di identità invece che con un invito.",
   },
   url: {
     invalid: "URL non valido",
