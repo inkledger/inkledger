@@ -93,6 +93,7 @@ const SKIPS: Record<string, string> = {
   "users.resetPassword": "accounts, manageUsers (the permission tests below)",
   "users.setDisabled": "accounts, manageUsers (the permission tests below)",
   "users.setBreakGlass": "accounts, manageAuth (the permission tests below)",
+  "sso.createProvider": "identity providers are the server's; the roles in its maps stay within the caller's (api/sso/enforcement.test.ts)",
   "sso.updateProvider": "identity providers are the server's, manageAuth (the permission tests below)",
   "sso.removeProvider": "identity providers are the server's, manageAuth (the permission tests below)",
   "sso.setEnforced": "identity providers are the server's, manageAuth (the permission tests below)",

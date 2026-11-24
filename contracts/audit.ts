@@ -41,7 +41,7 @@ export const AUDIT_ACTIONS = {
   "users.setBreakGlass": ["username", "breakGlass"],
   // Single sign-on (Settings › Single sign-on) and what identity providers do here
   "sso.createProvider": ["kind", "name", "issuer", "jitEnabled", "enforced", "disabled"],
-  "sso.updateProvider": ["kind", "name", "issuer", "jitEnabled", "enforced", "disabled", "secretChanged"],
+  "sso.updateProvider": ["kind", "name", "issuer", "jitEnabled", "enforced", "disabled", "clientChanged"],
   "sso.removeProvider": ["kind", "name"],
   "sso.setEnforced": ["name", "enforced"],
   "sso.createScimToken": ["provider", "label"],

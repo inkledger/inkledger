@@ -1,6 +1,6 @@
 # Single sign-on and SCIM
 
-How people sign in through your identity provider, how accounts are made and turned off by it, and how the server stays reachable when the provider fails. Settings → Single sign-on (owners: `manageAuth`).
+How people sign in through your identity provider, how accounts are made and turned off by it, and how the server stays reachable when the provider fails. Settings → Single sign-on (permission `manageAuth`: owners and IT admins). A provider's group map and default access can't hand out more than the person editing it holds: an IT admin can't map a group to the owner role.
 
 ## What is supported
 
@@ -49,7 +49,7 @@ Settings shows them per provider, with copy buttons.
 - **At first sign-in (JIT, optional):** an unknown person gets an account with no password, its access from the group map; when no group matches, the default role. The default access never includes the owner role or an owner-only permission. Only a group mapped explicitly to the owner role makes an owner.
 - **Access is re-evaluated at every sign-in** for accounts made by single sign-on. Team membership follows the teams named in the map (leads set by an admin stay). The last owner (or last break-glass owner while enforcing) keeps the owner role.
 - **Without JIT,** only accounts provisioned by SCIM or linked before can sign in.
-- **SCIM-provisioned accounts** are linked by their `externalId` when SCIM sends one (set the provider's subject claim to the same value). One without an `externalId` is linked at its first sign-in by the username claim matching its SCIM `userName`, and only while it is not linked yet: use a claim people can't change themselves (UPN, email managed by the directory).
+- **SCIM-provisioned accounts** are linked by their `externalId` when SCIM sends one (set the provider's subject claim to the same value). One without an `externalId` is held under its SCIM `userName` and linked at its first sign-in through the same provider, by the username claim matching it, once: another provider can't claim it. Use a claim people can't change themselves (UPN, email managed by the directory).
 - Accounts of the provider get **no password** here: reset, invite links and activation are refused for them.
 
 ## SCIM provisioning

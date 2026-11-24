@@ -7,7 +7,7 @@ import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { teamMembers, teams, userIdentities, users, type IdentityProvider, type Team, type User } from "@db/schema";
 import { getDb, uniqueViolation } from "../queries/connection";
 import { assertOwnerStays, lockOwners, OwnerLockError, signOutEverywhere } from "../queries/accounts";
-import { accessFor, managedTeams, usernameFrom, writeAccess } from "../sso/accounts";
+import { accessFor, managedTeams, pendingSubject, usernameFrom, writeAccess } from "../sso/accounts";
 import { defaultAccessOf, groupMapOf, ssoEnforced } from "../sso/store";
 import { SCIM_BASE } from "@contracts/sso";
 
@@ -193,7 +193,8 @@ export async function createUser(actor: ScimActor, body: Json): Promise<User> {
             disabledAt: f.active === false ? new Date() : null,
           })
           .returning();
-        if (f.externalId) await tx.insert(userIdentities).values({ providerId: actor.provider.id, userId: u.id, subject: f.externalId, emailAtLink: f.email ?? "" });
+        // Linked by its externalId, or held for its first sign-in under its userName, within this provider only.
+        await tx.insert(userIdentities).values({ providerId: actor.provider.id, userId: u.id, subject: f.externalId || pendingSubject(f.userName ?? ""), emailAtLink: f.email ?? "" });
         await writeAccess(tx, u.id, access, managed);
         const [now] = await tx.select().from(users).where(eq(users.id, u.id));
         return now;
@@ -241,6 +242,13 @@ export async function updateUser(u: User, f: UserFields): Promise<{ user: User; 
       if (uniqueViolation(e)) throw takenName();
       throw e;
     }
+  }
+  // A renamed account still waiting for its first sign-in waits under its new userName.
+  if (values.scimUserName && u.scimUserName) {
+    await getDb()
+      .update(userIdentities)
+      .set({ subject: pendingSubject(values.scimUserName) })
+      .where(and(eq(userIdentities.userId, u.id), eq(userIdentities.subject, pendingSubject(u.scimUserName))));
   }
   let deactivated = false;
   let reactivated = false;

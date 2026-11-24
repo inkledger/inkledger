@@ -62,6 +62,20 @@ describe("before enforcing", () => {
   });
 });
 
+describe("who sets up providers", () => {
+  it("an IT admin (manageAuth, not an owner) can't map a group to the owner role or to a power it lacks", async () => {
+    const [{ id: itAdmin }] = await q<{ id: number }>("SELECT id FROM roles WHERE key = 'it-admin'");
+    const [{ id: ownerRole }] = await q<{ id: number }>("SELECT id FROM roles WHERE key = 'owner'");
+    const it_ = await account("itadmin1", { roleId: itAdmin });
+    const caller = appRouter.createCaller(as(it_));
+    const base = { kind: "oidc" as const, name: "Mine", issuer: "https://203.0.113.20", clientId: "c" };
+    expect(await code(caller.sso.createProvider({ ...base, groupMap: [{ group: "x", roleId: ownerRole, permissions: [], teamIds: [] }] }))).toBe("FORBIDDEN");
+    expect(await code(caller.sso.createProvider({ ...base, defaultAccess: { permissions: ["downloadBackups"], teamIds: [] } }))).toBe("FORBIDDEN");
+    // It holds manageAuth: a provider handing out nothing more passes this check (and may fail later, on the address).
+    expect(await code(caller.sso.createProvider(base))).not.toBe("FORBIDDEN");
+  });
+});
+
 describe("enforced", () => {
   beforeAll(async () => {
     const caller = appRouter.createCaller(as(owner));
@@ -76,7 +90,9 @@ describe("enforced", () => {
   });
 
   it("the login page learns enforcement and the providers to offer", async () => {
-    expect(await appRouter.createCaller(anon()).sso.loginOptions()).toEqual({ providers: [{ id: providerId, name: "Corp", kind: "oidc" }], enforced: true });
+    const options = await appRouter.createCaller(anon()).sso.loginOptions();
+    expect(options.enforced).toBe(true);
+    expect(options.providers).toContainEqual({ id: providerId, name: "Corp", kind: "oidc" });
   });
 
   it("no password by reset, invite or re-invite for anyone but break-glass", async () => {

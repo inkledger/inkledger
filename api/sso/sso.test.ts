@@ -201,11 +201,14 @@ describe("OIDC: authorization code with PKCE, state and nonce", () => {
     expect("user" in out && out.user.username).toBe("linus-2");
   });
 
-  it("a SCIM account without externalId is linked by its userName once; another subject with that username never takes it", async () => {
+  it("a SCIM account without externalId is linked by its userName once, by its own provider only; another subject never takes it", async () => {
     const { q } = await import("../queries/connection");
-    await q("INSERT INTO scim_tokens (provider_id, token_hash, created_at) VALUES (?, 'hash-for-link-test', 1)", p.id);
+    const { accountFor, pendingSubject } = await import("./accounts");
     const [{ id }] = await q<{ id: number }>("INSERT INTO users (username, display_name, auth_source, scim_managed, scim_user_name, created_at) VALUES ('kate', 'Kate', 'scim', 1, 'kate@example.com', 1) RETURNING id");
-    const { accountFor } = await import("./accounts");
+    await q("INSERT INTO user_identities (user_id, provider_id, subject, created_at) VALUES (?, ?, ?, 1)", id, p.id, pendingSubject("kate@example.com"));
+    // Another provider (one an IT admin could set up) can't claim it by the same username.
+    const elsewhere = await insertProvider({ kind: "oidc", issuer: "http://127.0.0.1:47994", clientId: "c", jitEnabled: 0 });
+    expect(await accountFor(elsewhere, { subject: "sub-kate", username: "kate@example.com", email: "", name: "", groups: [] }, who)).toEqual({ failure: "notProvisioned" });
     const first = await accountFor(p, { subject: "sub-kate", username: "kate@example.com", email: "", name: "", groups: [] }, who);
     expect("user" in first && first.user.id).toBe(id);
     const other = await accountFor(p, { subject: "sub-impostor", username: "kate@example.com", email: "", name: "", groups: [] }, who);

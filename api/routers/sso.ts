@@ -1,5 +1,6 @@
 // Settings › Single sign-on: identity providers (OIDC, SAML), their SCIM tokens, enforcement,
-// and what the login page offers. Owner-only (manageAuth): a provider decides who gets in.
+// and what the login page offers. Behind manageAuth (owners, IT admins); what a provider's
+// groups hand out stays within what the caller holds.
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNull } from "drizzle-orm";
@@ -8,9 +9,11 @@ import { identityProviders, scimTokens, type IdentityProvider } from "@db/schema
 import { t } from "@contracts/i18n";
 import { SCIM_BASE, SCIM_TOKEN_PREFIX, SSO_KINDS } from "@contracts/sso";
 import { claimMapSchema, groupMapSchema, ssoAccessSchema } from "@contracts/ssoSchemas";
+import { PERMISSIONS } from "@contracts/accounts";
+import type { User } from "@db/schema";
 import { createRouter, permProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { breakGlassOwners } from "../queries/accounts";
+import { breakGlassOwners, roleById, roleByKey, userById, withAccess, within } from "../queries/accounts";
 import { sha256Hex } from "../lib/hash";
 import { env } from "../lib/env";
 import { activeProviders, claimMapOf, defaultAccessOf, groupMapOf, providerById, sealClientSecret } from "../sso/store";
@@ -60,6 +63,30 @@ async function assertUsable(p: ProviderInput) {
     if (e instanceof SsoError) throw new TRPCError({ code: "BAD_REQUEST", message: e.message });
     throw new TRPCError({ code: "BAD_REQUEST", message: String(e instanceof Error ? e.message : e) });
   }
+}
+
+/**
+ * What the provider's group map and default access may hand out stays within what the caller
+ * holds: an IT admin (manageAuth without being an owner) can't map a group to the owner role,
+ * or to a power it lacks, and then sign in through an identity provider it controls.
+ */
+async function assertWithinCaller(user: User, p: ProviderInput) {
+  const found = await userById(user.id);
+  const me = found && !found.disabledAt ? await withAccess(found) : undefined;
+  if (!me) throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
+  const owner = await roleByKey("owner");
+  let ownerWanted = false;
+  const wanted = new Set<string>();
+  for (const e of [...p.groupMap, p.defaultAccess]) {
+    for (const perm of e.permissions) wanted.add(perm);
+    if (e.roleId == null) continue;
+    const role = await roleById(e.roleId);
+    if (!role || role.scope !== "server") throw new TRPCError({ code: "BAD_REQUEST", message: t("server.roles.notFound") });
+    if (role.id === owner?.id) ownerWanted = true;
+    for (const perm of role.permissions) wanted.add(perm);
+  }
+  const granted = { owner: ownerWanted, permissions: PERMISSIONS.filter((x) => ownerWanted || wanted.has(x)), teams: [], modules: [] };
+  if (!within(me, granted)) throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
 }
 
 const values = (p: ProviderInput) => ({
@@ -140,6 +167,7 @@ export const ssoRouter = createRouter({
   testResult: manage.query(({ ctx }) => ssoTests.get(ctx.user.id) ?? null),
 
   createProvider: manage.input(providerInput).mutation(async ({ input, ctx }) => {
+    await assertWithinCaller(ctx.user, input);
     await assertUsable(input);
     const made = await getDb().transaction(async (tx) => {
       const [row] = await tx.insert(identityProviders).values({ ...values(input), disabledAt: input.disabled ? new Date() : null }).returning();
@@ -153,13 +181,14 @@ export const ssoRouter = createRouter({
 
   updateProvider: manage.input(providerInput.extend({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
     const before = await existing(input.id);
+    await assertWithinCaller(ctx.user, input);
     await assertUsable(input);
     const secret = input.clientSecret === undefined ? {} : { clientSecretSealed: input.clientSecret ? sealClientSecret(before.id, input.clientSecret) : null };
     // Turned off, it can't stay enforced (nobody could sign in through it).
     const off = input.disabled ? { disabledAt: before.disabledAt ?? new Date(), enforced: 0 } : { disabledAt: null };
     const [after] = await getDb().update(identityProviders).set({ ...values(input), ...secret, ...off }).where(eq(identityProviders.id, before.id)).returning();
     forgetProvider(before.id);
-    ctx.audit.set({ target: providerTarget(after), before: view(before), after: { ...view(after), secretChanged: input.clientSecret !== undefined } });
+    ctx.audit.set({ target: providerTarget(after), before: view(before), after: { ...view(after), clientChanged: input.clientSecret !== undefined } });
     return providerRow(after);
   }),
 

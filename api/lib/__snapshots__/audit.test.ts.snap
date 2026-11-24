@@ -394,13 +394,13 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   },
   "sso.updateProvider": {
     "kept": [
+      "clientChanged",
       "disabled",
       "enforced",
       "issuer",
       "jitEnabled",
       "kind",
       "name",
-      "secretChanged",
     ],
     "redacted": 17,
   },

@@ -2,8 +2,8 @@
 // address), one SCIM provisioned for it, or a new one made just in time. Access comes from
 // the provider's group map, else its default; never an owner unless a group explicitly maps
 // to the owner role. Accounts made by single sign-on get it again at every sign-in.
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { scimTokens, teamMembers, teams, userIdentities, users, type IdentityProvider, type User } from "@db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { teamMembers, teams, userIdentities, users, type IdentityProvider, type User } from "@db/schema";
 import { OWNER_ONLY_PERMISSIONS, USERNAME_RE, type Permission } from "@contracts/accounts";
 import type { GroupMapEntry, SsoAccess, SsoFailure } from "@contracts/sso";
 import { getDb, uniqueViolation } from "../queries/connection";
@@ -86,23 +86,26 @@ export async function accessFor(provider: IdentityProvider, groups: readonly str
 
 const viewOfAccess = (a: Resolved) => ({ role: a.owner ? "owner" : a.roleId, permissions: a.permissions, teams: a.teamIds });
 
-/** An account SCIM provisioned for this provider, by the userName both sides know, not yet linked. */
-async function provisioned(provider: IdentityProvider, identity: Identity): Promise<User | undefined> {
-  if (!identity.username) return undefined;
-  const [token] = await getDb().select({ id: scimTokens.id }).from(scimTokens).where(eq(scimTokens.providerId, provider.id)).limit(1);
-  if (!token) return undefined;
-  const [found] = await getDb()
-    .select({ user: users })
-    .from(users)
-    .leftJoin(userIdentities, eq(userIdentities.userId, users.id))
-    .where(and(eq(users.scimManaged, 1), sql`lower(${users.scimUserName}) = ${identity.username.toLowerCase()}`, isNull(userIdentities.id)))
-    .limit(1);
-  return found?.user;
-}
+/**
+ * The subject a SCIM account without externalId is held under until its first sign-in: its
+ * userName, within the provider whose token made it (another provider can't claim it).
+ */
+export const pendingSubject = (userName: string) => `scim-pending:${userName.toLowerCase()}`;
 
-/** Links an account to the provider's subject (a second link of the same subject at once loses: the first one stays). */
-async function link(providerId: number, userId: number, identity: Identity): Promise<void> {
-  await getDb().insert(userIdentities).values({ providerId, userId, subject: identity.subject, emailAtLink: identity.email }).onConflictDoNothing();
+/**
+ * An account this provider's SCIM provisioned without externalId, by the userName both sides
+ * know: linked now to the subject (the pending link taken in one step, so twice at once links once).
+ */
+async function linkProvisioned(provider: IdentityProvider, identity: Identity): Promise<void> {
+  if (!identity.username) return;
+  await getDb()
+    .update(userIdentities)
+    .set({ subject: identity.subject, emailAtLink: identity.email })
+    .where(and(eq(userIdentities.providerId, provider.id), eq(userIdentities.subject, pendingSubject(identity.username))))
+    .catch((e: unknown) => {
+      // The subject is linked to another account already: that link stays, this one waits.
+      if (!uniqueViolation(e)) throw e;
+    });
 }
 
 async function linked(providerId: number, subject: string): Promise<User | undefined> {
@@ -185,11 +188,8 @@ async function refreshAccess(provider: IdentityProvider, user: User, identity: I
 export async function accountFor(provider: IdentityProvider, identity: Identity, who: AuditRequest): Promise<{ user: User } | { failure: SsoFailure; userId?: number }> {
   let user = await linked(provider.id, identity.subject);
   if (!user) {
-    const scim = await provisioned(provider, identity);
-    if (scim) {
-      await link(provider.id, scim.id, identity);
-      user = await linked(provider.id, identity.subject);
-    }
+    await linkProvisioned(provider, identity);
+    user = await linked(provider.id, identity.subject);
   }
   if (!user) {
     if (provider.jitEnabled !== 1) return { failure: "notProvisioned" };
@@ -207,7 +207,7 @@ export async function accountFor(provider: IdentityProvider, identity: Identity,
 
 /** Accounts linked to a provider (Settings shows how many). */
 export async function linkedCount(providerId: number): Promise<number> {
-  const [row] = await getDb().select({ n: sql<number>`count(*)::int` }).from(userIdentities).where(eq(userIdentities.providerId, providerId));
+  const [row] = await getDb().select({ n: sql<number>`count(*)::int` }).from(userIdentities).where(and(eq(userIdentities.providerId, providerId), sql`${userIdentities.subject} NOT LIKE 'scim-pending:%'`));
   return row?.n ?? 0;
 }
 
