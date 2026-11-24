@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { APP, dayKey, fakeProcedures, holdRoute, lastWorkday, mockNative, start, startTimer, withApp } from "./harness.mjs";
+import { APP, allDaySchedule, dayKey, fakeProcedures, holdRoute, lastWorkday, minutesToday, mockNative, start, startTimer, withApp } from "./harness.mjs";
 
 const note = (db, text, x, y) => {
   const now = Date.now();
@@ -73,21 +73,9 @@ test("the issue page's pin waits to know the boards: a click before never pins o
     await page.getByRole("menu").getByRole("menuitemcheckbox", { name: "Sprint" }).waitFor();
   }));
 
-/** Minutes since local midnight, now. */
-const minutesToday = () => {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
-};
 // A working day around the clock: the hole since midnight is always open (but in its first and last minutes).
-const allDay = db =>
-  db.q(
-    "INSERT INTO work_schedules (user_id, valid_from, schedule, created_at) VALUES (1, '1970-01-01', ?, ?)",
-    JSON.stringify(Array.from({ length: 7 }, () => ({ enabled: true, start: "00:00", end: "23:59", breaks: [] }))),
-    Date.now(),
-  );
-
 test("Play with a hole open asks: from its start counts it, and with a timer running never from the hole", { skip: minutesToday() < 3 || minutesToday() > 23 * 60 + 55 }, () =>
-  withApp({ seed: allDay }, async ({ page, base, db }) => {
+  withApp({ seed: allDaySchedule }, async ({ page, base, db }) => {
     await page.goto(base + "/issues/DEMO-101");
     await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
     const ask = page.getByRole("alertdialog", { name: "Start DEMO-101" });
@@ -111,7 +99,7 @@ test("Play with a hole open asks: from its start counts it, and with a timer run
   }));
 
 test("the open hole on the Dashboard has a Play; from now starts the timer at once", { skip: minutesToday() < 3 || minutesToday() > 23 * 60 + 55 }, () =>
-  withApp({ seed: allDay }, async ({ page, base, db }) => {
+  withApp({ seed: allDaySchedule }, async ({ page, base, db }) => {
     await page.goto(base + "/");
     await page.getByRole("button", { name: /^Start a timer: from 00:00/ }).click();
     const picker = page.getByRole("dialog");
@@ -347,7 +335,8 @@ test("Settings → Pinboard: each place on or off, alone", () =>
     assert.deepEqual(row, { pinboard_on_board: 0, pinboard_in_menu: 0, pinboard_widget: 1 });
     await page.goto(base + "/board");
     await page.getByRole("heading", { name: "Board" }).first().waitFor();
-    assert.equal(await page.getByRole("button", { name: "Pinboard", exact: true }).count(), 0);
+    // Gone once the settings are read (drawn with the defaults until then).
+    await page.getByRole("button", { name: "Pinboard", exact: true }).waitFor({ state: "detached" });
     await page.keyboard.press("p");
     await page.getByRole("region", { name: "Floating pinboard" }).waitFor();
     await page.keyboard.press("Escape");
@@ -357,7 +346,7 @@ test("Settings → Pinboard: each place on or off, alone", () =>
     await page.waitForTimeout(300);
     await page.goto(base + "/issues");
     await page.getByRole("heading", { name: "Issues" }).first().waitFor();
-    assert.equal(await page.getByRole("button", { name: "Open the pinboard" }).count(), 0);
+    await page.getByRole("button", { name: "Open the pinboard" }).waitFor({ state: "detached" });
     await page.keyboard.press("p");
     await page.waitForTimeout(300);
     assert.equal(await page.getByRole("region", { name: /pinboard/i }).count(), 0);

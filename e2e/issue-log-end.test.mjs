@@ -4,7 +4,7 @@
 // issue page behave as on the Dashboard: the start is placed, the end follows it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, holdRoute, trpcProcs, withApp } from "./harness.mjs";
+import { holdRoute, nearMidnight, trpcProcs, withApp } from "./harness.mjs";
 
 const MINUTE = 60_000;
 // Time kept here (a GitHub connection): logged with no tracker to write to, as a read-only test server must.
@@ -62,8 +62,7 @@ async function endTimeWhilePlacing(page, dialog, release) {
   return { start, endField };
 }
 
-test("issue page, Stop+log by end time: the end can be chosen, no overlap with the day", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 90 * MINUTE);
+test("issue page, Stop+log by end time: the end can be chosen, no overlap with the day", { skip: nearMidnight(5 * MINUTE, 90 * MINUTE), timeout: 600_000 }, async () => {
   await withApp({ seed: seedWith({ timer: true }) }, async ({ page, base, db }) => {
     const { release } = await issuePageHeld(page, base);
     await page.getByRole("button", { name: `Stop and log time on ${KEY}` }).first().click();
@@ -83,8 +82,7 @@ test("issue page, Stop+log by end time: the end can be chosen, no overlap with t
   });
 });
 
-test("issue page, Log time by end time: the end can be chosen", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 90 * MINUTE);
+test("issue page, Log time by end time: the end can be chosen", { skip: nearMidnight(5 * MINUTE, 90 * MINUTE), timeout: 600_000 }, async () => {
   await withApp({ seed: seedWith({ timer: false }) }, async ({ page, base, db }) => {
     const { release } = await issuePageHeld(page, base);
     await page.getByRole("button", { name: "Log time", exact: true }).first().click();

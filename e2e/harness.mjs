@@ -3,10 +3,11 @@
 // never reach a real Jira. Run with `pnpm test:e2e` (builds first).
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { afterEach } from "node:test";
 import { createHash, createCipheriv, randomBytes } from "node:crypto";
 import pg from "pg";
 import { chromium, webkit } from "playwright-core";
@@ -51,6 +52,44 @@ export function adminUrl() {
   if (!m) throw new Error("No Postgres for e2e: start `docker compose up -d db` and set DATABASE_URL in .env");
   return m[1].trim();
 }
+
+/**
+ * What a failed test leaves to look at (CI uploads it): every page's screenshot and HTML,
+ * the browser console, page errors, failed requests and the server log, in
+ * e2e-artifacts/<file>--<test>/. Taken at stop() (the browser closes there), kept only
+ * when the test failed. E2E_ARTIFACTS=0 skips it.
+ */
+export const ARTIFACTS = join(APP, "e2e-artifacts");
+// Only in a test file's run: a script importing the harness (scripts/perf.mjs) gets no test hook or snapshots.
+const testFile = process.argv.find(a => a.endsWith(".test.mjs"));
+const keepArtifacts = process.env.E2E_ARTIFACTS !== "0" && !!testFile;
+/** Snapshots of the apps stopped during the running test. */
+let snapshots = [];
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(no, ms, new Error(`timed out after ${ms} ms`)).unref())]);
+if (keepArtifacts)
+  afterEach(t => {
+    const taken = snapshots;
+    snapshots = [];
+    if (t.passed || taken.length === 0) return;
+    const file = basename(testFile).replace(/\.test\.mjs$/, "");
+    const slug = `${file}--${t.name}`.replace(/[^\w.-]+/g, "-").slice(0, 120);
+    const dir = join(ARTIFACTS, slug);
+    try {
+      mkdirSync(dir, { recursive: true });
+      taken.forEach((s, i) => {
+        const at = taken.length > 1 ? `app${i + 1}-` : "";
+        writeFileSync(join(dir, `${at}console.log`), s.console.join("\n") + "\n");
+        writeFileSync(join(dir, `${at}server.log`), s.server);
+        s.pages.forEach((p, j) => {
+          if (p.png) writeFileSync(join(dir, `${at}page${j + 1}.png`), p.png);
+          writeFileSync(join(dir, `${at}page${j + 1}.html`), `<!-- ${p.url} · ${p.since} -->\n${p.html}`);
+        });
+      });
+      console.error(`e2e artifacts: ${dir}`);
+    } catch (e) {
+      console.error(`e2e artifacts not saved: ${e}`);
+    }
+  });
 
 /** Raw SQL with "?" placeholders (as tests are written), rows back. */
 function sqlHelper(client) {
@@ -236,9 +275,15 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     });
     if (!bare) await context.addCookies([{ name: `ikl_session_${port}`, value: cookie, url: base }]);
     const page = await context.newPage();
-    // A page drawn by the server is live only once React has taken it over (its SSR state node goes then):
-    // acting before that clicks on markup with no handlers yet, which a slower machine (CI) shows at random.
-    const live = () => page.waitForFunction(() => !document.getElementById("inkledger-ssr-state"), null, { timeout: 30_000 }).catch(() => {});
+    // A page drawn by the server is live only once React has taken it over (App marks <html data-live>
+    // after its first commit; the SSR state node goes earlier, before hydration starts): acting before that
+    // clicks on markup with no handlers yet, which a slower machine (CI) shows at random. A page that is not
+    // the app (no #root, or a page of its own such as outlook.html) is live as it loads; one whose app never
+    // starts is the test's to find out.
+    const live = () =>
+      page
+        .waitForFunction(() => !document.getElementById("inkledger-ssr-state") && (document.documentElement.hasAttribute("data-live") || !document.getElementById("root") || location.pathname.endsWith(".html")), null, { timeout: 15_000 })
+        .catch(() => {});
     for (const name of ["goto", "reload"]) {
       const original = page[name].bind(page);
       page[name] = async (...args) => {
@@ -248,6 +293,17 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       };
     }
     const errors = [];
+    // The browser's own account of the test, for the artifacts of a failure (capped: a chatty page can't fill the memory).
+    const consoleLines = [];
+    const note = line => consoleLines.length < 5000 && consoleLines.push(`${new Date().toISOString()} ${line}`);
+    const watch = p => {
+      p.on("console", m => note(`[${m.type()}] ${m.text()}`));
+      p.on("pageerror", e => note(`[pageerror] ${e}`));
+      p.on("requestfailed", r => note(`[requestfailed] ${r.method()} ${r.url()} ${r.failure()?.errorText ?? ""}`));
+      p.on("load", () => note(`[load] ${p.url()}`));
+    };
+    watch(page);
+    context.on("page", watch);
     // WebKit reports a same-origin fetch started while the page unloads (a refetch after a cancelled save) as a page error, caught or not.
     const unloading = e => ENGINE === "webkit" && /^Fetch API cannot load http:\s*\/*([^/\s]+)\/\S* due to access control checks\.$/.exec(String(e))?.[1] === new URL(base).host;
     // Playwright's own service-worker block, refused in a sandboxed frame (WebKit): no error of the app's.
@@ -262,6 +318,19 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       errors,
       log: () => log,
       async stop() {
+        if (keepArtifacts) {
+          // Every page of every context (a test may open its own), as it stands now; never more than a few seconds.
+          const pages = browser.contexts().flatMap(c => c.pages());
+          const shots = await Promise.all(
+            pages.map(async p => ({
+              url: p.url(),
+              since: await withTimeout(p.evaluate(() => `${Math.round(performance.now())} ms since the page loaded`), 2000).catch(() => "?"),
+              png: await withTimeout(p.screenshot({ timeout: 5000 }), 6000).catch(() => null),
+              html: await withTimeout(p.content(), 3000).catch(e => `(no HTML: ${e})`),
+            })),
+          ).catch(() => []);
+          snapshots.push({ pages: shots, console: consoleLines, server: log });
+        }
         await browser.close().catch(() => {});
         const exited = new Promise(r => server.once("exit", r));
         server.kill("SIGTERM");
@@ -332,6 +401,33 @@ export async function awayFromMidnight(before = 2 * 60_000, after = 3 * 60_000) 
   const until = next - now < before ? next + after : now - midnight < after ? midnight + after : now;
   if (until > now) await new Promise(r => setTimeout(r, until - now));
 }
+
+/**
+ * A working day around the clock, every day, no breaks: where a test's block lands
+ * doesn't depend on the hour it runs at (the default 9:00–18:00 with lunch refuses a
+ * block reaching before 9:00 and splits one over lunch). Seed it in a test's `seed`.
+ */
+export const allDaySchedule = db =>
+  db.q(
+    "INSERT INTO work_schedules (user_id, valid_from, schedule, created_at) VALUES (1, '1970-01-01', ?, ?)",
+    JSON.stringify(Array.from({ length: 7 }, () => ({ enabled: true, start: "00:00", end: "23:59", breaks: [] }))),
+    Date.now(),
+  );
+
+/** Minutes since local midnight, now. */
+export const minutesToday = () => {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+};
+
+/**
+ * Too near midnight for a test about "today": in the last `before` ms of a day or its first
+ * `after` ms. For `skip`, when waiting it out (awayFromMidnight) would outlast the test's timeout.
+ */
+export const nearMidnight = (before, after) => {
+  const ms = Date.now() - new Date().setHours(0, 0, 0, 0);
+  return ms < after || 86_400_000 - ms < before;
+};
 
 /** A day as the app keys it (YYYY-MM-DD, local time). */
 export const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

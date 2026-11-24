@@ -518,9 +518,16 @@ test("a dashboard widget gets its own card below the dashboard, inside the panel
       const box = await widget.boundingBox();
       const main = await page.locator("main").boundingBox();
       assert.ok(box.height >= 200 && box.x >= main.x && box.x + box.width <= main.x + main.width + 1, JSON.stringify({ box, main }));
-      // Nothing of the dashboard sits under it.
-      const under = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("[data-module]")?.getAttribute("data-module"), { x: box.x + 10, y: box.y + 10 });
-      assert.equal(under, "widget");
+      // Nothing of the dashboard sits under it: looked at where it is now, in one go (the sections
+      // above it still filling in move it down meanwhile).
+      const under = () =>
+        page.evaluate(() => {
+          const el = document.querySelector('[data-testid="module-widget"]');
+          el?.scrollIntoView({ block: "center" });
+          const r = el?.getBoundingClientRect();
+          return r ? document.elementFromPoint(r.x + 10, r.y + 10)?.closest("[data-module]")?.getAttribute("data-module") : null;
+        });
+      assert.equal(await under(), "widget");
     });
   }
 });
