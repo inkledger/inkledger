@@ -18,25 +18,26 @@ import {
   Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
 import type { MarkdownCommand } from "./markdownEdit";
 
 const commands: {
   command: MarkdownCommand;
   icon: typeof Bold;
-  label: string;
+  /** Said when drawn (never at module level: the locale, or the text itself, may come later). */
+  label: MessageKey;
 }[] = [
-  { command: "bold", icon: Bold, label: t("pages.notes.bold") },
-  { command: "italic", icon: Italic, label: t("pages.notes.italic") },
-  { command: "strike", icon: Strikethrough, label: t("pages.notes.strike") },
-  { command: "code", icon: Code2, label: t("pages.notes.inlineCode") },
-  { command: "heading", icon: Heading3, label: t("pages.notes.heading") },
-  { command: "quote", icon: Quote, label: t("pages.notes.quote") },
-  { command: "bullets", icon: List, label: t("pages.notes.bullets") },
-  { command: "numbers", icon: ListOrdered, label: t("pages.notes.numbers") },
-  { command: "tasks", icon: ListTodo, label: t("pages.notes.tasks") },
-  { command: "codeBlock", icon: SquareCode, label: t("pages.notes.codeBlock") },
-  { command: "link", icon: Link2, label: t("pages.notes.link") },
+  { command: "bold", icon: Bold, label: "pages.notes.bold" },
+  { command: "italic", icon: Italic, label: "pages.notes.italic" },
+  { command: "strike", icon: Strikethrough, label: "pages.notes.strike" },
+  { command: "code", icon: Code2, label: "pages.notes.inlineCode" },
+  { command: "heading", icon: Heading3, label: "pages.notes.heading" },
+  { command: "quote", icon: Quote, label: "pages.notes.quote" },
+  { command: "bullets", icon: List, label: "pages.notes.bullets" },
+  { command: "numbers", icon: ListOrdered, label: "pages.notes.numbers" },
+  { command: "tasks", icon: ListTodo, label: "pages.notes.tasks" },
+  { command: "codeBlock", icon: SquareCode, label: "pages.notes.codeBlock" },
+  { command: "link", icon: Link2, label: "pages.notes.link" },
 ];
 
 export function MarkdownToolbar({
@@ -82,8 +83,8 @@ export function MarkdownToolbar({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label={label}
-            title={label}
+            aria-label={t(label)}
+            title={t(label)}
             disabled={disabled}
             onMouseDown={event => event.preventDefault()}
             onClick={() => apply(command)}
