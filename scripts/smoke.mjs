@@ -88,15 +88,16 @@ try {
   // The code the page loads first (the entry chunk and the chunks it preloads: with a second
   // page in the build, outlook.html, their shared code is a chunk of its own), at most 5% over
   // its size after Wave 3 (880.8 KiB, 280.9 KiB gzip; docs/dev/measuring.md). Raising the
-  // limit is a deliberate, explained edit.
+  // limit is a deliberate, explained edit. 925 -> 928 KiB raw (gzip unchanged): E3's roles,
+  // teams and the split backup permissions add their English labels to the first-load messages.
   const indexHtml = readFileSync("dist/public/index.html", "utf8");
   const entry = /<script[^>]*type="module"[^>]*src="\/assets\/([^"]+)"/.exec(indexHtml)?.[1];
   const preloaded = [...indexHtml.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+)"/g)].map((m) => m[1]);
   const entryBytes = entry ? Buffer.concat([entry, ...preloaded].map((f) => readFileSync(join("dist/public/assets", f)))) : Buffer.alloc(0);
   const kib = (n) => (n / 1024).toFixed(1);
   check(
-    !!entry && entryBytes.length <= 925 * 1024 && gzipSync(entryBytes, { level: 9 }).length <= 295 * 1024,
-    `first-load code within budget (${kib(entryBytes.length)} KiB, ${kib(gzipSync(entryBytes, { level: 9 }).length)} KiB gzip; at most 925 / 295)`,
+    !!entry && entryBytes.length <= 928 * 1024 && gzipSync(entryBytes, { level: 9 }).length <= 295 * 1024,
+    `first-load code within budget (${kib(entryBytes.length)} KiB, ${kib(gzipSync(entryBytes, { level: 9 }).length)} KiB gzip; at most 928 / 295)`,
   );
 
   const asset = readdirSync("dist/public/assets").find((f) => f.endsWith(".js"));
