@@ -29,7 +29,7 @@ test("a permission changed in Users is in the audit log, with its diff, and the 
 
     // Its details: the permissions before and after.
     await row.getByRole("button", { name: /^Details of event \d+$/ }).click();
-    const diff = page.getByRole("row").filter({ hasText: "permissions" });
+    const diff = page.getByRole("row", { name: /^permissions / });
     await diff.waitFor();
     assert.match(await diff.innerText(), /viewTeamTime/);
 
