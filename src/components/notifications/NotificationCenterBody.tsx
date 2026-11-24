@@ -53,9 +53,9 @@ export function NotificationCenterBody({ kind, setKind }: { kind: string; setKin
             {t("settings.notifications.centerTitle")}
           </SheetTitle>
           <SheetDescription className="text-caption text-muted-foreground">
-            {items.length === 0
+            {items.length + alerts === 0
               ? t("settings.notifications.allRead")
-              : t("settings.notifications.unread", { count: items.length })}
+              : t("settings.notifications.unread", { count: items.length + alerts })}
           </SheetDescription>
         </div>
         {items.length > 0 && (
