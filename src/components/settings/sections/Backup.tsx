@@ -1,6 +1,6 @@
 import { dayAndTime } from "@/lib/dates";
 import { toastError, failureText, errorText } from "@/lib/errorText";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { DatabaseBackup, Download, FolderOpen, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { formatBytes } from "@/lib/devices";
@@ -24,6 +24,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WEEKDAYS, type Schedule } from "@/lib/backupLabels";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+
+/** Off-site copies and the restore drill: their own chunk, loaded when the section opens. */
+const BackupOffsite = lazy(() => import("./BackupOffsite"));
 
 const schedules = (): { value: Schedule; label: string }[] => [
   { value: "off", label: t("settings.backup.off") },
@@ -203,6 +206,10 @@ export function BackupSection() {
           </ul>
         )}
       </SettingsGroup>
+
+      <Suspense fallback={<Skeleton className="m-6 h-32" />}>
+        <BackupOffsite info={info.data} canRestore={canRestore} />
+      </Suspense>
 
       <AlertDialog open={restoring !== null} onOpenChange={o => !o && setRestoring(null)}>
         <AlertDialogContent>
