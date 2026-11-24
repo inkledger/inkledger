@@ -180,6 +180,22 @@ if (healthyMs === null || rehearse) {
   process.exit(1);
 }
 
+// 6. Space: every update tags a new image and grows the build cache; keep latest, prev and the last 3 builds.
+if (!dry) {
+  const keep = new Set(["latest", "prev"]);
+  const tags = out("docker", ["images", IMAGE, "--format", "{{.CreatedAt}}\t{{.Tag}}"])
+    .split("\n")
+    .filter(Boolean)
+    .map(l => l.split("\t"))
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([, tag]) => tag)
+    .filter(tag => tag && tag !== "<none>" && !keep.has(tag));
+  const old = tags.slice(3).map(tag => `${IMAGE}:${tag}`);
+  if (old.length) spawnSync("docker", ["rmi", ...old], { cwd: ROOT, stdio: "ignore" });
+  spawnSync("docker", ["image", "prune", "-f"], { cwd: ROOT, stdio: "ignore" });
+  spawnSync("docker", ["builder", "prune", "-f", "--keep-storage", "4gb"], { cwd: ROOT, stdio: "ignore" });
+}
+
 const size = Number(out("docker", ["image", "inspect", "-f", "{{.Size}}", `${IMAGE}:latest`]));
 console.log(`✓ ${IMAGE}:${sha} up on ${HEALTH.replace("/api/health", "")}`);
 console.log(`  build ${seconds(buildMs)} · container up to healthy ${seconds(Date.now() - u0)} (health polling ${seconds(healthyMs)}) · image ${(size / 1024 / 1024).toFixed(0)} MB`);
