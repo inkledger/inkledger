@@ -680,7 +680,7 @@ export interface FrozenOut {
   "team.overview": { coverage: null | number; elapsedDays: number; loggedSeconds: number; people: { avatarUrl: null | string; coverage: null | number; days: { absentSeconds: number; day: string; loggedSeconds: number; targetSeconds: number }[]; displayName: string; freshness: { at: null | number; state: "local" | "never" | "ok" | "reconnect" | "stale" }; loggedSeconds: number; previous: null | { coverage: null | number; loggedSeconds: number; targetSeconds: number }; targetSeconds: number; userId: number }[]; previous: null | { coverage: null | number; loggedSeconds: number; targetSeconds: number }; targetSeconds: number };
   "team.person": { issues: { key: string; seconds: number; summary: string }[]; projects: { key: string; name: string; seconds: number }[] };
   "teams.create": { id: number; name: string };
-  "teams.list": { externalId: null | string; id: number; members: { displayName: string; role: "lead" | "member"; userId: number; username: null | string }[]; name: string }[];
+  "teams.list": { people: { displayName: string; id: number; username: null | string }[]; teams: { externalId: null | string; id: number; members: { displayName: string; role: "lead" | "member"; userId: number; username: null | string }[]; name: string }[] };
   "teams.remove": { ok: boolean };
   "teams.removeMember": { ok: boolean };
   "teams.rename": { id: number; name: string };

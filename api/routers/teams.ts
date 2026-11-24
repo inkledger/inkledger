@@ -3,7 +3,7 @@
 // it must hold that team's time itself (on the whole server, or as the team's own lead).
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { roleAssignments, teamMembers, teams, users } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
@@ -35,18 +35,19 @@ async function assertMayLead(me: Account, teamId: number) {
 const teamTarget = (team: { id: number }) => ({ type: "team", id: team.id });
 
 export const teamsRouter = createRouter({
-  /** Every team with its people, leads first. */
+  /** Every team with its people (leads first), and the active accounts one can add (names only). */
   list: manage.query(async () => {
     const db = getDb();
-    const [all, members] = await Promise.all([
+    const [all, members, people] = await Promise.all([
       db.select().from(teams).orderBy(asc(teams.name)),
       db
         .select({ teamId: teamMembers.teamId, userId: teamMembers.userId, role: teamMembers.role, displayName: users.displayName, username: users.username })
         .from(teamMembers)
         .innerJoin(users, eq(users.id, teamMembers.userId))
         .orderBy(asc(users.displayName)),
+      db.select({ id: users.id, displayName: users.displayName, username: users.username }).from(users).where(isNull(users.disabledAt)).orderBy(asc(users.displayName)),
     ]);
-    return all.map((team) => ({
+    const list = all.map((team) => ({
       id: team.id,
       name: team.name,
       externalId: team.externalId,
@@ -55,6 +56,7 @@ export const teamsRouter = createRouter({
         .map((m) => ({ userId: m.userId, displayName: m.displayName, username: m.username, role: m.role === "lead" ? ("lead" as const) : ("member" as const) }))
         .sort((a, b) => Number(b.role === "lead") - Number(a.role === "lead")),
     }));
+    return { teams: list, people };
   }),
 
   create: manage.input(z.object({ name: z.string().trim().min(1).max(80) })).mutation(async ({ input, ctx }) => {

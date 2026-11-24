@@ -14,6 +14,7 @@ import {
   Timer,
   UserRound,
   Users,
+  UsersRound,
   Plug,
   Layers,
   Briefcase,
@@ -66,6 +67,7 @@ import { t } from "@/i18n";
 import { TimersSection } from "@/components/settings/sections/Timers";
 import { StoreSection } from "@/components/settings/sections/Store";
 import { UsersSection } from "@/components/settings/sections/Users";
+import { TeamsSection } from "@/components/settings/sections/Teams";
 import { ConnectionsSection } from "@/components/settings/sections/Connections";
 import { BucketsSection } from "@/components/settings/sections/Buckets";
 import { ClientsSection } from "@/components/settings/sections/Clients";
@@ -149,6 +151,19 @@ export const CATEGORIES: SettingsCategory[] = [
     Summary: function UsersSummary() {
       const n = trpc.users.list.useQuery(undefined, { staleTime: 60_000 }).data?.length;
       return n === undefined ? null : t("settings.categories.users.count", { count: n });
+    },
+  },
+  {
+    id: "teams",
+    get label() { return t("settings.categories.teams.label"); },
+    get description() { return t("settings.categories.teams.description"); },
+    icon: UsersRound,
+    get keywords() { return t("settings.categories.teams.keywords"); },
+    permission: "manageTeams",
+    Content: TeamsSection,
+    Summary: function TeamsSummary() {
+      const n = trpc.teams.list.useQuery(undefined, { staleTime: 60_000 }).data?.teams.length;
+      return n === undefined ? null : t("settings.categories.teams.count", { count: n });
     },
   },
   {

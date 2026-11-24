@@ -778,7 +778,6 @@ export const settings: Shape<typeof en> = {
     teamsHint: "Spunta i team di cui fa parte; un responsabile legge le ore registrate di quel team, in sola lettura.",
     noTeams: "Ancora nessun team: creali in Impostazioni › Team.",
     lead: "Responsabile",
-    leads: "Guida {teams}",
     modulesHint: "Ciascuno concesso su richiesta: nessuno per un nuovo account. Alcuni sono pesanti sui computer senza scheda grafica.",
     create: "Crea e ottieni il link",
     linkTitle: "Link d'invito per {name}",

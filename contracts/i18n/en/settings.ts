@@ -777,7 +777,6 @@ export const settings = {
     teamsHint: "Tick the teams they are in; a lead reads that team's logged time, read only.",
     noTeams: "No teams yet: make them in Settings › Teams.",
     lead: "Lead",
-    leads: "Leads {teams}",
     modulesHint: "Each one granted on request: none for a new account. Some are heavy on computers without a graphics card.",
     create: "Create and get link",
     linkTitle: "Invite link for {name}",

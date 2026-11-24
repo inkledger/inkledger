@@ -1,7 +1,7 @@
 // GET /api/backups/:name: a backup's dump, for whoever may take one off the server
 // (downloadBackups). Running backups doesn't give it: a dump holds everyone's data. Anyone
 // with access to the server's disk or its backup folder reads the dumps anyway; this only
-// keeps the app from handing them out (docs/backup.md). The download is an audit event.
+// keeps the app from handing them out (docs/self-hosting.md). The download is an audit event.
 import fs from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";

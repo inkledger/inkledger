@@ -31,6 +31,12 @@
       "permission": "manageUsers"
     },
     {
+      "id": "teams",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": "manageTeams"
+    },
+    {
       "id": "schedule",
       "nativeOnly": false,
       "desktopOnly": false,
