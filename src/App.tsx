@@ -1,5 +1,5 @@
 import { ObservedPage } from "@/lib/workspace/ObservedPage";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 import { t, useLocale } from "@/i18n";
 import { ThemeProvider } from "next-themes";
@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { PageSpinner } from "@/components/app/States";
+import { firstPage } from "@/lib/firstPage";
 
 const load = {
   login: () => import("@/pages/Login"),
@@ -54,31 +55,76 @@ const FIRST: [RegExp, keyof typeof load][] = [
   [/^\/settings/, "settings"],
   [/^\/info/, "info"],
 ];
-if (typeof window !== "undefined") {
-  const first = FIRST.find(([re]) => re.test(window.location.pathname))?.[1];
-  if (first) void load[first]().catch(() => undefined);
+
+/**
+ * A page on demand. The first page's code is in before the app hydrates (main.tsx awaits
+ * `firstPage`): that page draws at once, never suspended. Suspended, it kept the whole
+ * server-drawn app without handlers (one Suspense holds the routes) and clicks there were
+ * lost, for as long as a slow machine took to resolve it.
+ */
+function page(loader: () => Promise<ComponentType>) {
+  let ready: ComponentType | null = null;
+  // Decided at the first draw, once: switching later would remount a page on screen.
+  let now: boolean | null = null;
+  const loadPage = () => loader().then(c => (ready = c));
+  const Lazy = lazy(() => loadPage().then(c => ({ default: c })));
+  function Page() {
+    now ??= ready !== null;
+    const Ready = ready;
+    return now && Ready ? <Ready /> : <Lazy />;
+  }
+  return Object.assign(Page, { load: loadPage });
 }
 
-const Login = lazy(load.login);
-const IssueByKey = lazy(() => load.issue().then(m => ({ default: m.IssueByKey })));
-const IssueByRef = lazy(() => load.issue().then(m => ({ default: m.IssueByRef })));
-const Invite = lazy(load.invite);
-const ChangePassword = lazy(load.changePassword);
-const Dashboard = lazy(load.dashboard);
-const Issues = lazy(load.issues);
-const DeskPage = lazy(load.desk);
-const Timesheet = lazy(load.timesheet);
-const Board = lazy(load.board);
-const PinboardPage = lazy(load.pinboard);
-const TodosPage = lazy(load.todos);
-const IdeasPage = lazy(load.ideas);
-const NotesPage = lazy(load.notes);
-const Reports = lazy(load.reports);
-const Team = lazy(load.team);
-const Settings = lazy(load.settings);
-const NotFound = lazy(load.notFound);
-const Info = lazy(load.info);
-const Install = lazy(load.install);
+const Login = page(() => load.login().then(m => m.default));
+const IssueByKey = page(() => load.issue().then(m => m.IssueByKey));
+const IssueByRef = page(() => load.issue().then(m => m.IssueByRef));
+const Invite = page(() => load.invite().then(m => m.default));
+const ChangePassword = page(() => load.changePassword().then(m => m.default));
+const Dashboard = page(() => load.dashboard().then(m => m.default));
+const Issues = page(() => load.issues().then(m => m.default));
+const DeskPage = page(() => load.desk().then(m => m.default));
+const Timesheet = page(() => load.timesheet().then(m => m.default));
+const Board = page(() => load.board().then(m => m.default));
+const PinboardPage = page(() => load.pinboard().then(m => m.default));
+const TodosPage = page(() => load.todos().then(m => m.default));
+const IdeasPage = page(() => load.ideas().then(m => m.default));
+const NotesPage = page(() => load.notes().then(m => m.default));
+const Reports = page(() => load.reports().then(m => m.default));
+const Team = page(() => load.team().then(m => m.default));
+const Settings = page(() => load.settings().then(m => m.default));
+const NotFound = page(() => load.notFound().then(m => m.default));
+const Info = page(() => load.info().then(m => m.default));
+const Install = page(() => load.install().then(m => m.default));
+
+const PAGES: Record<keyof typeof load, { load: () => Promise<unknown> }[]> = {
+  login: [Login],
+  issue: [IssueByKey, IssueByRef],
+  invite: [Invite],
+  changePassword: [ChangePassword],
+  dashboard: [Dashboard],
+  issues: [Issues],
+  desk: [DeskPage],
+  timesheet: [Timesheet],
+  board: [Board],
+  pinboard: [PinboardPage],
+  todos: [TodosPage],
+  ideas: [IdeasPage],
+  notes: [NotesPage],
+  reports: [Reports],
+  team: [Team],
+  settings: [Settings],
+  notFound: [NotFound],
+  info: [Info],
+  install: [Install],
+};
+
+// The page asked for, downloading at once beside the session check (not after it), and the
+// same code its route then draws.
+if (typeof window !== "undefined") {
+  const first = FIRST.find(([re]) => re.test(window.location.pathname))?.[1];
+  firstPage.set(Promise.all((first ? PAGES[first] : []).map(p => p.load())));
+}
 
 /** auth.me failed (network, 5xx): keep the route and keep trying. */
 function Reconnecting({
@@ -144,6 +190,11 @@ function GuestOnly() {
 
 export default function App() {
   const { pathname } = useLocation();
+  // The app has taken the page over (<html data-live>): first draw committed, the server's markup
+  // hydrated, its controls answer. What tests wait for before acting.
+  useEffect(() => {
+    document.documentElement.dataset.live = "";
+  }, []);
   // A new language redraws every text: the whole tree is keyed on it.
   const locale = useLocale();
   return (
