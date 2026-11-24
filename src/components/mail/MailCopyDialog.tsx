@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Paperclip } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState, ErrorState, PageSpinner } from "@/components/app/States";
@@ -11,11 +12,20 @@ import { t } from "@/i18n";
  * (downloads, full copies only).
  */
 export function MailCopyDialog({ mailId, subject, open, onOpenChange }: { mailId: number; subject: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const content = useRef<HTMLDivElement>(null);
   const info = trpc.mails.copyInfo.useQuery({ id: mailId }, { enabled: open });
   const copy = info.data?.copy;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] w-[calc(100vw-2rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
+      <DialogContent
+        ref={content}
+        className="max-h-[90dvh] w-[calc(100vw-2rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
+        onOpenAutoFocus={event => {
+          // A focused sandbox consumes Escape itself: start on the host, whether the frame is already loaded or not.
+          event.preventDefault();
+          content.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="[overflow-wrap:anywhere]">{subject || t("ui.mail.noSubject")}</DialogTitle>
           <DialogDescription>{t("ui.mail.copy.title")}</DialogDescription>
