@@ -4,7 +4,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { and, asc, desc, eq, gt, gte, like, lt, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, like, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { auditEvents, type AuditEvent, type User } from "@db/schema";
 import {
   AUDIT_ACTIONS,
@@ -75,7 +75,7 @@ function canonical(v: unknown): string {
   return JSON.stringify(v ?? null);
 }
 
-type Hashed = Omit<AuditEvent, "id" | "hash" | "prevHash">;
+type Hashed = Omit<AuditEvent, "id" | "hash" | "prevHash" | "pseudonymisedAt">;
 
 /** sha256(prev_hash || canonical row): what each row's hash is, and what verify recomputes. */
 export function hashOf(prevHash: string, row: Hashed): string {
@@ -348,12 +348,72 @@ export async function verifyAudit(pageSize = 1000): Promise<AuditVerifyResult> {
     for (const r of rows) {
       if (prev === null) anchored = r.prevHash !== AUDIT_GENESIS;
       else if (r.prevHash !== prev) return { ok: false, checked, badId: r.id, reason: "link" };
-      if (hashOf(r.prevHash, r) !== r.hash) return { ok: false, checked, badId: r.id, reason: "hash" };
+      // A row an erasure pseudonymised keeps its hash and its link, not the content it hashed.
+      if (r.pseudonymisedAt === null && hashOf(r.prevHash, r) !== r.hash) return { ok: false, checked, badId: r.id, reason: "hash" };
       prev = r.hash;
       checked++;
       after = r.id;
     }
     if (rows.length < pageSize) return { ok: true, checked, anchored };
+  }
+}
+
+/** What an erased account is called in the log from then on. */
+export const erasedLabel = (userId: number) => `erased-user-${userId}`;
+
+/** Strings equal to one of `names` replaced, at any depth. */
+function scrub(v: unknown, names: ReadonlySet<string>, pseudonym: string): unknown {
+  if (typeof v === "string") return names.has(v.trim().toLowerCase()) ? pseudonym : v;
+  if (Array.isArray(v)) return v.map((x) => scrub(x, names, pseudonym));
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrub(x, names, pseudonym)]));
+  return v;
+}
+
+const scrubJson = (s: string | null, names: ReadonlySet<string>, pseudonym: string): string | null => {
+  if (!s || names.size === 0) return s;
+  try {
+    return JSON.stringify(scrub(JSON.parse(s), names, pseudonym));
+  } catch {
+    return s;
+  }
+};
+
+type AuditTx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+/**
+ * An erased account's rows in the log pseudonymised, inside the erasure's transaction: the
+ * ones it acted in lose its label (erased-user-<id>), client address and device hash; the
+ * ones about it, and those, have its names in before/after replaced. Ids, actions, times and
+ * the chain stay (the trigger lets nothing else through); each row is marked, so verify
+ * still checks its link. Returns how many rows changed.
+ */
+export async function pseudonymiseAudit(tx: AuditTx, userId: number, names: readonly string[], now = Date.now()): Promise<number> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('audit-chain'))`);
+  await tx.execute(sql`SELECT set_config('inkledger.audit_pseudonymise', 'on', true)`);
+  const pseudonym = erasedLabel(userId);
+  const known = new Set(names.map((n) => n.trim().toLowerCase()).filter((n) => n.length > 0));
+  const about = or(eq(auditEvents.actorUserId, userId), eq(auditEvents.targetOwnerUserId, userId), and(eq(auditEvents.targetType, "user"), eq(auditEvents.targetId, String(userId))));
+  let changed = 0;
+  let after = 0;
+  for (;;) {
+    const rows = await tx.select().from(auditEvents).where(and(gt(auditEvents.id, after), about)).orderBy(asc(auditEvents.id)).limit(500);
+    for (const r of rows) {
+      const acted = r.actorUserId === userId;
+      await tx
+        .update(auditEvents)
+        .set({
+          actorLabel: acted ? pseudonym : r.actorLabel,
+          ip: acted ? null : r.ip,
+          userAgentHash: acted ? null : r.userAgentHash,
+          before: scrubJson(r.before, known, pseudonym),
+          after: scrubJson(r.after, known, pseudonym),
+          pseudonymisedAt: now,
+        })
+        .where(eq(auditEvents.id, r.id));
+      changed++;
+      after = r.id;
+    }
+    if (rows.length < 500) return changed;
   }
 }
 

@@ -372,6 +372,13 @@
       "when": 1795536605382,
       "tag": "0052_roles_teams",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795558297971,
+      "tag": "0053_gdpr_erase",
+      "breakpoints": true
     }
   ]
 }
