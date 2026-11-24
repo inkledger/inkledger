@@ -133,6 +133,9 @@ From now on the Docker database is the only live copy. Development uses its own 
 | `TRUST_PROXY` | off | Client IP from `X-Forwarded-For` behind a TLS proxy: `1` for one on this machine or the private network, or the proxies' addresses |
 | `COOKIE_SECURE` | auto | Force `Secure` cookies behind a proxy without `X-Forwarded-Proto` |
 | `BACKUP_DIR` | Docker: `/backups` | Where scheduled backups are written |
+| `BACKUP_KEY` (and `BACKUP_KEY_OLD` to rotate) | unset | Encrypts off-site S3 copies on this server before upload (AES-256-GCM); never stored in the database. Unset, S3 copies are refused rather than sent in clear. The old key only opens older copies ([restore](it/runbook-restore.md)) |
+| `RESTIC_REPOSITORY`, `RESTIC_PASSWORD` (or `RESTIC_PASSWORD_FILE`) | unset | The restic repository for off-site copies of kind restic (restic encrypts with its password); any other `RESTIC_*`/cloud variable restic reads passes through |
+| `DATA_DIR` | the folder of `INSTANCE_KEY_PATH` (Docker: `/app/data`) | The data folder archived beside each off-site copy (instance key, modules, downloads, audit file copy) |
 | `METRICS_TOKEN` | unset | Turns on `GET /api/metrics` (Prometheus), for requests with `Authorization: Bearer <token>`; unset, the route answers 404 |
 | `READY_MIN_FREE_MB` | `1024` | Free space under `BACKUP_DIR` below which `/api/ready` fails |
 | `ALERT_FAILURES` | `5` | Failed syncs in a row of one connection that raise an alert |

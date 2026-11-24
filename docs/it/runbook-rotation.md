@@ -7,6 +7,7 @@ How to change the server's secret keys without losing stored credentials. Follow
 | Key | Protects | When it changes without preparation |
 | --- | --- | --- |
 | `CREDENTIALS_KEY` | Every sealed value: tracker credentials and webhook secrets (`connections`), mailbox sign-ins (`mail_accounts`), mail copies (`mail_copies`), idea pictures (`idea_files`). It also signs share links. | Nothing sealed opens any more: connections show "unreadable" and must be reconnected; mailbox sign-ins, mail copies and idea pictures are lost |
+| `BACKUP_KEY` | Off-site S3 copies, encrypted on the server before upload (never in the database) | Copies made with the old key no longer open: keep it as `BACKUP_KEY_OLD` while any copy made with it may be restored. New copies use the new key from the next upload |
 | `CREDENTIALS_KEY_OLD` | Nothing new. It still opens values sealed with the previous key, until they are sealed again | Removing it too early has the same effect as above for the values still sealed with it |
 | `SESSION_SECRET` | Module code tokens (minutes long) and exported module progress files. **If `CREDENTIALS_KEY` is not set**, every sealed value and every share link uses a key derived from it, and so does the oldest connection format | Open module frames reload; progress files exported earlier no longer import. Without `CREDENTIALS_KEY`, also everything in the row above |
 
