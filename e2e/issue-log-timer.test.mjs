@@ -3,11 +3,11 @@
 // there "Log another interval" logs something else by hand, ending before the timer's time.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allDaySchedule, minutesToday, withApp } from "./harness.mjs";
+import { allDaySchedule, nearMidnight, withApp } from "./harness.mjs";
 
 const MINUTE = 60_000;
 // The timer's 40 min and the hour before it, inside today: not in the first two hours of a day, nor in its last minutes.
-const outOfDay = minutesToday() < 120 || minutesToday() > 23 * 60 + 50;
+const outOfDay = nearMidnight(10 * MINUTE, 120 * MINUTE);
 // Time kept here (a GitHub connection): logged with no tracker to write to, as a read-only test server must.
 const KEY = "acme/web#1";
 
@@ -83,7 +83,7 @@ test("issue page, Log time with the issue's timer running: the timer's question,
   });
 });
 
-test("issues list, Log time with the issue's timer running: the timer's question", { skip: minutesToday() < 45 || minutesToday() > 23 * 60 + 50, timeout: 300_000 }, async () => {
+test("issues list, Log time with the issue's timer running: the timer's question", { skip: nearMidnight(10 * MINUTE, 45 * MINUTE), timeout: 300_000 }, async () => {
   await withApp({ seed }, async ({ page, base, db }) => {
     await page.goto(`${base}/issues`);
     await page.getByRole("button", { name: `Log time on ${KEY}`, exact: true }).first().click();

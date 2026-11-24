@@ -5,7 +5,7 @@
 // right there.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, startTimer, withApp } from "./harness.mjs";
+import { nearMidnight, startTimer, withApp } from "./harness.mjs";
 
 const MINUTE = 60_000;
 // Time kept here (a GitHub connection): logged with no tracker to write to, as a read-only test server must.
@@ -50,8 +50,7 @@ async function stopOnTimeline(page, base) {
 /** A pause long enough to show a slide (seconds), well under the minute that is asked about. */
 const pause = () => new Promise(r => setTimeout(r, 2_000));
 
-test("stop, Later, Play again: the block keeps its start", { timeout: 300_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 25 * MINUTE);
+test("stop, Later, Play again: the block keeps its start", { skip: nearMidnight(5 * MINUTE, 25 * MINUTE), timeout: 300_000 }, async () => {
   started = Date.now() - 20 * MINUTE;
   await withApp({ seed }, async ({ page, base, db }) => {
     const dialog = await stopOnTimeline(page, base);
@@ -69,8 +68,7 @@ test("stop, Later, Play again: the block keeps its start", { timeout: 300_000 },
   });
 });
 
-test("stop, Log, Play again: the new block starts where the logged one ends", { timeout: 300_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 25 * MINUTE);
+test("stop, Log, Play again: the new block starts where the logged one ends", { skip: nearMidnight(5 * MINUTE, 25 * MINUTE), timeout: 300_000 }, async () => {
   started = Date.now() - 20 * MINUTE;
   await withApp({ seed }, async ({ page, base, db }) => {
     const dialog = await stopOnTimeline(page, base);

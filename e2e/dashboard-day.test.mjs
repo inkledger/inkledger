@@ -5,7 +5,7 @@
 // and its week's status travel in one batch, so none shows: this pins it.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, dayKey, start, withApp } from "./harness.mjs";
+import { dayKey, nearMidnight, start, withApp } from "./harness.mjs";
 
 /** Monday of last week, as the Dashboard's `from`: past, and the next day in the same week. */
 function lastMonday() {
@@ -45,9 +45,8 @@ test("while the next day's worklogs are on their way, the last day's holes can't
 
 // "Later" after a stop: the time stays tracked on a paused timer. It used to vanish
 // from the day's timeline (only a running timer was drawn) and what was typed was lost.
-test("a stopped timer left for later stays on the timeline, keeps what was typed, and logs from there", { timeout: 600_000 }, async () => {
+test("a stopped timer left for later stays on the timeline, keeps what was typed, and logs from there", { skip: nearMidnight(5 * 60_000, 45 * 60_000), timeout: 600_000 }, async () => {
   // Today's timeline, so not across midnight; the timer ran the last 40 minutes.
-  await awayFromMidnight(5 * 60_000, 45 * 60_000);
   const now = Date.now();
   const app = await start({
     seed: async db => {
@@ -89,8 +88,7 @@ test("a stopped timer left for later stays on the timeline, keeps what was typed
   }
 });
 
-test("on a phone a stopped timer to log is a row big enough to tap", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * 60_000, 70 * 60_000);
+test("on a phone a stopped timer to log is a row big enough to tap", { skip: nearMidnight(5 * 60_000, 70 * 60_000), timeout: 600_000 }, async () => {
   const now = Date.now();
   const app = await start({
     viewport: { width: 320, height: 760 },

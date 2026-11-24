@@ -3,7 +3,7 @@
 // (the start is placed first, the end follows it; over logged time a warning).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, withApp } from "./harness.mjs";
+import { nearMidnight, withApp } from "./harness.mjs";
 
 const MINUTE = 60_000;
 // Time kept here (a GitHub connection): logged with no tracker to write to, as a read-only test server must.
@@ -33,8 +33,7 @@ const seed = async db => {
   );
 };
 
-test("Dashboard quick Log time by end time: the start is placed, the end follows, an overlap is said", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 90 * MINUTE);
+test("Dashboard quick Log time by end time: the start is placed, the end follows, an overlap is said", { skip: nearMidnight(5 * MINUTE, 90 * MINUTE), timeout: 600_000 }, async () => {
   await withApp({ seed }, async ({ page, base, db }) => {
     await page.goto(`${base}/`);
     await page.getByRole("button", { name: "Log time", exact: true }).first().click();

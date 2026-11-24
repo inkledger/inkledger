@@ -5,7 +5,7 @@
 // duration (one or the other, never kept in sync).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, withApp } from "./harness.mjs";
+import { nearMidnight, withApp } from "./harness.mjs";
 
 const MINUTE = 60_000;
 // Time kept here (a GitHub connection): logged with no tracker to write to, as a read-only test server must.
@@ -45,8 +45,7 @@ async function stopAndOpen(page, base) {
 
 const pendingBlock = page => page.getByRole("button", { name: new RegExp(`^${KEY.replace(/[/#]/g, "\\$&")}, .* tracked and not logged yet: log it$`) });
 
-test("logged shorter, the rest is dropped by default: nothing left on the timeline", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 45 * MINUTE);
+test("logged shorter, the rest is dropped by default: nothing left on the timeline", { skip: nearMidnight(5 * MINUTE, 45 * MINUTE), timeout: 600_000 }, async () => {
   await withApp({ seed }, async ({ page, base, db }) => {
     const dialog = await stopAndOpen(page, base);
     await dialog.getByLabel("Time spent", { exact: true }).fill("25m");
@@ -67,8 +66,7 @@ test("logged shorter, the rest is dropped by default: nothing left on the timeli
   });
 });
 
-test("logged shorter, keeping the rest: it stays to log later", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 45 * MINUTE);
+test("logged shorter, keeping the rest: it stays to log later", { skip: nearMidnight(5 * MINUTE, 45 * MINUTE), timeout: 600_000 }, async () => {
   await withApp({ seed }, async ({ page, base, db }) => {
     const dialog = await stopAndOpen(page, base);
     await dialog.getByLabel("Time spent", { exact: true }).fill("25m");
@@ -82,8 +80,7 @@ test("logged shorter, keeping the rest: it stays to log later", { timeout: 600_0
   });
 });
 
-test("by end time: the entry runs from the start to the end typed, no duration to keep in sync", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 45 * MINUTE);
+test("by end time: the entry runs from the start to the end typed, no duration to keep in sync", { skip: nearMidnight(5 * MINUTE, 45 * MINUTE), timeout: 600_000 }, async () => {
   await withApp({ seed }, async ({ page, base, db }) => {
     const dialog = await stopAndOpen(page, base);
     await dialog.getByRole("radiogroup", { name: "Time as" }).getByRole("radio", { name: "End time" }).click();
