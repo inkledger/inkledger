@@ -27,11 +27,13 @@ function labelText(labels: Labels): string {
 }
 
 abstract class Metric<L extends string> {
-  constructor(
-    readonly name: string,
-    readonly help: string,
-    readonly labelNames: readonly L[] = [],
-  ) {
+  readonly name: string;
+  readonly help: string;
+  readonly labelNames: readonly L[];
+  constructor(name: string, help: string, labelNames: readonly L[] = []) {
+    this.name = name;
+    this.help = help;
+    this.labelNames = labelNames;
     if (!NAME.test(name)) throw new Error(`invalid metric name: ${name}`);
     for (const l of labelNames) if (!LABEL.test(l) || l === "le") throw new Error(`invalid label name: ${l}`);
   }
@@ -88,8 +90,10 @@ export class Gauge<L extends string = never> extends Metric<L> {
 export class Histogram<L extends string = never> extends Metric<L> {
   readonly type = "histogram";
   private series = new Map<string, { counts: number[]; sum: number; count: number }>();
-  constructor(name: string, help: string, labelNames: readonly L[], readonly buckets: readonly number[]) {
+  readonly buckets: readonly number[];
+  constructor(name: string, help: string, labelNames: readonly L[], buckets: readonly number[]) {
     super(name, help, labelNames);
+    this.buckets = buckets;
     if (buckets.some((b, i) => i > 0 && b <= buckets[i - 1])) throw new Error("buckets must increase");
   }
   observe(labels: Partial<Record<L, string>>, value: number): void {
