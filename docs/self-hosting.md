@@ -133,6 +133,8 @@ From now on the Docker database is the only live copy. Development uses its own 
 | `TRUST_PROXY` | off | Client IP from `X-Forwarded-For` behind a TLS proxy: `1` for one on this machine or the private network, or the proxies' addresses |
 | `COOKIE_SECURE` | auto | Force `Secure` cookies behind a proxy without `X-Forwarded-Proto` |
 | `BACKUP_DIR` | Docker: `/backups` | Where scheduled backups are written |
+| `AUDIT_DIR` | `data/audit` (Docker: `/app/data/audit`) | The audit log's daily JSONL copy ([docs/it/audit.md](it/audit.md)) |
+| `AUDIT_FILE_MIRROR` | on in production | Every audit event also written to that file (`0` turns it off; restores always write theirs) |
 | `TZ` | system | Time zone for days and weeks (Docker inherits the host's) |
 
 ### Connecting GitHub
