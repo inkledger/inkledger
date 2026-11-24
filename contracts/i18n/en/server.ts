@@ -133,6 +133,8 @@ export const server = {
     unreachable: "{name} has been out of reach for several syncs: they go on, within a growing wait.",
     failures: "{name} failed {count} syncs in a row.",
     backup: "The last backup failed: see Settings → Backup.",
+    offsite: "The last off-site copy of a backup failed: see Settings → Backup.",
+    drill: "The restore drill of {name} failed: see Settings → Backup.",
     licence: "The licence for {name} could not be renewed: see Settings → Store.",
     certificate: "The HTTPS certificate ends in {count} days: renew it.",
     certificateExpired: "The HTTPS certificate has ended: browsers refuse the HTTPS address until it is renewed.",

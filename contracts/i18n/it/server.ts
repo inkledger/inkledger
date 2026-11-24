@@ -133,6 +133,8 @@ export const server: Shape<typeof en> = {
     unreachable: "{name} è irraggiungibile da diverse sincronizzazioni: si riprova, con attese crescenti.",
     failures: "{name} ha fallito {count} sincronizzazioni di fila.",
     backup: "L'ultimo backup non è riuscito: vedi Impostazioni → Backup.",
+    offsite: "L'ultima copia fuori sede di un backup non è riuscita: vedi Impostazioni → Backup.",
+    drill: "La prova di ripristino di {name} non è riuscita: vedi Impostazioni → Backup.",
     licence: "Non è stato possibile rinnovare la licenza di {name}: vedi Impostazioni → Store.",
     certificate: "Il certificato HTTPS scade tra {count} giorni: rinnovalo.",
     certificateExpired: "Il certificato HTTPS è scaduto: i browser rifiutano l'indirizzo HTTPS finché non viene rinnovato.",

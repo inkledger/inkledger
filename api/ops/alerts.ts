@@ -21,7 +21,7 @@ import { t } from "@contracts/i18n";
 import { noteAlert, noteWebhookFailure } from "./metrics";
 import { opsConfig } from "./config";
 
-export const ALERT_KINDS = ["auth_failed", "unreadable", "unreachable", "failures", "backup", "licence", "certificate"] as const;
+export const ALERT_KINDS = ["auth_failed", "unreadable", "unreachable", "failures", "backup", "offsite", "drill", "licence", "certificate"] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
 /** One alert: its subject (`key`, the unit of deduplication) and what it says. */
@@ -149,6 +149,10 @@ export function alertText(a: AlertDetail): string {
       return t("server.alerts.failures", { name: a.name, count: a.count ?? 0 });
     case "backup":
       return t("server.alerts.backup");
+    case "offsite":
+      return t("server.alerts.offsite");
+    case "drill":
+      return t("server.alerts.drill", { name: a.name });
     case "licence":
       return t("server.alerts.licence", { name: a.name });
     case "certificate":

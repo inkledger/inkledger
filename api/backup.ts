@@ -33,7 +33,7 @@ export type BackupState = { lastOkAt: number | null; lastError: string | null; l
 const SETTINGS_KEY = "backup";
 const STATE_KEY = "backup.state";
 
-const BACKUP_FILE = /^inkledger-\d{8}-\d{6}\.dump$/;
+export const BACKUP_FILE = /^inkledger-\d{8}-\d{6}\.dump$/;
 
 export function backupDir(): string {
   return process.env.BACKUP_DIR ?? (env.isProduction ? "/backups" : path.join(process.cwd(), "data/backups"));
@@ -80,6 +80,9 @@ export function toPrune(files: string[], keep: number, spare: string | null = nu
 
 /** The backup a restore is reading right now (spared by pruning). */
 let restoring: string | null = null;
+
+/** A restore is replacing the database now (off-site copies and drills wait). */
+export const isRestoring = () => restoring !== null;
 
 export async function getBackupSettings(): Promise<BackupSettings> {
   const saved = backupSettingsSchema.partial().safeParse(await getServerSetting<unknown>(SETTINGS_KEY, {}));
@@ -129,7 +132,7 @@ export function backupDirWritable(dir = backupDir()): boolean {
  * The database URL without its password, which goes in PGPASSWORD instead:
  * on the command line anyone running `ps` in the container would read it.
  */
-function pgTarget(): { url: string; env: NodeJS.ProcessEnv } {
+export function pgTarget(): { url: string; env: NodeJS.ProcessEnv } {
   try {
     const u = new URL(env.databaseUrl);
     if (!u.password) return { url: env.databaseUrl, env: process.env };
@@ -173,7 +176,7 @@ const newerBackupRefused = (newest: number) =>
   `DO $$ BEGIN IF EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations WHERE created_at > ${newest}) THEN ` +
   `RAISE EXCEPTION 'This backup comes from a newer inkledger: restore it there, or one taken with this version.'; END IF; END $$;\n`;
 
-function restoreInto(target: { url: string; env: NodeJS.ProcessEnv }, file: string): Promise<void> {
+export function restoreInto(target: { url: string; env: NodeJS.ProcessEnv }, file: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const restoreBin = process.env.PG_RESTORE_BIN ?? "pg_restore";
     const psqlBin = process.env.PSQL_BIN ?? "psql";
@@ -238,6 +241,9 @@ export function runBackup(): Promise<string> {
       const state = await getBackupState();
       await setServerSetting(STATE_KEY, { ...state, lastOkAt: Date.now() });
       await backupSucceeded();
+      // Off-site after it, on its own: a slow upload never holds the next backup, and a
+      // failed one never fails this. Not the safety copy a restore takes first.
+      if (!restoring) void import("./backupOffsite").then((m) => m.queueOffsite(name)).catch((e: unknown) => console.warn(`[backup] off-site: ${String(e)}`));
       return name;
     } catch (e) {
       fs.rmSync(tmp, { force: true });
