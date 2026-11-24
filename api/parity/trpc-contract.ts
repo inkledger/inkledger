@@ -24,7 +24,13 @@ export interface FrozenIn {
   "auth.remembered": void;
   "auth.rename": { displayName: string; username: string };
   "auth.resume": void;
+  "backup.drill": void;
+  "backup.drillUpdate": { weekly: boolean };
   "backup.get": void;
+  "backup.offsiteList": void;
+  "backup.offsiteRestore": { name: string };
+  "backup.offsiteUpdate": { accessKeyId?: string | undefined; bucket?: string | undefined; endpoint?: string | undefined; keepDaily?: number | undefined; keepMonthly?: number | undefined; keepWeekly?: number | undefined; kind?: "none" | "restic" | "s3" | undefined; objectLockDays?: number | undefined; objectLockMode?: "COMPLIANCE" | "GOVERNANCE" | undefined; prefix?: string | undefined; region?: string | undefined; secret?: string | undefined };
+  "backup.offsiteUpload": void;
   "backup.restore": { name: string };
   "backup.run": void;
   "backup.update": { keep?: number | undefined; schedule?: "daily" | "hourly" | "off" | "weekly" | undefined; time?: string | undefined; weekday?: number | undefined };
@@ -381,7 +387,7 @@ export interface FrozenIn {
 
 export interface FrozenOut {
   "alerts.setWebhook": { secret: null | string; webhook: null | { format: "json" | "slack" | "teams"; host: string } };
-  "alerts.summary": { alerts: { connectionId: null | number; count: null | number; key: string; kind: "auth_failed" | "backup" | "certificate" | "failures" | "licence" | "unreachable" | "unreadable"; name: string; notifiedAt: number; since: number }[]; cooldownMin: number; failuresThreshold: number };
+  "alerts.summary": { alerts: { connectionId: null | number; count: null | number; key: string; kind: "auth_failed" | "backup" | "certificate" | "drill" | "failures" | "licence" | "offsite" | "unreachable" | "unreadable"; name: string; notifiedAt: number; since: number }[]; cooldownMin: number; failuresThreshold: number };
   "alerts.test": { ok: true };
   "alerts.webhook": null | { format: "json" | "slack" | "teams"; host: string };
   "audit.list": { items: { action: string; actorKind: "cli" | "scim" | "sync" | "system" | "user"; actorLabel: string; actorUserId: null | number; after: null | { [key: string]: unknown }; at: number; before: null | { [key: string]: unknown }; id: number; ip: null | string; outcome: "denied" | "failed" | "ok"; targetId: null | string; targetOwnerUserId: null | number; targetType: null | string }[]; nextCursor: null | number };
@@ -399,7 +405,13 @@ export interface FrozenOut {
   "auth.remembered": null | { displayName: string; email: string; username: null | string };
   "auth.rename": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("downloadBackups" | "eraseUserData" | "exportAudit" | "exportUserData" | "manageAuth" | "manageRetention" | "manageServer" | "manageStore" | "manageTeams" | "manageUsers" | "restoreBackups" | "runBackups" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; scopedPermissions: ("downloadBackups" | "eraseUserData" | "exportAudit" | "exportUserData" | "manageAuth" | "manageRetention" | "manageServer" | "manageStore" | "manageTeams" | "manageUsers" | "restoreBackups" | "runBackups" | "useModules" | "viewAudit" | "viewTeamTime")[]; username: null | string };
   "auth.resume": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("downloadBackups" | "eraseUserData" | "exportAudit" | "exportUserData" | "manageAuth" | "manageRetention" | "manageServer" | "manageStore" | "manageTeams" | "manageUsers" | "restoreBackups" | "runBackups" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; scopedPermissions: ("downloadBackups" | "eraseUserData" | "exportAudit" | "exportUserData" | "manageAuth" | "manageRetention" | "manageServer" | "manageStore" | "manageTeams" | "manageUsers" | "restoreBackups" | "runBackups" | "useModules" | "viewAudit" | "viewTeamTime")[]; username: null | string };
-  "backup.get": { canDownload: boolean; canRestore: boolean; dir: string; files: { at: number; name: string; size: number }[]; next: null | number; scheduled: boolean; settings: { keep: number; schedule: "daily" | "hourly" | "off" | "weekly"; time: string; weekday: number }; state: { lastError: null | string; lastErrorAt: null | number; lastOkAt: null | number }; writable: boolean };
+  "backup.drill": { at: number; buildHead: number; connections: null | number; dump: null | string; durationMs: number; error: null | string; migrationHead: null | number; ok: boolean; sealed: null | number; sealedUnreadable: null | number; users: null | number; worklogs: null | number };
+  "backup.drillUpdate": { weekly: boolean };
+  "backup.get": { backupKeySet: boolean; canDownload: boolean; canRestore: boolean; dir: string; drill: null | { at: number; buildHead: number; connections: null | number; dump: null | string; durationMs: number; error: null | string; migrationHead: null | number; ok: boolean; sealed: null | number; sealedUnreadable: null | number; users: null | number; worklogs: null | number }; drillSettings: { weekly: boolean }; files: { at: number; name: string; size: number }[]; next: null | number; offsite: { accessKeyId: string; bucket: string; endpoint: string; keepDaily: number; keepMonthly: number; keepWeekly: number; kind: "none" | "restic" | "s3"; objectLockDays: number; objectLockMode: "COMPLIANCE" | "GOVERNANCE"; prefix: string; region: string } & { hasSecret: boolean }; offsiteState: { lastBytes: null | number; lastError: null | string; lastErrorAt: null | number; lastName: null | string; lastOkAt: null | number }; resticConfigured: boolean; scheduled: boolean; settings: { keep: number; schedule: "daily" | "hourly" | "off" | "weekly"; time: string; weekday: number }; state: { lastError: null | string; lastErrorAt: null | number; lastOkAt: null | number }; writable: boolean };
+  "backup.offsiteList": { at: number; name: string; size: null | number }[];
+  "backup.offsiteRestore": { data: null | string; safety: string };
+  "backup.offsiteUpdate": { accessKeyId: string; bucket: string; endpoint: string; keepDaily: number; keepMonthly: number; keepWeekly: number; kind: "none" | "restic" | "s3"; objectLockDays: number; objectLockMode: "COMPLIANCE" | "GOVERNANCE"; prefix: string; region: string } & { hasSecret: boolean };
+  "backup.offsiteUpload": { name: string };
   "backup.restore": { safety: string };
   "backup.run": { name: string };
   "backup.update": { keep: number; schedule: "daily" | "hourly" | "off" | "weekly"; time: string; weekday: number };
@@ -604,7 +616,7 @@ export interface FrozenOut {
   "notes.tree": { connectionId: null | number; contentRevision: number; createdAt: Date; hasAi: boolean; hasText: boolean; id: string; issueKey: null | string; kind: "folder" | "note"; notedOn: null | string; parentId: null | string; position: number; title: string; updatedAt: Date }[];
   "notes.updateContent": { current: { ai: null | { body: string; createdAt: Date | null; doc: { blocks: Rec1; v: 1 }; stale: boolean }; body: string; doc: { blocks: Rec1; v: 1 } } & { connectionId: null | number; contentRevision: number; createdAt: Date; hasAi: boolean; hasText: boolean; id: string; issueKey: null | string; kind: "folder" | "note"; notedOn: null | string; parentId: null | string; position: number; title: string; updatedAt: Date }; status: "conflict" } | { note: { ai: null | { body: string; createdAt: Date | null; doc: { blocks: Rec1; v: 1 }; stale: boolean }; body: string; doc: { blocks: Rec1; v: 1 } } & { connectionId: null | number; contentRevision: number; createdAt: Date; hasAi: boolean; hasText: boolean; id: string; issueKey: null | string; kind: "folder" | "note"; notedOn: null | string; parentId: null | string; position: number; title: string; updatedAt: Date }; status: "updated" };
   "notes.versions": { contentRevision: number; createdAt: Date; id: string; noteId: string; origin: string; preview: string; title: string }[];
-  "notifications.alerts": { alert: "auth_failed" | "backup" | "certificate" | "failures" | "licence" | "unreachable" | "unreadable"; connectionId: null | number; count: null | number; createdAt: Date; id: number; name: string }[];
+  "notifications.alerts": { alert: "auth_failed" | "backup" | "certificate" | "drill" | "failures" | "licence" | "offsite" | "unreachable" | "unreadable"; connectionId: null | number; count: null | number; createdAt: Date; id: number; name: string }[];
   "notifications.count": { count: number; latestId: null | number };
   "notifications.createTest": { issueKey: string };
   "notifications.dismiss": { dismissed: number };

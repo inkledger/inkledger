@@ -76,6 +76,58 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "backup.drill": {
+    "kept": [
+      "connections",
+      "dump",
+      "error",
+      "migrationHead",
+      "ok",
+      "scheduled",
+      "sealedUnreadable",
+      "users",
+      "worklogs",
+    ],
+    "redacted": 17,
+  },
+  "backup.drillUpdate": {
+    "kept": [
+      "weekly",
+    ],
+    "redacted": 17,
+  },
+  "backup.offsiteRestore": {
+    "kept": [
+      "data",
+      "name",
+      "safety",
+    ],
+    "redacted": 17,
+  },
+  "backup.offsiteUpdate": {
+    "kept": [
+      "accessKeyId",
+      "bucket",
+      "endpoint",
+      "keepDaily",
+      "keepMonthly",
+      "keepWeekly",
+      "kind",
+      "objectLockDays",
+      "objectLockMode",
+      "prefix",
+      "region",
+    ],
+    "redacted": 17,
+  },
+  "backup.offsiteUpload": {
+    "kept": [
+      "lastError",
+      "lastOkAt",
+      "name",
+    ],
+    "redacted": 17,
+  },
   "backup.restore": {
     "kept": [
       "name",
