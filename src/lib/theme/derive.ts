@@ -1,7 +1,6 @@
 import { t } from "@contracts/i18n";
 import {
   contrast,
-  deltaE,
   oklchToRgb,
   parseHex,
   rgbToOklch,
@@ -108,83 +107,91 @@ const tri = (c: Oklch) => toHslTriplet(oklchToRgb({ ...c, h: wrap(c.h) }));
 export const DATA_COUNT = 8;
 export const DATA_PALETTE_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-${i + 1}`);
 /**
- * Per look: one chroma for every series (calmer in soft, firmer in high contrast) and the contrast each
- * reaches on the chart's grounds (card, canvas, the bars' muted track). Every other series is a lightness
- * step further from the ground: at one lightness a dichromat can't tell eight hues apart.
+ * Each series' 1px outline (WCAG 1.4.11): a series under the look's contrast on the chart's grounds
+ * wears a tone of itself that reaches it; one that already reaches it wears its own colour (no visible line).
+ */
+export const DATA_EDGE_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-edge-${i + 1}`);
+/** The ink of each series' high-contrast texture: the card or a near-ink tone, whichever stands out more on it. */
+export const DATA_MARK_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-mark-${i + 1}`);
+/**
+ * Per look: the chroma of a full-strength series (calmer in soft, firmer in high contrast, where textures
+ * help too) and the contrast a series or its outline reaches on the chart's grounds (card, canvas, the
+ * bars' muted track).
  */
 export const DATA_STYLE: Record<"standard" | "soft" | "high", { c: number; contrast: number }> = {
-  standard: { c: 0.1, contrast: 3.1 },
-  soft: { c: 0.09, contrast: 3.1 },
-  high: { c: 0.13, contrast: 3.6 },
+  standard: { c: 0.095, contrast: 3.1 },
+  soft: { c: 0.075, contrast: 3.1 },
+  high: { c: 0.12, contrast: 3.6 },
 };
-const DATA_STEP = 0.1;
-/** Three lightness levels: series one or two slots apart never share one. */
-const DATA_LEVELS = [0, 1, 2];
+/**
+ * The eight series: one family around the base hue, told apart by lightness first. `dh`: degrees from the
+ * base along the warm arc (negative: the step back); `c`: share of the look's chroma; `dl`: lightness
+ * from the series that just reaches the look's contrast (positive: lighter). Neighbours differ by ≥ 0.08
+ * in lightness, alternating light and dark. On terracotta: terracotta, light sand, dark olive, dusty rose,
+ * warm slate, pale sage, deep umber, sage-teal; on another base the arc moves with it.
+ */
+export const DATA_SERIES: readonly { dh: number; c: number; dl: number }[] = [
+  { dh: 0, c: 1, dl: 0 },
+  { dh: 36, c: 0.55, dl: 0.21 },
+  { dh: 80, c: 0.75, dl: -0.24 },
+  { dh: -30, c: 0.65, dl: 0.1 },
+  { dh: 210, c: 0.35, dl: -0.13 },
+  { dh: 100, c: 0.7, dl: 0.22 },
+  { dh: 20, c: 0.65, dl: -0.3 },
+  { dh: 140, c: 0.45, dl: 0.04 },
+];
+/**
+ * In dark the ladder runs from a little under the contrast (the deepest series wear their outline) up to
+ * a pale top, squeezed only if it doesn't fit: there is less room above a dark ground than below a light one.
+ */
+const DATA_DARK_SINK = 0.14;
+const DATA_DARK_TOP = 0.92;
+/** Floor for the muted companions: below it a hue is noise and drifts between looks. */
+const DATA_MIN_C = 0.03;
 /** A grey base has no hue to start from: a warm one, like the default. */
 const DATA_NEUTRAL_H = 45;
 
 /**
- * The order of the eight hues (the base first): the one whose worst pair of neighbours stays furthest
- * apart, for normal vision and the three colour blindnesses (7! orders). Found once per base on a
- * reference pair of lightnesses, so a type keeps its hue in light and dark and in every look.
+ * The warm arc's direction from the base: from red-violet to ochre the family steps up towards ochre and
+ * olive; from olive to violet it steps down, through teal and sage, never across violet and magenta.
  */
-const orders = new Map<number, number[]>();
-function dataOrder(h0: number): number[] {
-  const known = orders.get(h0);
-  if (known) return known;
-  const hues = Array.from({ length: DATA_COUNT }, (_, k) => h0 + k * 45);
-  // Reference lightnesses, slot i at level i % 3 (level 0 nearest the ground): light (darker steps) and dark (lighter).
-  const refs = [
-    [0.6, -1],
-    [0.68, 1],
-  ].map(([l0, dir]) => DATA_LEVELS.map(n => hues.map(h => oklchToRgb({ l: l0 + dir * n * DATA_STEP, c: DATA_STYLE.standard.c, h: wrap(h) }))));
-  // Separation of two series in either scheme: any colour blindness, or normal vision (asked more of: 1.8×).
-  const apart = (x: Rgb, y: Rgb) => Math.min(deltaE(x, y, "protan"), deltaE(x, y, "deutan"), deltaE(x, y, "tritan"), deltaE(x, y) / 1.8);
-  const sep = (la: number, a: number, lb: number, b: number) => Math.min(...refs.map(r => apart(r[la][a], r[lb][b])));
-  const L = DATA_LEVELS.length;
-  const table = DATA_LEVELS.map((_, la) => DATA_LEVELS.map((_, lb) => hues.map((_, a) => hues.map((_, b) => sep(la, a, lb, b)))));
-  let best = -1;
-  let order: number[] = hues.map((_, k) => k);
-  const path = [0];
-  // Series one or two slots apart may touch (a period without the types between them): both stay apart.
-  const walk = (used: number, worst: number) => {
-    if (worst <= best) return;
-    const i = path.length;
-    if (i === DATA_COUNT) {
-      best = worst;
-      order = [...path];
-      return;
-    }
-    for (let k = 1; k < DATA_COUNT; k++) {
-      if (used & (1 << k)) continue;
-      let w = Math.min(worst, table[(i - 1) % L][i % L][path[i - 1]][k]);
-      if (i >= 2) w = Math.min(w, table[(i - 2) % L][i % L][path[i - 2]][k]);
-      path.push(k);
-      walk(used | (1 << k), w);
-      path.pop();
-    }
-  };
-  walk(1, Infinity);
-  if (orders.size > 32) orders.clear();
-  orders.set(h0, order);
-  return order;
-}
+const arcDirection = (h0: number) => (wrap(h0) >= 100 && wrap(h0) < 320 ? -1 : 1);
 
 /**
- * The series colours: the base hue first, then the other seven of eight hues 45° apart in `dataOrder`,
- * at one chroma per look, in a lightness pair that reaches the look's contrast on every ground.
+ * The series colours (`DATA_SERIES`) for one look and scheme, and their outlines. Cool hues are calmer at
+ * the same chroma (equal OKLCH chroma reads as louder there), and a muted base keeps a muted family.
  */
 function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: number; contrast: number }): ThemeVars {
-  const h0 = base.c < NEUTRAL_C ? DATA_NEUTRAL_H : base.h;
-  const hues = Array.from({ length: DATA_COUNT }, (_, k) => h0 + k * 45);
-  // One lightness for all (the hardest hue decides), then the second level a step away from the ground.
-  const solved = hues.map(h => solveAgainst(h, style.c, grounds, style.contrast, dark ? 0.4 : 0.85, dark ? 1 : 0));
-  const nearL = dark ? Math.max(...solved) : Math.min(...solved);
-  const cols = DATA_LEVELS.map(n => hues.map(h => ({ l: nearL + (dark ? 1 : -1) * n * DATA_STEP, c: style.c, h })));
-  const order = dataOrder(h0);
+  const grey = base.c < NEUTRAL_C;
+  const h0 = grey ? DATA_NEUTRAL_H : base.h;
+  const dir = arcDirection(h0);
+  const mute = grey ? 1 : Math.min(1, Math.max(0.6, base.c / 0.08));
+  const cols = DATA_SERIES.map(s => {
+    const h = wrap(h0 + dir * s.dh);
+    const cool = h > 170 && h < 300 ? 0.75 : 1;
+    return { h, c: Math.max(DATA_MIN_C, style.c * s.c * cool * mute), dl: s.dl };
+  });
+  // The anchor: the lightness at which every series reaches the contrast (the hardest decides).
+  const solved = cols.map(col => solveAgainst(col.h, col.c, grounds, style.contrast, dark ? 0.3 : 0.85, dark ? 1 : 0));
   const vars: ThemeVars = {};
-  order.forEach((k, i) => {
-    vars[`--data-${i + 1}`] = tri(cols[i % DATA_LEVELS.length][k]);
+  const dls = DATA_SERIES.map(s => s.dl);
+  const [lo, hi] = [Math.min(...dls), Math.max(...dls)];
+  // Light: the base at the contrast, the light series above it (outlined), the dark ones below.
+  // Dark: from a little under the contrast (the deepest outlined) up to a pale top, squeezed if needed.
+  const lightness = (dl: number) => {
+    if (!dark) return Math.max(0.3, Math.min(...solved) + dl);
+    const floor = Math.max(...solved) - DATA_DARK_SINK;
+    const k = Math.min(1, (DATA_DARK_TOP - floor) / (hi - lo));
+    return floor + k * (dl - lo);
+  };
+  cols.forEach((col, i) => {
+    const fill = { l: lightness(col.dl), c: col.c, h: col.h };
+    const edgeL = solveAgainst(col.h, col.c, grounds, style.contrast, fill.l, dark ? 1 : 0);
+    vars[`--data-${i + 1}`] = tri(fill);
+    vars[`--data-edge-${i + 1}`] = tri({ ...fill, l: edgeL });
+    const rgbFill = oklchToRgb(fill);
+    const ink = oklchToRgb({ l: dark ? 0.95 : 0.22, c: Math.min(col.c, 0.02), h: col.h });
+    vars[`--data-mark-${i + 1}`] = toHslTriplet(contrast(ink, rgbFill) > contrast(grounds[0], rgbFill) ? ink : grounds[0]);
   });
   return vars;
 }

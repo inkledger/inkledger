@@ -21,12 +21,15 @@ import {
   CONTRAST_TARGETS,
   STATUS_TOKENS,
   DATA_PALETTE_TOKENS,
+  DATA_EDGE_TOKENS,
+  DATA_MARK_TOKENS,
+  DATA_SERIES,
   DATA_STYLE,
   type ThemeLook,
 } from "./derive";
 
 /** Series colours tell series apart: they are exempt from the tone-on-tone and neutral rules (their own tests below). */
-const isData = (k: string) => (DATA_PALETTE_TOKENS as readonly string[]).includes(k);
+const isData = (k: string) => [...DATA_PALETTE_TOKENS, ...DATA_EDGE_TOKENS, ...DATA_MARK_TOKENS].includes(k);
 import { themeCss } from "./apply";
 
 const rgbOf = (triplet: string) => {
@@ -345,62 +348,123 @@ describe("contrast matrix: every base colour × scheme × variant × contrast", 
   });
 });
 
-describe("data palette: series colours for every base colour × look × scheme", () => {
+describe("data palette: one family around the base colour, told apart by lightness (every base × look × scheme)", () => {
   const bases = [...THEME_PRESETS.map(p => p.hex), ...EXTREMES, ...randomColours(40)];
   const CVDS = ["protan", "deutan", "tritan"] as const;
+  const GROUNDS = ["--card", "--canvas", "--muted"];
   /**
-   * OKLab ×100 between series that may touch: one or two slots apart (a period without the types between
-   * them). 6 under each colour blindness (the dataviz floor, legal with the secondary cues every chart has:
-   * a text legend, separators, textures in high contrast), 12 for normal vision.
+   * OKLab ×100. 6 under each colour blindness (the dataviz floor, legal with the secondary cues every chart
+   * has: a text legend, separators, textures in high contrast), between any two of the first five series
+   * and between series one or two slots apart (a period without the types between them puts them side by
+   * side); 10 for normal vision between series one or two slots apart.
    */
   const MIN_CVD_DE = 6;
-  const MIN_NORMAL_DE = 12;
+  const MIN_NORMAL_DE = 10;
   const series = (vars: Record<string, string>) => DATA_PALETTE_TOKENS.map(k => rgbOf(vars[k]));
+  const styleOf = (look: ThemeLook) => DATA_STYLE[look.contrast === "high" ? "high" : look.variant === "soft" ? "soft" : "standard"];
+  const drift = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
 
   for (const look of LOOKS) {
-    it(`${lookName(look)}: 3:1 on the chart grounds, series one or two slots apart told apart under deuteranopia, protanopia and tritanopia`, () => {
+    it(`${lookName(look)}: muted chroma, alternating lightness, apart under colour blindness, 3:1 by fill or outline`, () => {
       const failures: string[] = [];
-      const min = look.contrast === "high" ? DATA_STYLE.high.contrast : 3;
+      const style = styleOf(look);
+      const min = style.contrast;
       for (const hex of bases) {
         const pal = derivePalette(hex, look);
         for (const mode of ["light", "dark"] as const) {
           const v = pal[mode];
           const cols = series(v);
-          for (const [i, col] of cols.entries()) {
-            for (const bg of ["--card", "--canvas", "--muted"]) {
-              const ratio = contrast(col, rgbOf(v[bg]));
-              if (ratio < min - 0.05) failures.push(`${hex} ${mode} --data-${i + 1} on ${bg} ${ratio.toFixed(2)}`);
+          const ok = cols.map(c => rgbToOklch(c));
+          const at = (what: string) => `${hex} ${mode} ${what}`;
+          // Chroma: never above the look's (triplets rounded to 0.1 may add a little).
+          ok.forEach((o, i) => o.c > style.c + 0.004 && failures.push(at(`data-${i + 1} chroma ${o.c.toFixed(3)}`)));
+          // Lightness: neighbours ≥ 0.08 apart, alternating lighter and darker.
+          for (let i = 1; i < ok.length; i++) {
+            const dl = ok[i].l - ok[i - 1].l;
+            if (Math.abs(dl) < 0.08) failures.push(at(`data-${i}/${i + 1} ΔL ${dl.toFixed(3)}`));
+            if (i >= 2 && Math.sign(dl) === Math.sign(ok[i - 1].l - ok[i - 2].l)) failures.push(at(`data-${i + 1} does not alternate`));
+          }
+          // Colour blindness: any two of the first five, and series one or two slots apart.
+          const pairs: [number, number][] = [];
+          for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) pairs.push([i, j]);
+          for (let i = 5; i < cols.length; i++) pairs.push([i - 2, i], [i - 1, i]);
+          for (const [i, j] of pairs) {
+            for (const cvd of CVDS) {
+              const d = deltaE(cols[i], cols[j], cvd);
+              if (d < MIN_CVD_DE) failures.push(at(`${cvd} data-${i + 1}/${j + 1} ΔE ${d.toFixed(1)}`));
             }
           }
-          for (const gap of [1, 2]) {
-            for (let i = gap; i < cols.length; i++) {
-              for (const cvd of CVDS) {
-                const d = deltaE(cols[i - gap], cols[i], cvd);
-                if (d < MIN_CVD_DE) failures.push(`${hex} ${mode} ${cvd} data-${i - gap + 1}/${i + 1} ΔE ${d.toFixed(1)}`);
-              }
-              const d = deltaE(cols[i - gap], cols[i]);
-              if (d < MIN_NORMAL_DE) failures.push(`${hex} ${mode} normal data-${i - gap + 1}/${i + 1} ΔE ${d.toFixed(1)}`);
+          for (let i = 1; i < cols.length; i++) {
+            for (const j of [i - 1, i - 2].filter(j => j >= 0)) {
+              const d = deltaE(cols[j], cols[i]);
+              if (d < MIN_NORMAL_DE) failures.push(at(`normal data-${j + 1}/${i + 1} ΔE ${d.toFixed(1)}`));
             }
           }
+          // WCAG 1.4.11: a series reaches the contrast on every ground by its fill or by its 1px outline;
+          // the base series and every series further from the ground than it reach it by fill alone.
+          const ground = rgbToOklch(rgbOf(v["--card"])).l;
+          cols.forEach((col, i) => {
+            const edge = rgbOf(v[DATA_EDGE_TOKENS[i]]);
+            const fillOk = GROUNDS.every(bg => contrast(col, rgbOf(v[bg])) >= min - 0.05);
+            const edgeOk = GROUNDS.every(bg => contrast(edge, rgbOf(v[bg])) >= min - 0.05);
+            if (!edgeOk) failures.push(at(`data-${i + 1} outline under ${min}`));
+            if (fillOk && v[DATA_EDGE_TOKENS[i]] !== v[DATA_PALETTE_TOKENS[i]]) failures.push(at(`data-${i + 1} needs no outline`));
+            const further = Math.abs(ok[i].l - ground) >= Math.abs(ok[0].l - ground) - 0.005;
+            if (further && !fillOk) failures.push(at(`data-${i + 1} fill under ${min}`));
+            // The texture's ink stands out on its series.
+            const mark = contrast(rgbOf(v[DATA_MARK_TOKENS[i]]), col);
+            if (mark < 2.5) failures.push(at(`data-${i + 1} texture ink ${mark.toFixed(2)}`));
+          });
         }
       }
       expect(failures.slice(0, 20)).toEqual([]);
     });
   }
 
-  it("starts from the base hue, one chroma per look: calmer in soft, firmer in high contrast", () => {
-    const drift = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
-    const chromaOf = (look: ThemeLook) => rgbToOklch(series(derivePalette("#2F5F98", look).light)[0]).c;
-    for (const hex of THEME_PRESETS.map(p => p.hex)) {
-      const first = rgbToOklch(rgbOf(derivePalette(hex).light["--data-1"]));
-      expect(drift(first.h, rgbToOklch(parseHex(hex)!).h), hex).toBeLessThan(4);
+  it("stays in the warm, muted family: the default reads terracotta, light sand, dark olive, dusty rose, warm slate", () => {
+    const cols = series(derivePalette(DEFAULT_BASE).light).map(c => rgbToOklch(c));
+    const base = rgbToOklch(parseHex(DEFAULT_BASE)!).h;
+    expect(drift(cols[0].h, base)).toBeLessThan(4);
+    const between = (h: number, a: number, b: number) => h >= a && h <= b;
+    expect(between(cols[1].h, 65, 95) && cols[1].l > cols[0].l + 0.15, "sand").toBe(true);
+    expect(between(cols[2].h, 100, 140) && cols[2].l < cols[0].l - 0.15, "olive").toBe(true);
+    expect(drift(cols[3].h, 12) < 20 && cols[3].l > cols[0].l, "dusty rose").toBe(true);
+    expect(between(cols[4].h, 230, 275) && cols[4].c < 0.04, "warm slate").toBe(true);
+    // No royal blue, purple or emerald: a cool hue is always a muted one, for every base and look.
+    for (const hex of [...THEME_PRESETS.map(p => p.hex), ...EXTREMES]) {
+      for (const look of LOOKS) {
+        const pal = derivePalette(hex, look);
+        for (const mode of ["light", "dark"] as const) {
+          for (const [i, o] of series(pal[mode]).map(c => rgbToOklch(c)).entries()) {
+            if (o.h > 170 && o.h < 300) expect(o.c, `${hex} ${lookName(look)} ${mode} data-${i + 1}`).toBeLessThanOrEqual(styleOf(look).c * 0.75 + 0.004);
+          }
+        }
+      }
     }
+  });
+
+  it("follows the base colour: its hue first, the arc moving with it, never across violet from a warm base", () => {
+    for (const hex of THEME_PRESETS.map(p => p.hex)) {
+      const h0 = rgbToOklch(parseHex(hex)!).h;
+      const cols = series(derivePalette(hex).light).map(c => rgbToOklch(c));
+      expect(drift(cols[0].h, h0), hex).toBeLessThan(4);
+      // The full-strength companions (sand, olive, rose, the light and deep tones) stay within 110° of the base.
+      DATA_SERIES.forEach((s, i) => {
+        if (s.c >= 0.5) expect(drift(cols[i].h, h0), `${hex} data-${i + 1}`).toBeLessThan(112);
+      });
+    }
+  });
+
+  it("calmer in soft, firmer in high contrast", () => {
+    expect(DATA_STYLE.soft.c).toBeLessThan(DATA_STYLE.standard.c);
+    expect(DATA_STYLE.high.c).toBeGreaterThan(DATA_STYLE.standard.c);
+    expect(DATA_STYLE.standard.c).toBeLessThanOrEqual(0.1);
+    const chromaOf = (look: ThemeLook) => rgbToOklch(series(derivePalette(DEFAULT_BASE, look).light)[0]).c;
     expect(chromaOf({ variant: "soft", contrast: "normal" })).toBeLessThan(chromaOf(LOOKS[0]));
     expect(chromaOf({ variant: "standard", contrast: "high" })).toBeGreaterThan(chromaOf(LOOKS[0]));
   });
 
   it("a series keeps its hue in light and dark and in every look (a type never changes colour family)", () => {
-    const drift = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
     for (const hex of [...THEME_PRESETS.map(p => p.hex), "#808080"]) {
       const ref = series(derivePalette(hex).light).map(c => rgbToOklch(c).h);
       for (const look of LOOKS) {
@@ -412,11 +476,12 @@ describe("data palette: series colours for every base colour × look × scheme",
     }
   });
 
-  it("gives a grey base eight distinct hues, not eight greys", () => {
+  it("gives a grey base the default's warm family, eight colours apart, not eight greys", () => {
     for (const hex of ["#808080", "#000000", "#FFFFFF"]) {
-      const cols = series(derivePalette(hex).light).map(c => rgbToOklch(c));
-      expect(new Set(cols.map(c => Math.round(c.h / 10))).size, hex).toBe(8);
-      for (const c of cols) expect(c.c, hex).toBeGreaterThan(0.06);
+      const cols = series(derivePalette(hex).light);
+      expect(drift(rgbToOklch(cols[0]).h, 45), hex).toBeLessThan(6);
+      for (const c of cols) expect(rgbToOklch(c).c, hex).toBeGreaterThan(0.025);
+      for (let i = 0; i < cols.length; i++) for (let j = i + 1; j < cols.length; j++) expect(deltaE(cols[i], cols[j]), `${hex} ${i + 1}/${j + 1}`).toBeGreaterThan(6);
     }
   });
 });

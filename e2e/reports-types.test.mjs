@@ -117,6 +117,19 @@ test("Reports colour the trend and the rows by issue type, with a legend and a t
     await tip.waitFor();
     assert.ok((await tip.innerText()).match(/Bug|Attività|Storia|Epic|Miglioramento|Sottotask|Senza tipo/), await tip.innerText());
     assert.match((await bar.getAttribute("aria-label")) ?? "", /\(/, "the bar's name lists its types");
+
+    // The palette follows the base colour: two more bases, light (screenshots only).
+    if (shots) {
+      for (const [name, hex] of [["oceano", "#2F5F98"], ["salvia", "#4F6B4A"]]) {
+        await db.q("UPDATE settings SET theme_color = ?, theme_variant = 'standard', theme_contrast = 'normal' WHERE user_id = 1", hex);
+        await page.emulateMedia({ colorScheme: "light" });
+        await page.goto(base + "/reports?from=2026-10-12&to=2026-10-18&group=issue");
+        await page.getByRole("list", { name: "Tipi di issue" }).waitFor();
+        await page.waitForFunction(() => document.getAnimations().every(a => a.playState !== "running"));
+        await page.mouse.move(0, 0);
+        await page.screenshot({ path: join(shots, `reports-light-${name}.png`), fullPage: true });
+      }
+    }
     assert.deepEqual(app.errors, []);
   } finally {
     await app.stop();
