@@ -156,14 +156,14 @@ function StoreCard({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
   const name = nameOf(e, locale);
   return (
     <li data-store-item={e.id} {...surface("card", { role: "wrap" })} className="rounded-xl">
-     <div {...surfaceFace()} className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
+     <div {...surfaceFace()} className="flex h-full flex-col overflow-hidden rounded-xl border bg-card transition-colors hover:border-input">
       <button
         type="button"
         onClick={() => onOpen("details")}
         aria-label={t("settings.store.openDetails", { name })}
         className="group relative block overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <StoreImage src={e.hero ?? e.image} name={name} className="aspect-video w-full transition-transform duration-300 group-hover:scale-[1.02]" />
+        <StoreImage src={e.hero ?? e.image} name={name} className="aspect-video w-full" />
         {e.badge && (
           <span className="absolute left-3 top-3">
             <BadgeChip badge={e.badge} />
@@ -199,14 +199,14 @@ function StoreTile({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
   const name = nameOf(e, locale);
   return (
     <li data-store-item={e.id} {...surface("card", { role: "wrap" })} className="rounded-lg">
-     <div {...surfaceFace()} className="flex h-full flex-col overflow-hidden rounded-lg border bg-card">
+     <div {...surfaceFace()} className="flex h-full flex-col overflow-hidden rounded-lg border bg-card transition-colors hover:border-input">
       <button
         type="button"
         onClick={() => onOpen("details")}
         aria-label={t("settings.store.openDetails", { name })}
         className="group relative block overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <StoreImage src={e.hero ?? e.image} name={name} className="aspect-[16/10] w-full transition-transform duration-300 group-hover:scale-[1.02]" />
+        <StoreImage src={e.hero ?? e.image} name={name} className="aspect-[16/10] w-full" />
         {e.badge && (
           <span className="absolute left-2 top-2">
             <BadgeChip badge={e.badge} />

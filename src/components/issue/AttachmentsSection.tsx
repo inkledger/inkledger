@@ -162,7 +162,7 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
                         src={attachmentUrl(a.id, "thumbnail", connectionId)}
                         alt=""
                         loading="lazy"
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        className="h-full w-full object-cover"
                       />
                     ) : (
                       <Icon
