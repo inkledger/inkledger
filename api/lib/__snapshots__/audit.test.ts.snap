@@ -377,6 +377,8 @@ exports[`redaction > every action, fed its own fields and every secret: only its
       "pinboardWidget",
       "shareLinkMinutes",
       "themeColor",
+      "themeContrast",
+      "themeVariant",
       "timerAlertMinutes",
       "todosHotCorner",
       "todosInMenu",

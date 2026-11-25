@@ -104,8 +104,8 @@ function readTheme(night = true): ThemeStateV2 {
   ) as ThemeState["tokens"];
   return {
     mode: root.classList.contains("dark") ? "dark" : "light",
-    contrast: root.dataset.contrast === "high" ? "high" : "normal",
-    variant: root.dataset.variant === "soft" ? "soft" : "standard",
+    contrast: root.dataset?.contrast === "high" ? "high" : "normal",
+    variant: root.dataset?.variant === "soft" ? "soft" : "standard",
     reducedMotion: prefersReducedMotion(),
     tokens,
     night,
