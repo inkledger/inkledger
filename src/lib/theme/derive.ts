@@ -90,7 +90,7 @@ const wrap = (h: number) => ((h % 360) + 360) % 360;
  * field borders, and in high contrast hairlines and data bars too.
  */
 export const CONTRAST_TARGETS: Record<ThemeContrast, { text: number; muted: number; ui: number }> = {
-  normal: { text: MIN_CONTRAST, muted: MIN_CONTRAST, ui: 3 },
+  normal: { text: MIN_CONTRAST, muted: MIN_CONTRAST, ui: 3.1 },
   // AAA: text 7:1; muted text is promised 4.5:1 and delivered above 7:1 (clearly firmer than
   // standard, and axe's enhanced check passes too); every mark 3:1.
   high: { text: 7.1, muted: 8.5, ui: 3.1 },

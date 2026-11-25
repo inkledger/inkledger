@@ -17,6 +17,9 @@ import {
   PASTEL_DECO_C,
   PASTEL_FILL_C,
   THEME_PRESETS,
+  CONTRAST_TARGETS,
+  STATUS_TOKENS,
+  type ThemeLook,
 } from "./derive";
 import { themeCss } from "./apply";
 
@@ -200,6 +203,99 @@ describe("derivePalette", () => {
     expect(css.startsWith("html:root{")).toBe(true);
     expect(css).toContain("html.dark{");
     expect(css).toContain("--cover-5-bg:");
+    expect(css).toContain('html[data-contrast="high"]:root{');
+    expect(css.indexOf('html.dark[data-contrast="high"]{')).toBeGreaterThan(css.indexOf('html[data-contrast="high"]:root{'));
+    expect(themeCss("#4F6B4A", "soft")).not.toBe(css);
+  });
+});
+
+const LOOKS: ThemeLook[] = [
+  { variant: "standard", contrast: "normal" },
+  { variant: "soft", contrast: "normal" },
+  { variant: "standard", contrast: "high" },
+  { variant: "soft", contrast: "high" },
+];
+const lookName = (l: ThemeLook) => `${l.variant}/${l.contrast}`;
+
+describe("contrast matrix: every base colour × scheme × variant × contrast", () => {
+  const SURFACES = ["--canvas", "--card", "--popover", "--muted", "--accent"];
+  const bases = [...randomColours(200), ...EXTREMES, ...THEME_PRESETS.map(p => p.hex)];
+  for (const look of LOOKS.filter(l => !(l.variant === "standard" && l.contrast === "normal"))) {
+    it(`${lookName(look)} meets its targets`, () => {
+      const target = CONTRAST_TARGETS[look.contrast];
+      const failures: string[] = [];
+      for (const hex of bases) {
+        const pal = derivePalette(hex, look);
+        for (const mode of ["light", "dark"] as const) {
+          const v = pal[mode];
+          const check = (what: string, fg: string, bg: string, min: number) => {
+            // The targets carry a margin over AA/AAA; triplets rounded to 0.1 may eat 0.05 of it.
+            const ratio = contrast(rgbOf(v[fg]), rgbOf(v[bg]));
+            if (ratio < min - 0.05) failures.push(`${hex} ${mode} ${what}: ${fg} on ${bg} ${ratio.toFixed(2)} < ${min}`);
+          };
+          for (const bg of [...SURFACES, "--primary-soft"]) {
+            check("body text", "--foreground", bg, target.text);
+            check("accented text", "--primary-strong", bg, target.text);
+            check("muted text", "--muted-foreground", bg, target.muted);
+            check("focus ring", "--ring", bg, target.ui);
+            for (const s of ["danger", "success", "warning", "info"]) check("state text", `--${s}`, bg, target.text);
+          }
+          for (const s of ["danger", "success", "warning", "info"]) check("state on its fill", `--${s}`, `--${s}-soft`, target.text);
+          check("ink on fill", "--primary-foreground", "--primary", target.text);
+          check("action label", "--action-foreground", "--action", target.text);
+          check("destructive label", "--destructive-foreground", "--destructive", target.text);
+          for (const bg of SURFACES) check("field border", "--input", bg, target.ui);
+          if (look.contrast === "high") {
+            for (const bg of SURFACES) check("hairline", "--border", bg, target.ui);
+            for (const d of ["--chart-focus", "--chart-other", "--chart-break", ...[1, 2, 3, 4, 5, 6].map(i => `--project-${i}`)]) {
+              for (const bg of ["--card", "--canvas", "--muted"]) check("data mark", d, bg, 3);
+            }
+          }
+          for (const x of Object.values(v)) if (!/^\d+(\.\d)? \d+(\.\d)?% \d+(\.\d)?%$/.test(x)) failures.push(`${hex} ${mode} bad triplet ${x}`);
+        }
+      }
+      expect(failures.slice(0, 20)).toEqual([]);
+    });
+  }
+
+  it("high contrast promises AAA, soft never falls under AA", () => {
+    // With the 0.05 the matrix allows for rounding, each target still lands on or over the promise.
+    expect(CONTRAST_TARGETS.high.text - 0.05).toBeGreaterThanOrEqual(7);
+    expect(CONTRAST_TARGETS.high.muted - 0.05).toBeGreaterThanOrEqual(7);
+    expect(CONTRAST_TARGETS.high.ui - 0.05).toBeGreaterThanOrEqual(3);
+    expect(CONTRAST_TARGETS.normal.text - 0.05).toBeGreaterThanOrEqual(4.5);
+    expect(CONTRAST_TARGETS.normal.ui - 0.05).toBeGreaterThanOrEqual(3);
+  });
+
+  it("every look stays tone-on-tone and pastel (state colours keep their own hues)", () => {
+    const drift = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+    const chroma = (t: string) => rgbToOklch(rgbOf(t)).c;
+    const status = new Set<string>(STATUS_TOKENS);
+    for (const hex of [...THEME_PRESETS.map(p => p.hex), ...randomColours(40)]) {
+      const base = rgbToOklch(parseHex(hex)!);
+      for (const look of LOOKS) {
+        const pal = derivePalette(hex, look);
+        for (const vars of [pal.light, pal.dark]) {
+          expect(chroma(vars["--primary"]), `${hex} ${lookName(look)} fill`).toBeLessThanOrEqual(PASTEL_FILL_C + 0.012);
+          if (base.c < 0.04) continue;
+          for (const [k, v] of Object.entries(vars)) {
+            if (status.has(k)) continue;
+            const col = rgbToOklch(rgbOf(v));
+            if (col.c < 0.03) continue;
+            expect(drift(col.h, base.h), `${hex} ${lookName(look)} ${k}`).toBeLessThanOrEqual(MAX_HUE_DRIFT + 4);
+          }
+        }
+      }
+    }
+  });
+
+  it("soft surfaces are parchment in light and blue slate in dark", () => {
+    const { light, dark } = derivePalette("#808080", { variant: "soft", contrast: "normal" });
+    const card = (t: string) => rgbToOklch(rgbOf(t));
+    expect(card(light["--card"]).h).toBeGreaterThan(60);
+    expect(card(light["--card"]).h).toBeLessThan(100);
+    expect(card(dark["--card"]).h).toBeGreaterThan(210);
+    expect(card(dark["--card"]).h).toBeLessThan(260);
   });
 });
 
@@ -215,9 +311,12 @@ describe("static fallback tokens", () => {
       return css.slice(start, css.indexOf("\n  }\n", start));
     };
     const p = derivePalette(DEFAULT_BASE);
+    const hc = derivePalette(DEFAULT_BASE, { variant: "standard", contrast: "high" });
     for (const [sel, vars] of [
       [":root", p.light],
       [".dark", p.dark],
+      [':root[data-contrast="high"]', hc.light],
+      ['.dark[data-contrast="high"]', hc.dark],
     ] as const) {
       const text = block(sel);
       for (const [k, v] of Object.entries(vars)) {
