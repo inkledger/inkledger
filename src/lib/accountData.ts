@@ -2,6 +2,7 @@ import { removeStoredPrefix, writeStored } from "@/lib/storage";
 import { forgetAllFolders } from "@/lib/desk/folders";
 import { pinboardBoard } from "@/hooks/usePinboardPanel";
 import { forgetCollapsedSaves } from "@/hooks/useCollapsedColumns";
+import { forgetDataColours } from "@/lib/dataColors";
 
 /** Where a timer's note waits on this device after a failed save: `<prefix><connection>:<issue key>`. */
 export const TIMER_NOTE_DRAFT_PREFIX = "ikl.timerNote.";
@@ -28,7 +29,8 @@ export function forgetSessionState(): void {
 
 /**
  * Signing out: also what this device keeps of the account: the folders connected for the Desk,
- * timer notes waiting to be saved, the board the pinboard panel shows. (Note drafts are kept per
+ * timer notes waiting to be saved, the board the pinboard panel shows, the charts' series colours
+ * (they name its issue types, projects and clients). (Note drafts are kept per
  * user and only shown to their author.)
  */
 export function forgetAccountData(): void {
@@ -37,4 +39,5 @@ export function forgetAccountData(): void {
   removeStoredPrefix(TIMER_NOTE_DRAFT_PREFIX);
   writeStored(FIRST_TRACKER_SKIPPED, null);
   pinboardBoard.forget();
+  forgetDataColours();
 }

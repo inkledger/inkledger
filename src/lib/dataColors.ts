@@ -36,6 +36,8 @@ let saved: Saved | null = null;
 
 function load(): Saved {
   if (saved) return saved;
+  // No device storage (a server render): nothing to keep, and nothing shared between people.
+  const shared = typeof localStorage === "undefined";
   const raw = readStoredJson(STORE_KEY);
   const slotsOf = (v: unknown): (string | null)[] => {
     const list = empty();
@@ -43,8 +45,9 @@ function load(): Saved {
     return list;
   };
   const obj = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  saved = { type: slotsOf(obj.type), project: slotsOf(obj.project), client: slotsOf(obj.client) };
-  return saved;
+  const fresh = { type: slotsOf(obj.type), project: slotsOf(obj.project), client: slotsOf(obj.client) };
+  if (!shared) saved = fresh;
+  return fresh;
 }
 
 const persist = () => {
@@ -113,4 +116,10 @@ export function colourFor(key: string, index = 0, dimension: DataDimension = "ty
 /** Forgets the in-memory copy (tests: a new page load). */
 export function resetDataColoursCache(): void {
   saved = null;
+}
+
+/** Signing out: the slots name the account's types, projects and clients; the next account starts afresh. */
+export function forgetDataColours(): void {
+  saved = null;
+  writeStored(STORE_KEY, null);
 }

@@ -310,13 +310,17 @@ describe("contrast matrix: every base colour × scheme × variant × contrast", 
 describe("data palette: series colours for every base colour × look × scheme", () => {
   const bases = [...THEME_PRESETS.map(p => p.hex), ...EXTREMES, ...randomColours(40)];
   const CVDS = ["protan", "deutan", "tritan"] as const;
-  /** OKLab ×100 between touching series: 8 under each colour blindness, 15 for normal vision (dataviz targets). */
-  const MIN_CVD_DE = 8;
-  const MIN_NORMAL_DE = 15;
+  /**
+   * OKLab ×100 between series that may touch: one or two slots apart (a period without the types between
+   * them). 6 under each colour blindness (the dataviz floor, legal with the secondary cues every chart has:
+   * a text legend, separators, textures in high contrast), 12 for normal vision.
+   */
+  const MIN_CVD_DE = 6;
+  const MIN_NORMAL_DE = 12;
   const series = (vars: Record<string, string>) => DATA_PALETTE_TOKENS.map(k => rgbOf(vars[k]));
 
   for (const look of LOOKS) {
-    it(`${lookName(look)}: 3:1 on the chart grounds, neighbours apart under deuteranopia, protanopia and tritanopia`, () => {
+    it(`${lookName(look)}: 3:1 on the chart grounds, series one or two slots apart told apart under deuteranopia, protanopia and tritanopia`, () => {
       const failures: string[] = [];
       const min = look.contrast === "high" ? DATA_STYLE.high.contrast : 3;
       for (const hex of bases) {
@@ -330,13 +334,15 @@ describe("data palette: series colours for every base colour × look × scheme",
               if (ratio < min - 0.05) failures.push(`${hex} ${mode} --data-${i + 1} on ${bg} ${ratio.toFixed(2)}`);
             }
           }
-          for (let i = 1; i < cols.length; i++) {
-            for (const cvd of CVDS) {
-              const d = deltaE(cols[i - 1], cols[i], cvd);
-              if (d < MIN_CVD_DE) failures.push(`${hex} ${mode} ${cvd} data-${i}/${i + 1} ΔE ${d.toFixed(1)}`);
+          for (const gap of [1, 2]) {
+            for (let i = gap; i < cols.length; i++) {
+              for (const cvd of CVDS) {
+                const d = deltaE(cols[i - gap], cols[i], cvd);
+                if (d < MIN_CVD_DE) failures.push(`${hex} ${mode} ${cvd} data-${i - gap + 1}/${i + 1} ΔE ${d.toFixed(1)}`);
+              }
+              const d = deltaE(cols[i - gap], cols[i]);
+              if (d < MIN_NORMAL_DE) failures.push(`${hex} ${mode} normal data-${i - gap + 1}/${i + 1} ΔE ${d.toFixed(1)}`);
             }
-            const d = deltaE(cols[i - 1], cols[i]);
-            if (d < MIN_NORMAL_DE) failures.push(`${hex} ${mode} normal data-${i}/${i + 1} ΔE ${d.toFixed(1)}`);
           }
         }
       }

@@ -117,7 +117,9 @@ export const DATA_STYLE: Record<"standard" | "soft" | "high", { c: number; contr
   soft: { c: 0.09, contrast: 3.1 },
   high: { c: 0.13, contrast: 3.6 },
 };
-const DATA_STEP = 0.11;
+const DATA_STEP = 0.1;
+/** Three lightness levels: series one or two slots apart never share one. */
+const DATA_LEVELS = [0, 1, 2];
 /** A grey base has no hue to start from: a warm one, like the default. */
 const DATA_NEUTRAL_H = 45;
 
@@ -131,30 +133,34 @@ function dataOrder(h0: number): number[] {
   const known = orders.get(h0);
   if (known) return known;
   const hues = Array.from({ length: DATA_COUNT }, (_, k) => h0 + k * 45);
-  // Reference lightnesses, the even slots nearer the ground: light (darker steps) and dark (lighter steps).
+  // Reference lightnesses, slot i at level i % 3 (level 0 nearest the ground): light (darker steps) and dark (lighter).
   const refs = [
-    [0.6, 0.6 - DATA_STEP],
-    [0.68, 0.68 + DATA_STEP],
-  ].map(levels => levels.map(l => hues.map(h => oklchToRgb({ l, c: DATA_STYLE.standard.c, h: wrap(h) }))));
-  // Worst separation of two neighbours in either scheme: any colour blindness, or normal vision (asked more of: 1.8×).
+    [0.6, -1],
+    [0.68, 1],
+  ].map(([l0, dir]) => DATA_LEVELS.map(n => hues.map(h => oklchToRgb({ l: l0 + dir * n * DATA_STEP, c: DATA_STYLE.standard.c, h: wrap(h) }))));
+  // Separation of two series in either scheme: any colour blindness, or normal vision (asked more of: 1.8×).
   const apart = (x: Rgb, y: Rgb) => Math.min(deltaE(x, y, "protan"), deltaE(x, y, "deutan"), deltaE(x, y, "tritan"), deltaE(x, y) / 1.8);
-  const sep = [0, 1].map(l => hues.map((_, a) => hues.map((_, b) => Math.min(...refs.map(rgbs => apart(rgbs[l][a], rgbs[1 - l][b]))))));
+  const sep = (la: number, a: number, lb: number, b: number) => Math.min(...refs.map(r => apart(r[la][a], r[lb][b])));
+  const L = DATA_LEVELS.length;
+  const table = DATA_LEVELS.map((_, la) => DATA_LEVELS.map((_, lb) => hues.map((_, a) => hues.map((_, b) => sep(la, a, lb, b)))));
   let best = -1;
   let order: number[] = hues.map((_, k) => k);
   const path = [0];
+  // Series one or two slots apart may touch (a period without the types between them): both stay apart.
   const walk = (used: number, worst: number) => {
     if (worst <= best) return;
-    if (path.length === DATA_COUNT) {
+    const i = path.length;
+    if (i === DATA_COUNT) {
       best = worst;
       order = [...path];
       return;
     }
-    const last = path[path.length - 1];
-    const lvl = (path.length - 1) % 2;
     for (let k = 1; k < DATA_COUNT; k++) {
       if (used & (1 << k)) continue;
+      let w = Math.min(worst, table[(i - 1) % L][i % L][path[i - 1]][k]);
+      if (i >= 2) w = Math.min(w, table[(i - 2) % L][i % L][path[i - 2]][k]);
       path.push(k);
-      walk(used | (1 << k), Math.min(worst, sep[lvl][last][k]));
+      walk(used | (1 << k), w);
       path.pop();
     }
   };
@@ -174,12 +180,11 @@ function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: numbe
   // One lightness for all (the hardest hue decides), then the second level a step away from the ground.
   const solved = hues.map(h => solveAgainst(h, style.c, grounds, style.contrast, dark ? 0.4 : 0.85, dark ? 1 : 0));
   const nearL = dark ? Math.max(...solved) : Math.min(...solved);
-  const levels = [nearL, nearL + (dark ? DATA_STEP : -DATA_STEP)];
-  const cols = levels.map(l => hues.map(h => ({ l, c: style.c, h })));
+  const cols = DATA_LEVELS.map(n => hues.map(h => ({ l: nearL + (dark ? 1 : -1) * n * DATA_STEP, c: style.c, h })));
   const order = dataOrder(h0);
   const vars: ThemeVars = {};
   order.forEach((k, i) => {
-    vars[`--data-${i + 1}`] = tri(cols[i % 2][k]);
+    vars[`--data-${i + 1}`] = tri(cols[i % DATA_LEVELS.length][k]);
   });
   return vars;
 }
