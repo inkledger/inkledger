@@ -25,8 +25,12 @@ export const DATA_SLOTS = 8;
 const FILLS = ["bg-data-1", "bg-data-2", "bg-data-3", "bg-data-4", "bg-data-5", "bg-data-6", "bg-data-7", "bg-data-8"] as const;
 const TEXTURES = ["", "data-texture-2", "data-texture-3", "data-texture-4", "data-texture-5", "data-texture-6", "data-texture-7", "data-texture-8"] as const;
 
-/** A ninth series is never a new hue: it is summed as "Other", in a quiet neutral. */
-export const OTHER_COLOUR: DataColour = { slot: 0, fill: "bg-muted-foreground/40", texture: "" };
+/**
+ * Neutrals, never a palette hue (a hue always means a real category): a ninth series is never a new
+ * hue but summed as "Other"; what has no category ("No type", "No client") is the other neutral.
+ */
+export const OTHER_COLOUR: DataColour = { slot: 0, fill: "bg-chart-break", texture: "" };
+export const NONE_COLOUR: DataColour = { slot: 0, fill: "bg-chart-other", texture: "" };
 
 const STORE_KEY = "ikl-data-colours";
 type Saved = Record<DataDimension, (string | null)[]>;

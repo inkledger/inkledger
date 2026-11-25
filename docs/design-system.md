@@ -108,8 +108,8 @@ Charts that split one measure into categories (a day's hours by issue type, rows
 
 **How to use it.**
 - Never by slot number in a component. `src/lib/dataColors.ts`: `assignColours(keys, dimension)` for a chart's series (busiest first), `colourFor(key, index, dimension)` for one. A category keeps its colour on every page and period: its first appearance takes the next free slot of its dimension (`type`, `project`, `client`) and the choice is saved on the device. A hash would give five types the same colour four times in five.
-- At most eight series: the ninth and the rest are summed as Other (`OTHER_COLOUR`, a neutral), never a new hue.
-- Stack segments in palette order (the legend's), not by size: touching series are then one or two slots apart, the ones checked. Segments are cut by a card-coloured line (full strength in high contrast).
+- A hue always means a real category. At most eight series: the ninth and the rest are summed as Other (`OTHER_COLOUR`, `chart-break`), never a new hue; what has no category ("No type", "No client") wears the other neutral (`NONE_COLOUR`, `chart-other`) and takes no slot, so the palette starts from real types.
+- Stack segments in palette order (the legend's), not by size: touching series are then one or two slots apart, the ones checked. Segments are cut by a 1px gap of the card's colour, at full strength.
 - Colour is never the only cue. Every chart with two or more series has a text legend (`DataLegend`: name, time, share); a bar's tooltip and its accessible name list its series; the sr-only table names them; a row says its category in words. In high contrast each slot also wears a texture (`data-texture-2..8`: dots, level lines, a grid; slot 1 solid).
 
 **Never** for UI chrome: not for buttons, chips, navigation, state, or decoration. State keeps `success`/`warning`/`danger`/`info`; one-series charts keep `chart-focus`.

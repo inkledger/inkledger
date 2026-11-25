@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { surface } from "@/components/app/surface";
 import { useMemo, useState } from "react";
-import { assignColours } from "@/lib/dataColors";
+import { assignColours, NONE_COLOUR } from "@/lib/dataColors";
 import { cn } from "@/lib/utils";
 import type { TypeSeries } from "./typeSeries";
 import { Link } from "react-router";
@@ -110,12 +110,23 @@ export function ReportRows({
   types?: TypeSeries;
 }) {
   // A project's or a client's bar: its own stable series colour (the busiest eight; the rest Other).
+  // "No client" (the server's "none") is no category: a neutral, and no palette slot.
+  const isNone = (r: ReportRow) => groupBy === "client" && r.key === "none";
   const keyed = useMemo(
-    () => (groupBy === "project" || groupBy === "client" ? assignColours([...rows].sort((a, b) => b.seconds - a.seconds).map(r => r.key), groupBy) : null),
+    () =>
+      groupBy === "project" || groupBy === "client"
+        ? assignColours(
+            [...rows]
+              .filter(r => !(groupBy === "client" && r.key === "none"))
+              .sort((a, b) => b.seconds - a.seconds)
+              .map(r => r.key),
+            groupBy
+          )
+        : null,
     [rows, groupBy]
   );
   const toneOf = (r: ReportRow) => {
-    const c = groupBy === "issue" && types ? types.colourOf(types.keyOf(r.issueType)) : keyed?.get(r.key);
+    const c = groupBy === "issue" && types ? types.colourOf(types.keyOf(r.issueType)) : isNone(r) ? NONE_COLOUR : keyed?.get(r.key);
     return c ? cn(c.fill, c.texture) : "bg-chart-focus";
   };
   const typeName = (r: ReportRow) => (groupBy === "issue" && types ? types.nameOf(types.keyOf(r.issueType)) : undefined);

@@ -72,6 +72,9 @@ test("Reports colour the trend and the rows by issue type, with a legend and a t
       const names = await legend.locator("li").allInnerTexts();
       for (const type of [...Object.values(TYPES), "Senza tipo"]) assert.ok(names.some(n => n.includes(type)), `${look}: ${type} in the legend (${names.join(" | ")})`);
 
+      // Hues mean real types: "Senza tipo" wears a neutral, never a palette colour.
+      const noneSwatch = legend.locator("li").filter({ hasText: "Senza tipo" }).locator("span").first();
+      assert.match((await noneSwatch.getAttribute("class")) ?? "", /bg-chart-other/, `${look}: no type is neutral`);
       // One colour per type: the legend's swatches and the bars' segments.
       const swatchColours = await legend.locator("li > span:first-child").evaluateAll(els => els.map(e => getComputedStyle(e).backgroundColor));
       assert.equal(new Set(swatchColours).size, swatchColours.length, `${look}: every type its own colour (${swatchColours.join(", ")})`);
