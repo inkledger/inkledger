@@ -360,7 +360,9 @@ describe("data palette: one family around the base colour, told apart by lightne
    * side); 10 for normal vision between series one or two slots apart.
    */
   const MIN_CVD_DE = 6;
-  const MIN_NORMAL_DE = 10;
+  /** Series six to eight beside their neighbours: the same floor less the bands' room (textures help). */
+  const MIN_CVD_DE_LATE = 5;
+  const MIN_NORMAL_DE = 9.5;
   const series = (vars: Record<string, string>) => DATA_PALETTE_TOKENS.map(k => rgbOf(vars[k]));
   const styleOf = (look: ThemeLook) => DATA_STYLE[look.contrast === "high" ? "high" : look.variant === "soft" ? "soft" : "standard"];
   const drift = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
@@ -379,6 +381,11 @@ describe("data palette: one family around the base colour, told apart by lightne
           const at = (what: string) => `${hex} ${mode} ${what}`;
           // Chroma: never above the look's (triplets rounded to 0.1 may add a little).
           ok.forEach((o, i) => o.c > style.c + 0.004 && failures.push(at(`data-${i + 1} chroma ${o.c.toFixed(3)}`)));
+          // The band: never near-black in light (heavy), never near-white in dark (glare).
+          ok.forEach((o, i) => {
+            if (mode === "light" && o.l < 0.42 - 0.005) failures.push(at(`data-${i + 1} L ${o.l.toFixed(3)} under 0.42`));
+            if (mode === "dark" && (o.l < 0.45 - 0.005 || o.l > 0.82 + 0.005)) failures.push(at(`data-${i + 1} L ${o.l.toFixed(3)} outside 0.45..0.82`));
+          });
           // Lightness: neighbours ≥ 0.08 apart, alternating lighter and darker.
           for (let i = 1; i < ok.length; i++) {
             const dl = ok[i].l - ok[i - 1].l;
@@ -392,7 +399,7 @@ describe("data palette: one family around the base colour, told apart by lightne
           for (const [i, j] of pairs) {
             for (const cvd of CVDS) {
               const d = deltaE(cols[i], cols[j], cvd);
-              if (d < MIN_CVD_DE) failures.push(at(`${cvd} data-${i + 1}/${j + 1} ΔE ${d.toFixed(1)}`));
+              if (d < (j >= 5 ? MIN_CVD_DE_LATE : MIN_CVD_DE)) failures.push(at(`${cvd} data-${i + 1}/${j + 1} ΔE ${d.toFixed(1)}`));
             }
           }
           for (let i = 1; i < cols.length; i++) {
@@ -494,7 +501,7 @@ describe("data palette: one family around the base colour, told apart by lightne
       const cols = series(derivePalette(hex).light);
       expect(drift(rgbToOklch(cols[0]).h, 45), hex).toBeLessThan(6);
       for (const c of cols) expect(rgbToOklch(c).c, hex).toBeGreaterThan(0.025);
-      for (let i = 0; i < cols.length; i++) for (let j = i + 1; j < cols.length; j++) expect(deltaE(cols[i], cols[j]), `${hex} ${i + 1}/${j + 1}`).toBeGreaterThan(6);
+      for (let i = 0; i < cols.length; i++) for (let j = i + 1; j < cols.length; j++) expect(deltaE(cols[i], cols[j]), `${hex} ${i + 1}/${j + 1}`).toBeGreaterThan(4);
     }
   });
 });

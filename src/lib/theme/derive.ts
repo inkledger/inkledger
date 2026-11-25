@@ -128,31 +128,29 @@ export const DATA_MARK_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--
 export const DATA_STYLE: Record<"standard" | "soft" | "high", { c: number; contrast: number }> = {
   standard: { c: 0.095, contrast: 3.1 },
   soft: { c: 0.075, contrast: 3.1 },
-  high: { c: 0.12, contrast: 3.6 },
+  // High contrast: firmer chroma and textures; 3:1 like the others (the bands leave no room for more).
+  high: { c: 0.12, contrast: 3.1 },
 };
 /**
  * The eight series: one family around the base hue, told apart by lightness first. `dh`: degrees from the
  * base along the warm arc (negative: the step back); `c`: share of the look's chroma; `dl`: lightness
  * from the series that just reaches the look's contrast (positive: lighter). Neighbours differ by ≥ 0.08
  * in lightness, alternating light and dark. On terracotta: terracotta, light sand, dark olive, dusty rose,
- * warm slate, pale sage, deep umber, sage-teal; on another base the arc moves with it.
+ * warm slate, muted sage, deep clay, sage-teal; on another base the arc moves with it.
  */
 export const DATA_SERIES: readonly { dh: number; c: number; dl: number }[] = [
   { dh: 0, c: 1, dl: 0 },
-  { dh: 36, c: 0.55, dl: 0.21 },
-  { dh: 80, c: 0.75, dl: -0.24 },
-  { dh: -30, c: 0.65, dl: 0.1 },
-  { dh: 210, c: 0.35, dl: -0.13 },
-  { dh: 100, c: 0.7, dl: 0.22 },
-  { dh: 20, c: 0.65, dl: -0.3 },
-  { dh: 140, c: 0.45, dl: 0.04 },
+  { dh: 41, c: 0.65, dl: 0.2 },
+  { dh: 62, c: 0.61, dl: -0.226 },
+  { dh: -21, c: 0.62, dl: 0.087 },
+  { dh: 192, c: 0.26, dl: -0.128 },
+  { dh: 90, c: 0.39, dl: 0.199 },
+  { dh: 15, c: 0.59, dl: -0.223 },
+  { dh: 130, c: 0.39, dl: 0.059 },
 ];
-/**
- * In dark the ladder runs from a little under the contrast (the deepest series wear their outline) up to
- * a pale top, squeezed only if it doesn't fit: there is less room above a dark ground than below a light one.
- */
-const DATA_DARK_SINK = 0.14;
-const DATA_DARK_TOP = 0.92;
+/** The lightness band of the series: light never near-black (heavy), dark never near-white (glare). */
+const DATA_LIGHT_BAND = [0.42, 0.86] as const;
+const DATA_DARK_BAND = [0.45, 0.82] as const;
 /** Floor for the muted companions: below it a hue is noise and drifts between looks. */
 const DATA_MIN_C = 0.03;
 /** A grey base has no hue to start from: a warm one, like the default. */
@@ -186,10 +184,14 @@ function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: numbe
   // Light: the base at the contrast, the light series above it (outlined), the dark ones below.
   // Dark: from a little under the contrast (the deepest outlined) up to a pale top, squeezed if needed.
   const lightness = (dl: number) => {
-    if (!dark) return Math.max(0.3, Math.min(...solved) + dl);
-    const floor = Math.max(...solved) - DATA_DARK_SINK;
-    const k = Math.min(1, (DATA_DARK_TOP - floor) / (hi - lo));
-    return floor + k * (dl - lo);
+    if (!dark) {
+      // Light: the base on the contrast line, the ladder squeezed (if needed) into the light band.
+      const at = Math.min(...solved);
+      const k = Math.min(1, (at - DATA_LIGHT_BAND[0]) / -lo, (DATA_LIGHT_BAND[1] - at) / hi);
+      return at + k * dl;
+    }
+    // Dark: the ladder spread over the dark band, never near-white (glare) nor near the ground.
+    return DATA_DARK_BAND[0] + ((dl - lo) / (hi - lo)) * (DATA_DARK_BAND[1] - DATA_DARK_BAND[0]);
   };
   cols.forEach((col, i) => {
     const fill = { l: lightness(col.dl), c: col.c, h: col.h };
