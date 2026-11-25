@@ -104,9 +104,16 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
       await page.goto(base + "/issues");
       const table = page.locator(".sticky-table").last();
       await table.locator("tbody tr").first().waitFor();
-      await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'));
-      await page.waitForTimeout(500);
       await page.mouse.move(0, 0);
+      // Settled: the list and the favourites both drawn, their shared columns measured and applied (both
+      // load on their own; a slower machine draws one first), the frozen columns placed.
+      await page.waitForFunction(() => {
+        if (document.querySelector('[aria-busy="true"]')) return false;
+        const heads = [...document.querySelectorAll(".sticky-table table[data-slot=table] thead tr")];
+        if (heads.length < 2 || [...document.querySelectorAll(".sticky-table")].some(w => !w.hasAttribute("data-sticky") || !w.querySelector("tbody tr"))) return false;
+        const at = tr => [...tr.cells].map(c => Math.round(c.getBoundingClientRect().left)).join();
+        return heads.every(h => at(h) === at(heads[0]));
+      });
       const scroller = table.locator("[data-slot=table-container]");
       assert.equal(await table.getAttribute("data-sticky"), "", `${name}: the columns stick`);
       const overflow = await scroller.evaluate(s => s.scrollWidth - s.clientWidth);
@@ -143,7 +150,12 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
       for (const [k, cell] of Object.entries(cells)) at[k] = await left(cell);
       assert.equal(await table.getAttribute("data-under-start"), null, `${name}: nothing under the start yet`);
       await scroller.evaluate(s => (s.scrollLeft = s.scrollWidth));
-      await page.waitForTimeout(200);
+      // The observers have seen it: something is under the start, and every group scrolled along.
+      await page.waitForFunction(() => {
+        const ws = [...document.querySelectorAll(".sticky-table")];
+        const lefts = ws.map(w => w.querySelector("[data-slot=table-container]").scrollLeft);
+        return ws.at(-1).hasAttribute("data-under-start") && lefts.every(l => l === lefts[0]);
+      });
       const moved = await scroller.evaluate(s => s.scrollLeft);
       for (const k of ["key", "title", "timer"]) assert.ok(Math.abs((await left(cells[k])) - at[k]) < 1, `${name}: ${k} stays put`);
       assert.ok(Math.abs((await left(cells.status)) - (at.status - moved)) < 1, `${name}: the middle moves`);
@@ -162,9 +174,12 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
         // A sort button in the middle, focused while it is under the frozen title: brought out from under it.
         const priority = table.locator("table[data-slot=table] thead").getByRole("button", { name: /^Priorità/ });
         await priority.focus();
-        await page.waitForTimeout(100);
-        const pb = await priority.boundingBox();
         const titleRight = await table.locator('table[data-slot=table] thead th[data-stick="4"]').evaluate(el => el.getBoundingClientRect().right);
+        await priority.evaluate((el, edge) => new Promise(done => {
+          const check = () => (el.getBoundingClientRect().left >= edge - 1 ? done() : requestAnimationFrame(check));
+          check();
+        }), titleRight).catch(() => {});
+        const pb = await priority.boundingBox();
         assert.ok(pb.x >= titleRight - 1, `the focused button is clear of the frozen columns (${pb.x} < ${titleRight})`);
         // Tab into a frozen cell's control: the table does not jump sideways.
         await scroller.evaluate(s => (s.scrollLeft = 120));
@@ -172,15 +187,19 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
         await star.focus();
         await page.keyboard.press(TAB);
         await page.keyboard.press(`Shift+${TAB}`);
-        await page.waitForTimeout(100);
+        await star.evaluate(el => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => done(el)))));
         assert.equal(await scroller.evaluate(s => s.scrollLeft), 120, "a frozen control's focus leaves the scroll as it was");
 
         // Down the list: the header stays under the bars, lined up with the columns.
         await page.evaluate(() => document.getElementById("main").scrollBy(0, 900));
-        await page.waitForTimeout(300);
-        assert.equal(await table.getAttribute("data-stuck"), "", "the header row has scrolled under the bars");
+        // The strip shows once the observer has seen the header row under the bars. Waited for, not read at
+        // once: with reduced motion every property still transitions for 0.01 ms, and on a loaded machine the
+        // computed visibility is the old one until the next frame.
         const bar = table.locator(".sticky-table-bar");
-        assert.ok(await bar.evaluate(el => getComputedStyle(el).visibility === "visible"), "the header strip shows");
+        await bar.evaluate(el => new Promise(done => {
+          const check = () => (el.closest(".sticky-table").hasAttribute("data-stuck") && getComputedStyle(el).visibility === "visible" ? done() : requestAnimationFrame(check));
+          check();
+        }));
         const stripKey = await bar.locator("th[data-stick='3']").evaluate(el => el.getBoundingClientRect());
         const rowKey = await cells.key.evaluate(el => el.getBoundingClientRect());
         assert.ok(Math.abs(stripKey.left - rowKey.left) < 1 && Math.abs(stripKey.width - rowKey.width) < 1, "the strip's columns line up with the rows'");

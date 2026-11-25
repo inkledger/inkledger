@@ -213,13 +213,19 @@ test("a private note from the issue page hangs on the pinboard, tied by a red st
     await page.mouse.move(box.x + box.width / 2, box.y + box.height - 30);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height + 60, { steps: 6 });
-    const during = await string.getAttribute("d");
-    assert.notEqual(during, before, "the string moves with the drag");
+    // Redrawn on the next frame of the drag: waited for, not read at once (a slower machine draws later).
+    const moved = await page
+      .waitForFunction(b => document.querySelector("[data-pinboard-strings] .pin-string")?.getAttribute("d") !== b, before, { timeout: 5000 })
+      .then(() => true, () => false);
+    assert.ok(moved, "the string moves with the drag");
     await page.mouse.up();
 
     // Deleting the note on the issue page takes its post-it off the board.
     const [{ id }] = await db.q("SELECT id FROM issue_notes");
     await page.goto(base + "/issues/DEMO-105");
+    // Its tab, whatever was remembered (the board's visit in between must not decide what the issue shows).
+    const notesTab = page.getByRole("tab", { name: "Private notes" });
+    if ((await notesTab.getAttribute("aria-selected")) !== "true") await notesTab.click();
     await page.locator(`[data-private-note="${id}"]`).getByRole("button", { name: "Delete the note" }).click();
     // Gone once the delete has reached the server (a fixed wait was too short on a slower machine).
     const left = async () => (await db.q("SELECT count(*)::int AS n FROM pinboard_notes WHERE issue_note_id IS NOT NULL"))[0].n;

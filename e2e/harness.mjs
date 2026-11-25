@@ -276,6 +276,10 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     });
     if (!bare) await context.addCookies([{ name: `ikl_session_${port}`, value: cookie, url: base }]);
     const page = await context.newPage();
+    // E2E_CPU_THROTTLE=4: the page's CPU slowed down as on a loaded CI runner (Chromium only), to shake out
+    // a test that only passes on a fast machine.
+    const throttle = Number(process.env.E2E_CPU_THROTTLE || 0);
+    if (throttle > 1 && ENGINE === "chromium") await (await context.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: throttle });
     // A page drawn by the server is live only once React has taken it over (App marks <html data-live>
     // after its first commit; the SSR state node goes earlier, before hydration starts): acting before that
     // clicks on markup with no handlers yet, which a slower machine (CI) shows at random. A page that is not
