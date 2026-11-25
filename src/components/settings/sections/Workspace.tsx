@@ -690,7 +690,9 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
   return (
     <>
       <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-      <section id="workspace-layout" aria-label={t(key("layoutTitle"))} className="grid gap-3 px-5 pb-6 pt-4 md:px-6">
+      {/* A region: the canvas and its details sit side by side by the section's own width (in the settings
+          pane the window's lg left the canvas a sliver beside the details). */}
+      <section id="workspace-layout" aria-label={t(key("layoutTitle"))} className="region grid gap-3 px-5 pb-6 pt-4 md:px-6">
         <LayerToolbar
           on={on}
           states={states}
@@ -732,7 +734,7 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
             ) : <span>{t(key("dataHint"))}</span>}
         </div>
 
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] lg:gap-6">
+        <div className="grid items-start gap-4 @l:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] @l:gap-6">
           <div className="grid min-w-0 gap-2">
             {sketch && (
               <div className="relative" inert={showApplied && pending ? true : undefined}>
@@ -763,7 +765,7 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
           {isDesktop ? (
             <aside
               aria-label={t(key("detailsTitle"))}
-              className="min-w-0 lg:border-l lg:pl-6"
+              className="min-w-0 @l:border-l @l:pl-6"
               onKeyDown={event => {
                 if (event.key === "Escape" && selected) {
                   event.stopPropagation();

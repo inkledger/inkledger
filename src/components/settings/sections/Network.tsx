@@ -164,7 +164,8 @@ export function NetworkSection() {
               <tbody className="divide-y">
                 {list.data.map(r => (
                   <tr key={r.host}>
-                    <td className="py-2 pr-3 font-medium [overflow-wrap:anywhere]">{r.host}</td>
+                    {/* The table scrolls sideways on a phone: a host stays whole ("jira.example.i/t" read badly). */}
+                    <td className="whitespace-nowrap py-2 pr-3 font-medium">{r.host}</td>
                     <td className="py-2 pr-3 text-muted-foreground">{purposeText(r.purpose)}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{r.calls}</td>
                     <td className={cn("py-2 pr-3 text-right tabular-nums", r.failures > 0 ? "text-warning" : "text-muted-foreground")}>{r.failures}</td>

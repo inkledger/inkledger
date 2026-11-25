@@ -193,7 +193,7 @@ export function NoteDiary() {
         })}
         actions={
           <>
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="outline">
               <Link to="/notes">
                 <ChevronLeft />
                 {t("pages.notes.backToNotes")}
