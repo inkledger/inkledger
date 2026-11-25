@@ -69,7 +69,7 @@ export const settings: Shape<typeof en> = {
     appearance: {
       label: "Aspetto",
       description: "Tema, densità e colore dell'app.",
-      keywords: "tema chiaro scuro densità compatta colore palette salvaschermo screensaver",
+      keywords: "tema chiaro scuro densità compatta colore palette salvaschermo screensaver contrasto alto contrasto morbido solarized riflessi accessibilità",
     },
     workspace: {
       label: "Workspace",
@@ -1475,10 +1475,17 @@ export const settings: Shape<typeof en> = {
   },
   appearance: {
     displayTitle: "Tema e densità",
-    displayKeywords: "chiaro scuro dark light compatta comoda zoom",
+    displayKeywords: "chiaro scuro dark light compatta comoda zoom morbido solarized pergamena ardesia riflessi alto contrasto accessibilità",
     theme: "Tema",
     density: "Densità",
     densityHint: "Compatta mostra più contenuti, come uno zoom indietro.",
+    variant: "Stile",
+    variantHint: "Morbido sostituisce bianco e nero con pergamena o ardesia blu: meno riflessi, testo sempre leggibile.",
+    variantOption: { standard: "Standard", soft: "Morbido" },
+    contrast: "Contrasto",
+    contrastHint: "Alto rende più decisi testo, bordi e anello di focus (AAA). Sistema segue l'impostazione \"aumenta contrasto\" del dispositivo.",
+    contrastOption: { normal: "Normale", high: "Alto", system: "Sistema" },
+    previewSample: "Aa",
     backdrop: "Visibilità dello sfondo",
     backdropHint: "Per le mod che dipingono una scena dietro la Dashboard: quanto si vede.",
     night: "Notte sulla Dashboard",

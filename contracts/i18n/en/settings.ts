@@ -69,7 +69,7 @@ export const settings = {
     appearance: {
       label: "Appearance",
       description: "Theme, density and colour of the app.",
-      keywords: "theme light dark density compact color colour palette language screensaver screen saver",
+      keywords: "theme light dark density compact color colour palette language screensaver screen saver contrast high contrast soft solarized low glare accessibility",
     },
     workspace: {
       label: "Workspace",
@@ -1349,10 +1349,17 @@ export const settings = {
   },
   appearance: {
     displayTitle: "Theme and density",
-    displayKeywords: "light dark compact comfortable zoom",
+    displayKeywords: "light dark compact comfortable zoom soft solarized parchment slate low glare high contrast accessibility",
     theme: "Theme",
     density: "Density",
     densityHint: "Compact shows more content, like zooming out.",
+    variant: "Style",
+    variantHint: "Soft trades white and black for parchment or blue slate: less glare, the same readable text.",
+    variantOption: { standard: "Standard", soft: "Soft" },
+    contrast: "Contrast",
+    contrastHint: "High makes text, borders and the focus ring firmer (AAA). System follows your device's \"more contrast\" setting.",
+    contrastOption: { normal: "Normal", high: "High", system: "System" },
+    previewSample: "Aa",
     backdrop: "Backdrop visibility",
     backdropHint: "For add-ons that paint a scene behind the Dashboard: how much of it shows through.",
     night: "Night on the Dashboard",

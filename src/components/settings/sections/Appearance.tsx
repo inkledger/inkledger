@@ -4,6 +4,7 @@ import { DENSITIES, THEMES } from "@/lib/appearance";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { LanguagePicker } from "@/components/app/LanguagePicker";
 import { ThemeColorPicker } from "@/components/settings/ThemeColorPicker";
+import { LookPicker } from "@/components/settings/LookPicker";
 import { SettingsGroup, SettingsRow } from "@/components/settings/SettingsGroup";
 import { t } from "@/i18n";
 import { trpc } from "@/lib/trpc";
@@ -34,6 +35,7 @@ export function AppearanceSection() {
         <SettingsRow label={t("settings.appearance.theme")}>
           <SegmentedControl label={t("settings.appearance.theme")} value={theme ?? "system"} onChange={setTheme} options={THEMES} />
         </SettingsRow>
+        <LookPicker />
         <SettingsRow label={t("settings.appearance.density")} hint={t("settings.appearance.densityHint")}>
           <SegmentedControl label={t("settings.appearance.density")} value={density} onChange={setDensity} options={DENSITIES} />
         </SettingsRow>
