@@ -1,6 +1,28 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/inter-tight";
 
+/*
+ * The UI fonts' Latin faces (every text the app writes), defined after the imported ones so they
+ * take their place. index.html preloads them, so the first paint is drawn in them; on a load too
+ * slow for that (~100 ms) the page keeps the fallback rather than swap fonts later and move text.
+ */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: optional;
+  font-weight: 100 900;
+  src: url(../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2) format("woff2-variations");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Inter Tight Variable";
+  font-style: normal;
+  font-display: optional;
+  font-weight: 100 900;
+  src: url(../node_modules/@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2) format("woff2-variations");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

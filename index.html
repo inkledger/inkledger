@@ -16,6 +16,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- The UI fonts (src/index.css), fetched with the page: the first paint uses them, nothing moves when they arrive. -->
+    <link rel="preload" href="./node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./node_modules/@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <title>inkledger</title>
     <script>
       // Renamed app (was "tempo"): the preferences saved under the old keys
