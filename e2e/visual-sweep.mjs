@@ -114,8 +114,9 @@ export function scanLayout() {
     return w > 1 && h > 1 ? { x: (Math.max(a.left, b.left) + Math.min(a.right, b.right)) / 2, y: (Math.max(a.top, b.top) + Math.min(a.bottom, b.bottom)) / 2 } : null;
   };
   // A box of its own drawn over the other at that point (a sticky column's ground, a header): covered, not overlapping.
+  // A frozen cell is such a box itself (the middle's cells pass under it).
   const covered = (top, under, p) => {
-    for (let e = top.parentElement; e && !e.contains(under); e = e.parentElement) {
+    for (let e = getComputedStyle(top).position === "sticky" ? top : top.parentElement; e && !e.contains(under); e = e.parentElement) {
       if (!filled(getComputedStyle(e).backgroundColor)) continue;
       const r = e.getBoundingClientRect();
       if (p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom) return true;
