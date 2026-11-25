@@ -649,6 +649,8 @@ export default function Issues() {
         ref={previewRef}
         id="issues-preview"
         data-issues-preview
+        // It stays put beside the list (sticky, below the header): focus inside it never scrolls the page.
+        data-sticky-pane
         data-workspace-anchor="issues.preview"
         aria-label={t("pages.issues.preview")}
         className="hidden min-h-0 min-w-0 border-l @xl:sticky @xl:top-[var(--page-header-h,0px)] @xl:block @xl:h-[calc(100dvh-2rem-var(--page-header-h,0px))]"

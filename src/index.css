@@ -1295,6 +1295,10 @@ html.ikl-hit-cursor * {
   .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(17))) > .collection-more { display: none; }
 }
 
+/* The Issues preview's width (Splitter): read by the grid's own track only, so not inherited and a drag
+   restyles the grid alone, not every row of the list under it. */
+@property --issues-preview-w { syntax: "*"; inherits: false; }
+
 /*
  * A table with frozen columns and a header that stays under the bars (useStickyTable, the Issues
  * catalogue). The frozen cells stand on the card, with the row's tint drawn over it (the row's own tint

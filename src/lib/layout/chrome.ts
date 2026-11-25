@@ -29,13 +29,14 @@ export function usePublishChromeHeight(ref: RefObject<HTMLElement | null>, slot:
  * WCAG 2.4.11 Focus Not Obscured: when the focus lands on a control covered by a bar that stays put
  * (a sticky header or toolbar at the top, the phone's tab bar at the bottom), the page scrolls just
  * enough to show it. Not CSS scroll-padding: with it Chrome took the bars' own controls for covered and
- * scrolled the page away when one was focused. Controls inside a bar, a dialog or a popover are left alone.
+ * scrolled the page away when one was focused. Controls inside a bar, a dialog, a popover or a pane that stays put
+ * beside the page (`data-sticky-pane`: scrolling the page cannot move it, the Issues preview) are left alone.
  */
 export function useFocusClearOfBars() {
   useEffect(() => {
     const onFocus = (event: FocusEvent) => {
       const el = event.target;
-      if (!(el instanceof HTMLElement) || el.closest("[data-chrome], [role=dialog], [role=alertdialog], [data-radix-popper-content-wrapper]")) return;
+      if (!(el instanceof HTMLElement) || el.closest("[data-chrome], [data-sticky-pane], [role=dialog], [role=alertdialog], [data-radix-popper-content-wrapper]")) return;
       requestAnimationFrame(() => {
         const rect = el.getBoundingClientRect();
         if (rect.height === 0) return;

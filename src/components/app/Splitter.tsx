@@ -66,7 +66,7 @@ export function Splitter({
     if (e.button !== 0 || !target) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    e.currentTarget.focus();
+    e.currentTarget.focus({ preventScroll: true });
     const box = target.getBoundingClientRect();
     drag.current = { right: box.right, width: box.width, start: box.width, frame: 0 };
     setDragging(true);

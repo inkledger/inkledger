@@ -34,6 +34,11 @@ export function useStickyTable({
     const scroll = scroller.current;
     const row = head.current;
     if (!box || !scroll || !row) return;
+    // Written only when changed: these variables are inherited by every cell, and a drag of the preview
+    // resizes the table every frame while the frozen columns keep their widths.
+    const put = (el: HTMLElement, name: string, value: string) => {
+      if (el.style.getPropertyValue(name) !== value) el.style.setProperty(name, value);
+    };
     const measure = () => {
       const cells = [...row.cells];
       const widths = cells.map(c => c.getBoundingClientRect().width);
@@ -42,7 +47,7 @@ export function useStickyTable({
       cells.forEach((c, i) => {
         const stick = c.dataset.stick;
         if (!stick || stick.startsWith("r")) return;
-        box.style.setProperty(`--stick-${stick}`, `${at}px`);
+        put(box, `--stick-${stick}`, `${at}px`);
         at += widths[i];
         start = at;
       });
@@ -51,22 +56,20 @@ export function useStickyTable({
       [...cells].reverse().forEach((c, j) => {
         const stick = c.dataset.stick;
         if (!stick?.startsWith("r")) return;
-        box.style.setProperty(`--stick-${stick}`, `${at}px`);
+        put(box, `--stick-${stick}`, `${at}px`);
         at += widths[cells.length - 1 - j];
         end = at;
       });
-      box.style.setProperty("--stick-start", `${start}px`);
-      box.style.setProperty("--stick-end", `${end}px`);
+      put(box, "--stick-start", `${start}px`);
+      put(box, "--stick-end", `${end}px`);
       const overflow = scroll.scrollWidth > scroll.clientWidth + 1;
       box.toggleAttribute("data-sticky", !overflow || scroll.clientWidth - start - end >= MIDDLE_MIN);
       // The strip: the same widths, the same total.
       const table = strip.current?.querySelector("table");
       const real = row.closest("table");
       if (table && real) {
-        table.style.width = `${real.getBoundingClientRect().width}px`;
-        table.querySelectorAll("col").forEach((col, i) => {
-          col.style.width = `${widths[i] ?? 0}px`;
-        });
+        put(table, "width", `${real.getBoundingClientRect().width}px`);
+        table.querySelectorAll("col").forEach((col, i) => put(col, "width", `${widths[i] ?? 0}px`));
       }
     };
     const ro = new ResizeObserver(measure);
@@ -101,11 +104,15 @@ export function useStickyTable({
     const bar = strip.current?.parentElement;
     if (!box || !row || !bar) return;
     let io: IntersectionObserver | null = null;
+    let was: [Element | null, number] | null = null;
     const watch = () => {
-      io?.disconnect();
       const main = document.getElementById("main");
       const root = main && main.scrollHeight > main.clientHeight + 1 ? main : null;
       const top = parseFloat(getComputedStyle(bar).top) || 0;
+      // The same root and line: the observer holds (a bar resized only in width, every frame of a drag).
+      if (was && was[0] === root && Math.abs(was[1] - top) < 0.5) return;
+      was = [root, top];
+      io?.disconnect();
       io = new IntersectionObserver(
         ([e]) => {
           const rootTop = e.rootBounds?.top ?? 0;
@@ -115,11 +122,13 @@ export function useStickyTable({
       );
       io.observe(row);
     };
-    watch();
-    // The bars' height follows the window's width (a header that wraps): watched again on a resize.
-    addEventListener("resize", watch);
+    // The bars' height changes (filters that wrap when the preview widens, a narrower window): watched again
+    // then (the first call comes at once).
+    const bars = new ResizeObserver(watch);
+    for (const el of document.querySelectorAll("[data-chrome]")) bars.observe(el);
+    bars.observe(document.documentElement);
     return () => {
-      removeEventListener("resize", watch);
+      bars.disconnect();
       io?.disconnect();
     };
   }, [wrap, head, strip]);
