@@ -157,8 +157,15 @@ export default function Issues() {
   const [confirmCleanup, setConfirmCleanup] = useState(false);
   const [logging, setLogging] = useState<{ key: string; connectionId?: number } | null>(null);
 
+  // The search as last typed: the URL holds it a render later (the router's update), and what
+  // opens in that moment (the trackers' search) starts from what the box shows, not from before.
+  const [typedSearch, setTypedSearch] = useState<string | null>(null);
+  if (typedSearch !== null && typedSearch === filters.search) setTypedSearch(null);
+  const searchNow = typedSearch ?? filters.search;
+
   // Any filter change restarts from page 1.
   const updateFilters = (patch: Partial<IssueFilterState>) => {
+    if (patch.search !== undefined) setTypedSearch(patch.search);
     saveFilters({ ...filters, ...patch });
     setUrl({ ...patch, page: 1 });
     toTop();
@@ -415,7 +422,7 @@ export default function Issues() {
         }
       />
 
-      {trackerSearchOpen && <TrackerSearchPanel initialQuery={filters.search.trim()} />}
+      {trackerSearchOpen && <TrackerSearchPanel initialQuery={searchNow.trim()} />}
 
       {/* The catalogue's figures in one row (its total is in the header): the table keeps the page's width. */}
       {all.isPending ? (
