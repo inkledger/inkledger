@@ -100,6 +100,14 @@
     --sunset-4: 20.9 78.9% 84.4%;
     --sunset-5: 15.3 56.6% 74.5%;
     --cover-title: 16.7 43.2% 18.1%;
+    --data-1: 16.7 41.5% 52.9%;
+    --data-2: 223.1 34.9% 47.3%;
+    --data-3: 92.1 28.6% 44.7%;
+    --data-4: 336.9 31.1% 44.8%;
+    --data-5: 193.6 58.7% 43.7%;
+    --data-6: 44.1 75.6% 29%;
+    --data-7: 276.8 28.7% 57.7%;
+    --data-8: 170.6 100% 24.1%;
     /* @theme-derived:end */
 
     --radius: 0.5rem;
@@ -195,6 +203,14 @@
     --sunset-4: 20.9 17.8% 52.5%;
     --sunset-5: 15.3 22.7% 43.1%;
     --cover-title: 16.7 61.3% 8.7%;
+    --data-1: 16.8 43.5% 43.5%;
+    --data-2: 222.7 45.6% 61.7%;
+    --data-3: 43.6 66.5% 32.1%;
+    --data-4: 193.8 54.3% 46.7%;
+    --data-5: 337.1 29.7% 47.3%;
+    --data-6: 92.2 27.2% 47.3%;
+    --data-7: 277.1 24.4% 48.3%;
+    --data-8: 167.7 47.7% 42.5%;
     /* @theme-derived:end */
 
     --danger: 5 55% 72%;
@@ -285,6 +301,14 @@
     --sunset-4: 20.9 78.9% 84.4%;
     --sunset-5: 15.3 56.6% 74.5%;
     --cover-title: 16.7 61.3% 8.7%;
+    --data-1: 17.2 53.5% 47.5%;
+    --data-2: 191.5 100% 25.6%;
+    --data-3: 45.7 100% 30.2%;
+    --data-4: 334.6 44.6% 40.4%;
+    --data-5: 223.5 50.6% 56.5%;
+    --data-6: 85.4 86.7% 22.8%;
+    --data-7: 277.5 34.6% 54.4%;
+    --data-8: 170.5 100% 21.7%;
     --danger-soft: 7.3 100% 95.5%;
     --danger: 5.5 36.9% 32.8%;
     --success-soft: 129.4 59.6% 92.5%;
@@ -365,6 +389,14 @@
     --sunset-4: 20.9 17.8% 52.5%;
     --sunset-5: 15.3 22.7% 43.1%;
     --cover-title: 12.5 81.5% 5.6%;
+    --data-1: 17.4 58.5% 43.1%;
+    --data-2: 170.9 100% 32.6%;
+    --data-3: 277.7 31.3% 50.3%;
+    --data-4: 90.8 39.1% 44.8%;
+    --data-5: 335.6 38.1% 48.5%;
+    --data-6: 191.2 100% 38.2%;
+    --data-7: 45.6 100% 27.8%;
+    --data-8: 223.2 63.7% 64.5%;
     --danger-soft: 5.6 44.8% 11.5%;
     --danger: 6.6 49% 70.7%;
     --success-soft: 134.7 47.2% 8.5%;
@@ -1006,6 +1038,35 @@ html[data-contrast="high"] .stripes-idle > span {
   border-radius: calc(var(--radius) - 4px);
   background: hsl(var(--card));
   color: hsl(var(--foreground));
+}
+/* Series textures (src/lib/dataColors.ts): in high contrast each series colour also wears its own
+   texture, so colour is never the only cue. Dots and level lines only: the 45° hatch means one thing
+   (tracked, not yet logged). The first series stays solid. */
+html[data-contrast="high"] :is(.data-texture-2, .data-texture-6) {
+  background-image: radial-gradient(hsl(var(--card) / 0.75) 1.1px, transparent 1.6px);
+  background-size: 6px 6px;
+}
+html[data-contrast="high"] .data-texture-6 {
+  background-size: 4px 4px;
+}
+html[data-contrast="high"] :is(.data-texture-3, .data-texture-8) {
+  background-image: linear-gradient(hsl(var(--card) / 0.7) 1px, transparent 1px);
+  background-size: 100% 5px;
+}
+html[data-contrast="high"] .data-texture-8 {
+  background-size: 100% 3px;
+}
+html[data-contrast="high"] .data-texture-4 {
+  background-image: linear-gradient(90deg, hsl(var(--card) / 0.7) 1px, transparent 1px);
+  background-size: 5px 100%;
+}
+html[data-contrast="high"] .data-texture-5 {
+  background-image: linear-gradient(hsl(var(--card) / 0.7) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--card) / 0.7) 1px, transparent 1px);
+  background-size: 6px 6px;
+}
+html[data-contrast="high"] .data-texture-7 {
+  background-image: radial-gradient(transparent 1.6px, hsl(var(--card) / 0.7) 2px, transparent 2.6px);
+  background-size: 7px 7px;
 }
 /* Over a module's backdrop scene muted text keeps the high-contrast muted, not the veil's. */
 html[data-contrast="high"] .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main {

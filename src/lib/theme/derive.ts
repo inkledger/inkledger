@@ -1,6 +1,7 @@
 import { t } from "@contracts/i18n";
 import {
   contrast,
+  deltaE,
   oklchToRgb,
   parseHex,
   rgbToOklch,
@@ -103,6 +104,72 @@ export const SOFT_SURFACE_C = 0.026;
 
 const tri = (c: Oklch) => toHslTriplet(oklchToRgb({ ...c, h: wrap(c.h) }));
 
+/** The categorical data palette: eight series colours, for charts only (docs/design-system.md §3.5). */
+export const DATA_COUNT = 8;
+export const DATA_PALETTE_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-${i + 1}`);
+/**
+ * Per look: one chroma for every series (calmer in soft, firmer in high contrast) and the contrast each
+ * reaches on the chart's grounds (card, canvas, the bars' muted track). Every other series is a lightness
+ * step further from the ground: at one lightness a dichromat can't tell eight hues apart.
+ */
+export const DATA_STYLE: Record<"standard" | "soft" | "high", { c: number; contrast: number }> = {
+  standard: { c: 0.1, contrast: 3.1 },
+  soft: { c: 0.085, contrast: 3.1 },
+  high: { c: 0.13, contrast: 3.6 },
+};
+const DATA_STEP = 0.1;
+/** A grey base has no hue to start from: a warm one, like the default. */
+const DATA_NEUTRAL_H = 45;
+
+/**
+ * The series colours: the base hue first, then the other seven of eight hues 45° apart, ordered so that
+ * neighbours (a stack's touching segments) stay furthest apart for normal vision and the three colour
+ * blindnesses, in a lightness pair that reaches the look's contrast on every ground.
+ */
+function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: number; contrast: number }): ThemeVars {
+  const h0 = base.c < NEUTRAL_C ? DATA_NEUTRAL_H : base.h;
+  const hues = Array.from({ length: DATA_COUNT }, (_, k) => h0 + k * 45);
+  // One lightness for all (the hardest hue decides), then the second level a step away from the ground.
+  const solved = hues.map(h => solveAgainst(h, style.c, grounds, style.contrast, dark ? 0.4 : 0.85, dark ? 1 : 0));
+  const nearL = dark ? Math.max(...solved) : Math.min(...solved);
+  const levels = [nearL, nearL + (dark ? DATA_STEP : -DATA_STEP)];
+  const cols = levels.map(l => hues.map(h => ({ l, c: style.c, h })));
+  const rgbs = cols.map(row => row.map(c => oklchToRgb({ ...c, h: wrap(c.h) })));
+  // Worst separation of two neighbours: any colour blindness, or normal vision (asked more of: 1.8×).
+  const apart = (a: number, la: number, b: number, lb: number) => {
+    const x = rgbs[la][a];
+    const y = rgbs[lb][b];
+    return Math.min(deltaE(x, y, "protan"), deltaE(x, y, "deutan"), deltaE(x, y, "tritan"), deltaE(x, y) / 1.8);
+  };
+  const sep: number[][][] = [0, 1].map(l => hues.map((_, a) => hues.map((_, b) => apart(a, l, b, 1 - l))));
+  // Slot i sits at level i % 2; the order with the widest worst neighbour wins (7! orders, the base first).
+  let best = -1;
+  let order: number[] = hues.map((_, k) => k);
+  const path = [0];
+  const walk = (used: number, worst: number) => {
+    if (worst <= best) return;
+    if (path.length === DATA_COUNT) {
+      best = worst;
+      order = [...path];
+      return;
+    }
+    const last = path[path.length - 1];
+    const lvl = (path.length - 1) % 2;
+    for (let k = 1; k < DATA_COUNT; k++) {
+      if (used & (1 << k)) continue;
+      path.push(k);
+      walk(used | (1 << k), Math.min(worst, sep[lvl][last][k]));
+      path.pop();
+    }
+  };
+  walk(1, Infinity);
+  const vars: ThemeVars = {};
+  order.forEach((k, i) => {
+    vars[`--data-${i + 1}`] = tri(cols[i % 2][k]);
+  });
+  return vars;
+}
+
 /**
  * Lightness (searching from `from` towards `towards`) at which colour
  * (h, c) reaches `ratio` contrast against `bg`.
@@ -133,12 +200,14 @@ function solveLightness(
  * danger/info) are intentionally not derived: they carry meaning.
  */
 export function derivePalette(baseHex: string, look: ThemeLook = STANDARD_LOOK): Palette {
-  const standard = deriveStandard(baseHex);
-  if (look.variant === "standard" && look.contrast === "normal") return standard;
+  const plain = look.variant === "standard" && look.contrast === "normal";
+  // Another look solves its own series colours: the standard ones would be thrown away.
+  const standard = deriveStandard(baseHex, plain);
+  if (plain) return standard;
   return deriveLook(baseHex, standard, look);
 }
 
-function deriveStandard(baseHex: string): Palette {
+function deriveStandard(baseHex: string, withData = true): Palette {
   const rgb = parseHex(baseHex) ?? parseHex(DEFAULT_BASE)!;
   const base = rgbToOklch(rgb);
   const h = base.h;
@@ -343,6 +412,13 @@ function deriveStandard(baseHex: string): Palette {
   light["--cover-title"] = tone({ l: 0.3, c: textC * 0.8, h });
   dark["--cover-title"] = tone({ l: 0.2, c: textC * 0.6, h });
 
+  // ---- data: the categorical series colours (not tone-on-tone: they tell series apart) ----
+  if (withData) {
+    const grounds = (vars: ThemeVars) => ["--card", "--canvas", "--muted"].map(k => parseTriplet(vars[k]));
+    Object.assign(light, dataTones(base, grounds(light), false, DATA_STYLE.standard));
+    Object.assign(dark, dataTones(base, grounds(dark), true, DATA_STYLE.standard));
+  }
+
   return { light, dark, base: baseHex.toUpperCase() };
 }
 
@@ -492,6 +568,8 @@ function deriveLook(baseHex: string, standard: Palette, look: ThemeLook): Palett
       }
       vars["--cover-title"] = T({ l: dark ? 0.16 : 0.2, c: textC * 0.6, h });
     }
+    // Series colours solved against this look's own grounds: calmer in soft, firmer in high contrast.
+    Object.assign(vars, dataTones(base, [s.card, s.canvas, s.muted].map(rgb), dark, DATA_STYLE[high ? "high" : soft ? "soft" : "standard"]));
     // State colours: text on its soft fill and on every surface, at this level's target.
     for (const [name, hue] of Object.entries(STATUS_HUES)) {
       const fillCol: Oklch = dark ? { l: high ? 0.22 : 0.3, c: 0.04, h: hue } : { l: high ? 0.955 : 0.93, c: 0.035, h: hue };
