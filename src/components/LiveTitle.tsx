@@ -2,13 +2,11 @@ import { useEffect } from "react";
 import { formatHMS } from "@contracts/time";
 import { useElapsed, useTimers } from "@/hooks/useTimers";
 import { setLiveTitle } from "@/hooks/useDocumentTitle";
-import { BRAND_ARMS, BRAND_HEAD, BRAND_HEAD_OPACITY } from "@/lib/brand";
+import { BRAND_ARMS, BRAND_HEAD, BRAND_HEAD_OPACITY, BRAND_INK as INK, BRAND_PAPER as PAPER } from "@/lib/brand";
 import { runningTimers } from "@/lib/timerFocus";
 
 const ICON = "/favicon.svg";
 /** Favicon with a dot: the timer is running (visible in tabs and the Dock). Ink on paper; paper on ink in dark mode, as the favicon. */
-const INK = "hsl(24 12% 9%)";
-const PAPER = "hsl(36 30% 97%)";
 const RUNNING_ICON = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
     <style>@media (prefers-color-scheme: dark) { .tile { fill: ${INK} } .mark { stroke: ${PAPER} } .dot { fill: ${PAPER}; stroke: ${INK} } }</style>

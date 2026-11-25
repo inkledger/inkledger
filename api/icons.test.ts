@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS script, no types
-import { ARMS, HEAD, HEAD_OPACITY } from "../scripts/icon-glyph.mjs";
-import { BRAND_ARMS, BRAND_HEAD, BRAND_HEAD_OPACITY } from "../src/lib/brand";
+import { ARMS, HEAD, HEAD_OPACITY, MARK, TILE } from "../scripts/icon-glyph.mjs";
+import { BRAND_ARMS, BRAND_HEAD, BRAND_HEAD_OPACITY, BRAND_INK, BRAND_PAPER } from "../src/lib/brand";
 
 const ROOT = join(import.meta.dirname, "..");
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
@@ -52,5 +52,7 @@ describe("icons", () => {
 
   it("the app draws the same glyph as the OS icons", () => {
     expect([BRAND_HEAD, BRAND_ARMS, BRAND_HEAD_OPACITY]).toEqual([HEAD, ARMS, HEAD_OPACITY]);
+    // The running-timer favicon (LiveTitle) is the favicon plus a dot: same ink and paper.
+    expect([BRAND_INK, BRAND_PAPER]).toEqual([TILE, MARK]);
   });
 });
