@@ -69,7 +69,6 @@ export function useStickyTable({
       const real = row.closest("table");
       if (table && real) {
         put(table, "width", `${real.getBoundingClientRect().width}px`);
-        table.querySelectorAll("col").forEach((col, i) => put(col, "width", `${widths[i] ?? 0}px`));
       }
     };
     const ro = new ResizeObserver(measure);
@@ -133,6 +132,14 @@ export function useStickyTable({
     };
   }, [wrap, head, strip]);
 
+  // One column template and one sideways scroll for every table of the group (the page's favourites and the rest).
+  useEffect(() => {
+    const box = wrap.current;
+    const scroll = scroller.current;
+    if (!box || !scroll) return;
+    return joinGroup(box.parentElement?.closest<HTMLElement>("[data-table-group]") ?? box, box, scroll);
+  }, [wrap, scroller]);
+
   // The strip follows the table sideways; a control focused under a frozen column comes out from under it.
   useEffect(() => {
     const box = wrap.current;
@@ -159,4 +166,83 @@ export function useStickyTable({
       scroll.removeEventListener("focusin", onFocus);
     };
   }, [wrap, scroller, strip]);
+}
+
+/** The title's least width: the column that takes what the others leave. */
+const TITLE_MIN_REM = 14;
+const TITLE_COLUMN = 3;
+
+type Group = { tables: Map<HTMLElement, HTMLElement>; ro: ResizeObserver; mo: MutationObserver; measure: () => void };
+const groups = new WeakMap<HTMLElement, Group>();
+
+/**
+ * Tables that share their columns (`[data-table-group]` around them): each column as wide as the widest content
+ * (`[data-col]`, drawn at its own width) of any of their cells, plus the cell's padding, written once on the group
+ * as `--col-N`; the tables' least width as `--cols-min`. Measured when a content changes size (a timer starts,
+ * a page of rows arrives), never on scroll. Their scrollers move sideways together.
+ */
+function joinGroup(root: HTMLElement, box: HTMLElement, scroll: HTMLElement): () => void {
+  let group = groups.get(root);
+  if (!group) {
+    const tables = new Map<HTMLElement, HTMLElement>();
+    const measure = () => {
+      const widest: number[] = [];
+      for (const wrap of tables.keys()) {
+        const table = wrap.querySelector<HTMLTableElement>("table[data-slot=table]");
+        if (!table) continue;
+        const pads = [...(table.tHead?.rows[0]?.cells ?? [])].map(c => {
+          const st = getComputedStyle(c);
+          return (parseFloat(st.paddingLeft) || 0) + (parseFloat(st.paddingRight) || 0);
+        });
+        for (const row of table.rows)
+          [...row.cells].forEach((cell, i) => {
+            const content = cell.querySelector(":scope > :is([data-col], button)");
+            if (!content || i === TITLE_COLUMN) return;
+            widest[i] = Math.max(widest[i] ?? 0, Math.ceil(content.getBoundingClientRect().width + (pads[i] ?? 0)));
+          });
+      }
+      let sum = 0;
+      widest.forEach((w, i) => {
+        if (w === undefined) return;
+        sum += w;
+        const value = `${w}px`;
+        if (root.style.getPropertyValue(`--col-${i}`) !== value) root.style.setProperty(`--col-${i}`, value);
+      });
+      const min = `${Math.ceil(sum + TITLE_MIN_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 14))}px`;
+      if (root.style.getPropertyValue("--cols-min") !== min) root.style.setProperty("--cols-min", min);
+    };
+    const ro = new ResizeObserver(measure);
+    const watchAll = () => {
+      for (const wrap of tables.keys()) for (const el of wrap.querySelectorAll("table[data-slot=table] [data-col], table[data-slot=table] th > button")) ro.observe(el);
+    };
+    const mo = new MutationObserver(() => {
+      watchAll();
+      measure();
+    });
+    group = { tables, ro, mo, measure };
+    groups.set(root, group);
+  }
+  const g = group;
+  // Sideways together: a scroll of one is set on the others (the same value fires no further change).
+  const follow = () => {
+    for (const other of g.tables.values()) if (other !== scroll && other.scrollLeft !== scroll.scrollLeft) other.scrollLeft = scroll.scrollLeft;
+  };
+  const first = g.tables.values().next().value;
+  g.tables.set(box, scroll);
+  if (first) scroll.scrollLeft = first.scrollLeft;
+  scroll.addEventListener("scroll", follow, { passive: true });
+  const body = box.querySelector("table[data-slot=table]");
+  if (body) g.mo.observe(body, { childList: true, subtree: true });
+  for (const el of box.querySelectorAll("table[data-slot=table] [data-col], table[data-slot=table] th > button")) g.ro.observe(el);
+  g.measure();
+  return () => {
+    scroll.removeEventListener("scroll", follow);
+    g.tables.delete(box);
+    for (const el of box.querySelectorAll("[data-col], th > button")) g.ro.unobserve(el);
+    if (g.tables.size === 0) {
+      g.ro.disconnect();
+      g.mo.disconnect();
+      groups.delete(root);
+    } else g.measure();
+  };
 }

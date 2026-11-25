@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { clampWidth, widthForKey, type SplitBounds } from "@/lib/layout/split";
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 
 /**
  * The line between a list and the pane on its right that resizes the pane (the ARIA window splitter):
@@ -108,16 +109,17 @@ export function Splitter({
       onPointerCancel={onPointerUp}
       onDoubleClick={() => onChange(null)}
       className={cn(
-        // A 24 px hit area over the pane's 1 px edge; the grip shows on hover, focus and drag.
+        // A 24 px hit area over the 1 px edge of the pane; its grip always shows, stronger on hover, focus and drag.
         "group/splitter absolute inset-y-0 -left-3 z-20 flex w-target cursor-col-resize touch-none items-center justify-center outline-none",
         className
       )}
     >
       <span
         aria-hidden
+        {...surface("control")}
         className={cn(
-          "h-full max-h-16 w-1 rounded-full bg-muted-foreground/50 opacity-0 transition-opacity group-hover/splitter:opacity-100 group-focus-visible/splitter:opacity-100 group-focus-visible/splitter:ring-2 group-focus-visible/splitter:ring-ring",
-          dragging && "bg-primary opacity-100"
+          "h-10 w-1.5 rounded-full border border-border bg-card transition-colors group-hover/splitter:border-muted-foreground group-hover/splitter:bg-muted-foreground/60 group-focus-visible/splitter:border-ring group-focus-visible/splitter:bg-muted-foreground/60 group-focus-visible/splitter:ring-2 group-focus-visible/splitter:ring-ring",
+          dragging && "border-primary bg-primary"
         )}
       />
     </div>

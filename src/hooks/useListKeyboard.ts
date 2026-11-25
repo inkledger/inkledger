@@ -102,7 +102,8 @@ function coveringBarBottom(row: HTMLElement): number | null {
   if (!hit || row.contains(hit)) return null;
   for (let bar: Element | null = hit; bar && bar !== document.body; bar = bar.parentElement) {
     const position = getComputedStyle(bar).position;
-    if (position === "sticky" || position === "fixed") return bar.getBoundingClientRect().bottom;
+    // A bar of no height of its own (a table's header strip) covers with what it holds.
+    if (position === "sticky" || position === "fixed") return Math.max(bar.getBoundingClientRect().bottom, ...[...bar.children].map(c => c.getBoundingClientRect().bottom));
   }
   return null;
 }

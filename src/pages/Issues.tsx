@@ -486,6 +486,8 @@ export default function Issues() {
             </p>
           )}
 
+          {/* The favourites and the rest: one table's columns, lined up and scrolled sideways together. */}
+          <div data-table-group className="contents">
           {pinnedMode && page === 1 && pinned.ordered.length > 0 && (
             <section aria-labelledby="pinned-title" className="mb-6">
               <SectionLabel
@@ -610,6 +612,8 @@ export default function Issues() {
               )}
             </div>
           )}
+
+          </div>
 
           {showMain && data && data.totalPages > 1 && (
             <nav

@@ -101,6 +101,30 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
       const overflow = await scroller.evaluate(s => s.scrollWidth - s.clientWidth);
       assert.ok(overflow > 40, `${name}: the table scrolls sideways (${overflow})`);
       assert.deepEqual(await page.evaluate(scanLayout), [], `${name}: nothing overlaps, unscrolled`);
+      // One column template: the favourites' columns and the rest's are at the same places.
+      const columns = await page.evaluate(() =>
+        [...document.querySelectorAll(".sticky-table table[data-slot=table] thead tr")].map(tr => [...tr.cells].map(c => { const b = c.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.width)]; }))
+      );
+      assert.ok(columns.length >= 2, `${name}: favourites and the rest are both shown`);
+      for (const other of columns.slice(1)) assert.deepEqual(other, columns[0], `${name}: the groups' columns line up`);
+      // No row drawn past the panel's content: beside the section's padding edge nothing of the table shows.
+      const past = await page.evaluate(() => {
+        const section = document.querySelector("section[data-workspace-anchor='issues.catalog']");
+        const st = getComputedStyle(section);
+        const s = section.getBoundingClientRect();
+        const right = s.right - parseFloat(st.paddingRight);
+        const out = [];
+        for (const tr of document.querySelectorAll(".sticky-table tbody tr")) {
+          const r = tr.getBoundingClientRect();
+          if (r.height < 1 || r.top < 0 || r.bottom > innerHeight) continue;
+          const last = tr.cells[tr.cells.length - 1].getBoundingClientRect();
+          if (last.right > right + 1) out.push(`last cell ${last.right} > ${right}`);
+          const hit = document.elementFromPoint(right + 4, r.top + r.height / 2);
+          if (hit && tr.contains(hit)) out.push(`row shows at ${right + 4}`);
+        }
+        return out;
+      });
+      assert.deepEqual(past, [], `${name}: no row past the panel's content`);
 
       const row = table.locator("tbody tr").first();
       const cells = { key: row.locator('td[data-stick="3"]'), title: row.locator('td[data-stick="4"]'), timer: row.locator('td[data-stick="r2"]'), status: row.locator("td:nth-child(5)") };
@@ -112,6 +136,7 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
       const moved = await scroller.evaluate(s => s.scrollLeft);
       for (const k of ["key", "title", "timer"]) assert.ok(Math.abs((await left(cells[k])) - at[k]) < 1, `${name}: ${k} stays put`);
       assert.ok(Math.abs((await left(cells.status)) - (at.status - moved)) < 1, `${name}: the middle moves`);
+      assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll(".sticky-table [data-slot=table-container]")].map(s => s.scrollLeft)).then(v => new Set(v).size), 1, `${name}: the groups scroll together`);
       assert.equal(await table.getAttribute("data-under-start"), "", `${name}: something under the start now`);
       // The frozen cells are opaque: what passes under them does not show (the topmost element there is theirs).
       const covering = await cells.title.evaluate(td => {
@@ -156,8 +181,9 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
         for (let i = 0; i < 12; i++) await page.keyboard.press("j");
         for (let i = 0; i < 6; i++) await page.keyboard.press("k");
         const sel = await page.locator("tr[aria-selected=true]").boundingBox();
-        const stripBottom = await bar.locator("thead").evaluate(el => el.getBoundingClientRect().bottom);
-        assert.ok(sel && sel.y >= stripBottom - 1, `the selected row is below the header strip (${sel?.y} < ${stripBottom})`);
+        // Under the strip while it shows, else under the table's own header row.
+        const stripBottom = await table.evaluate(w => (w.hasAttribute("data-stuck") ? w.querySelector(".sticky-table-bar thead") : w.querySelector("table[data-slot=table] thead")).getBoundingClientRect().bottom);
+        assert.ok(sel && sel.y >= stripBottom - 1, `the selected row is below the header (${sel?.y} < ${stripBottom})`);
         await page.evaluate(() => document.getElementById("main").scrollTo(0, 0));
       }
 

@@ -336,7 +336,7 @@ function Head({
   children: React.ReactNode;
   className?: string;
 }) {
-  if (!onSort) return <TableHead data-stick={stick} className={className}><span>{children}</span></TableHead>;
+  if (!onSort) return <TableHead data-stick={stick} className={className}><span data-col className="inline-block w-max">{children}</span></TableHead>;
   return (
     <SortableHead
       sort={
@@ -362,17 +362,17 @@ const ASCENDING = new Set<SortMode>(["key", "due"]);
 function HeadCells({ sort, onSort, mirror = false }: { sort?: SortMode; onSort?: (k: SortMode) => void; mirror?: boolean }) {
   return (
     <>
-      <TableHead data-stick="1" className="w-7 pl-2 pr-0">
+      <TableHead data-stick="1" className="pl-2 pr-0">
         <span className="sr-only">{t("pages.issues.pickCol")}</span>
       </TableHead>
-      <TableHead data-stick="2" className="w-9 pl-1">
+      <TableHead data-stick="2" className="pl-1">
         <span className="sr-only">{t("views.issues.row.favouriteCol")}</span>
       </TableHead>
       <Head k="key" sort={sort} onSort={onSort} mirror={mirror} className="pr-3" stick="3">
         {t("views.issues.row.key")}
       </Head>
-      <TableHead data-stick="4" data-stick-edge="start" className="pr-3"><span>{t("views.issues.row.title")}</span></TableHead>
-      <TableHead className="pl-3 pr-3"><span>{t("views.issues.row.status")}</span></TableHead>
+      <TableHead data-stick="4" data-stick-edge="start" className="pr-3"><span data-col className="inline-block w-max">{t("views.issues.row.title")}</span></TableHead>
+      <TableHead className="pl-3 pr-3"><span data-col className="inline-block w-max">{t("views.issues.row.status")}</span></TableHead>
       <Head k="priority" sort={sort} onSort={onSort} mirror={mirror} className="pr-3">
         {t("views.issues.row.priority")}
       </Head>
@@ -382,10 +382,10 @@ function HeadCells({ sort, onSort, mirror = false }: { sort?: SortMode; onSort?:
       <Head k="due" sort={sort} onSort={onSort} mirror={mirror} className="pr-3">
         {t("views.issues.row.due")}
       </Head>
-      <TableHead className="whitespace-nowrap pr-3 text-right"><span>{t("views.issues.row.logged")}</span></TableHead>
+      <TableHead className="whitespace-nowrap pr-3 text-right"><span data-col className="inline-block w-max">{t("views.issues.row.logged")}</span></TableHead>
       <TableHead data-stick="r2" data-stick-edge="end" className="pl-3">
         {/* Its label in a box of its own: the frozen cell's ground is what covers the middle's labels. */}
-        <span>{t("views.issues.row.timer")}</span>
+        <span data-col className="inline-block w-max">{t("views.issues.row.timer")}</span>
       </TableHead>
       <TableHead data-stick="r1" className="pr-1">
         <span className="sr-only">{t("views.issues.row.actions")}</span>
@@ -394,8 +394,27 @@ function HeadCells({ sort, onSort, mirror = false }: { sort?: SortMode; onSort?:
   );
 }
 
-/** How many columns the table has (the strip's `col`s). */
-const COLUMNS = 11;
+/**
+ * The columns' widths, shared by every table of the page (the favourites and the rest line up): each the
+ * widest of its cells' contents in all of them (`--col-N`, written by useStickyTable); the title takes the rest.
+ */
+function Columns() {
+  return (
+    <colgroup>
+      <col className="[width:var(--col-0)]" />
+      <col className="[width:var(--col-1)]" />
+      <col className="[width:var(--col-2)]" />
+      <col />
+      <col className="[width:var(--col-4)]" />
+      <col className="[width:var(--col-5)]" />
+      <col className="[width:var(--col-6)]" />
+      <col className="[width:var(--col-7)]" />
+      <col className="[width:var(--col-8)]" />
+      <col className="[width:var(--col-9)]" />
+      <col className="[width:var(--col-10)]" />
+    </colgroup>
+  );
+}
 
 /**
  * Desktop table (same look as the dashboard activity table). Its first and last columns stay put while
@@ -420,11 +439,9 @@ export function IssueTable({
       {/* The header again, shown only while the table's own has scrolled under the bars: for the eye and
           the pointer (the keyboard and screen readers have the real one). */}
       <div aria-hidden className="sticky-table-bar">
-        <div ref={strip} className="cast-room-x overflow-hidden border-b bg-card pt-2 [--room-shift-x:0.25rem]">
-          <table className="table-fixed text-left text-body-sm">
-            <colgroup>
-              {Array.from({ length: COLUMNS }, (_, i) => <col key={i} />)}
-            </colgroup>
+        <div ref={strip} className="cast-room-x overflow-hidden border-b bg-card pt-2">
+          <table className="table-fixed text-left text-body-sm [min-width:var(--cols-min,720px)]">
+            <Columns />
             <thead>
               <TableHeaderRow>
                 <HeadCells sort={sort} onSort={onSort} mirror />
@@ -433,11 +450,12 @@ export function IssueTable({
           </table>
         </div>
       </div>
-      <div ref={scroller} data-slot="table-container" data-overflow-ok className="cast-room-x cast-room-y overflow-x-auto [--room-shift-x:0.25rem]">
+      <div ref={scroller} data-slot="table-container" data-overflow-ok className="cast-room-x cast-room-y overflow-x-auto">
         {/* As wide as the table: the sentinels at its two ends say what is scrolled under the frozen columns. */}
         <div className="relative inline-block min-w-full align-top">
           <span aria-hidden data-edge="start" className="pointer-events-none absolute top-0 h-px w-px [left:calc(var(--room-l,0px)*-1)]" />
-          <table data-slot="table" className="w-full min-w-[720px] text-left text-body-sm">
+          <table data-slot="table" className="w-full table-fixed text-left text-body-sm [min-width:var(--cols-min,720px)]">
+            <Columns />
             <thead>
               <TableHeaderRow ref={head}>
                 <HeadCells sort={sort} onSort={onSort} />
@@ -497,9 +515,11 @@ export const IssueRow = memo(function IssueRow({
       onDrop={pin && (e => e.preventDefault())}
       onDragEnd={pin?.onDragEnd}
     >
-      <td data-stick="1" className="w-7 py-3 pl-2 pr-0">{pick && <PickBox issue={issue} pick={pick} className="flex" />}</td>
-      <td data-stick="2" className="w-9 py-3 pl-1">
-        <span className="relative flex items-center">
+      <td data-stick="1" className="py-3 pl-2 pr-0">
+        <div data-col className="w-max">{pick && <PickBox issue={issue} pick={pick} className="flex" />}</div>
+      </td>
+      <td data-stick="2" className="py-3 pl-1">
+        <span data-col className="relative flex w-max items-center">
           {pin && (
             <GripVertical
               aria-hidden
@@ -521,9 +541,11 @@ export const IssueRow = memo(function IssueRow({
         </span>
       </td>
       <td data-stick="3" className="whitespace-nowrap py-3 pr-3">
-        <KeyLink issue={issue} />
+        <div data-col className="w-max">
+          <KeyLink issue={issue} />
+        </div>
       </td>
-      <td data-stick="4" data-stick-edge="start" className="w-full min-w-56 max-w-0 py-2.5 pr-3">
+      <td data-stick="4" data-stick-edge="start" className="py-2.5 pr-3">
         <span
           className="line-clamp-2 [overflow-wrap:anywhere]"
           title={issue.summary}
@@ -539,38 +561,48 @@ export const IssueRow = memo(function IssueRow({
         )}
       </td>
       <td className="py-3 pl-3 pr-3">
-        <StatusBadge status={issue.status} category={issue.category} />
+        <div data-col className="w-max">
+          <StatusBadge status={issue.status} category={issue.category} />
+        </div>
       </td>
       <td className="py-3 pr-3">
-        {issue.priority ? (
-          <Chip variant="dot" tone={priorityTone(issue.priority)}>
-            {priorityLabel(issue.priority)}
-          </Chip>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
+        <div data-col className="w-max">
+          {issue.priority ? (
+            <Chip variant="dot" tone={priorityTone(issue.priority)}>
+              {priorityLabel(issue.priority)}
+            </Chip>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
       </td>
       <td className="whitespace-nowrap py-3 pr-3 text-muted-foreground">
-        {updated ? (
-          <HistoryLink issueKey={issue.key} connectionId={issue.connectionId}>{updated}</HistoryLink>
-        ) : (
-          "—"
-        )}
+        <div data-col className="w-max">
+          {updated ? (
+            <HistoryLink issueKey={issue.key} connectionId={issue.connectionId}>{updated}</HistoryLink>
+          ) : (
+            "—"
+          )}
+        </div>
       </td>
       <td className="whitespace-nowrap py-3 pr-3 text-muted-foreground">
-        {due ?? "—"}
+        <div data-col className="w-max">{due ?? "—"}</div>
       </td>
       <td className="whitespace-nowrap py-3 pr-3 text-right text-muted-foreground tabular">
         {/* Nothing logged: empty, as on the phone's card (a column of zeros says nothing). */}
-        {issue.mySpentSeconds > 0 && <span className="text-foreground">{formatDuration(issue.mySpentSeconds)}</span>}
-        <TeamTotal issue={issue} className="block text-caption" />
+        <div data-col className="ml-auto w-max">
+          {issue.mySpentSeconds > 0 && <span className="text-foreground">{formatDuration(issue.mySpentSeconds)}</span>}
+          <TeamTotal issue={issue} className="block text-caption" />
+        </div>
       </td>
-      <td data-stick="r2" data-stick-edge="end" className="w-40 py-3 pl-3">
-        <TimerControls issueKey={issue.key} connectionId={issue.connectionId} />
+      <td data-stick="r2" data-stick-edge="end" className="py-3 pl-3">
+        <div data-col className="w-max">
+          <TimerControls issueKey={issue.key} connectionId={issue.connectionId} />
+        </div>
       </td>
       <td data-stick="r1" className="py-3 pr-1">
         {/* Shown on hover; always on a touch screen, which has none. */}
-        <div className="flex items-center justify-end opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 coarse:opacity-100">
+        <div data-col className="ml-auto flex w-max items-center justify-end opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 coarse:opacity-100">
           <Actions issue={issue} onLog={onLog} pin={pin} pick={pick} />
         </div>
       </td>
