@@ -91,8 +91,9 @@ export function MakeTodoButton({ link, initial, count = 0, label, className, ico
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="ghost" aria-label={count ? `${label} (${t("views.todos.already", { count })})` : label} title={label} className={cn(count > 0 && "text-primary-strong", className)}>
-          <ListChecks className="h-3.5 w-3.5" />
+        <Button size={iconOnly ? (count > 0 ? "default" : "icon") : "sm"} variant="ghost" aria-label={count ? `${label} (${t("views.todos.already", { count })})` : label} title={label} className={cn(count > 0 && "text-primary-strong", className)}>
+          {/* In a header's row (iconOnly) the row's control height and a full-size icon, centred like its neighbours. */}
+          <ListChecks className={iconOnly ? "h-4 w-4" : "h-3.5 w-3.5"} />
           {iconOnly ? (
             count > 0 && <span className="tabular text-caption">{count}</span>
           ) : (

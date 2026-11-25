@@ -291,7 +291,7 @@ export function IssueActions({
       </DropdownMenu>
       {/* On a phone the timer and Log time are the bottom bar's, in the thumb's reach (IssueBody). */}
       <span className="contents max-lg:hidden">
-        <TimerControls issueKey={i.key} connectionId={i.connectionId} />
+        <TimerControls issueKey={i.key} connectionId={i.connectionId} size="icon" />
       </span>
       {deskButton}
       <span className="contents max-lg:hidden">{logTime}</span>
