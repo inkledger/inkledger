@@ -64,13 +64,14 @@ test("single sign-on: JIT account at first sign-in; enforced, only break-glass o
         await fresh.close();
       }
 
-      // The account the provider made can't use a password, enforced or not.
+      // The account the provider made can't use a password, enforced or not. It has none, so it is
+      // told what any wrong password is told: a guessed name never learns it is an SSO account.
       const refused = await fetch(`${base}/api/trpc/auth.login`, {
         method: "POST",
         headers: { "content-type": "application/json", origin: base },
         body: JSON.stringify({ json: { username: "ada", password: "whatever-long-enough" } }),
       });
-      assert.equal(refused.status, 403);
+      assert.equal(refused.status, 401);
     });
   } finally {
     await idp.close();
