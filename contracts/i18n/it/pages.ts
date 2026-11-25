@@ -803,6 +803,7 @@ export const pages: Shape<(typeof en)["pages"]> = {
   },
   issues: {
     preview: "Anteprima",
+    resizePreview: "Ridimensiona l'anteprima (frecce; doppio clic: larghezza predefinita)",
     previewEmpty: "Scegli una issue con un clic o j / k per leggerla qui; Spazio la apre sopra la lista su uno schermo più stretto.",
     peek: "Occhiata a {key}",
     peekHint: "Esc la chiude; Invio sulla lista apre la sua pagina.",

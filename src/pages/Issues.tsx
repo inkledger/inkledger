@@ -1,8 +1,10 @@
 import { isDialogOpen, isTyping } from "@/lib/dom";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
-import { readStoredJson, writeStored } from "@/lib/storage";
+import { deviceSetting, readStoredJson, writeStored } from "@/lib/storage";
+import { formatWidth, parseWidth, splitBounds } from "@/lib/layout/split";
+import { Splitter } from "@/components/app/Splitter";
 import { toastError, errorText } from "@/lib/errorText";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useToday } from "@/hooks/useToday";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -131,7 +133,16 @@ const PINNED_INPUT = {
   pageSize: 200,
 } as const;
 
-/** Favourites shown before "Show all": the list below stays in sight. */
+/**
+ * The preview's width beside the list (px; null: the default 26rem), dragged on its edge and kept on this
+ * device. Its limits: 320 px up to 60% of the window, the list never under 480 px; the grid's track
+ * clamps it in CSS as well, so a width kept from a wider window still holds them.
+ */
+const previewWidth = deviceSetting("ikl-issues-preview-width", parseWidth, formatWidth);
+const PREVIEW_MIN = 320;
+const LIST_MIN = 480;
+const previewBounds = (container: number) =>
+  splitBounds({ container, viewport: window.innerWidth, paneMin: PREVIEW_MIN, mainMin: LIST_MIN, viewportShare: 0.6 });
 
 export default function Issues() {
   const provider = useProviderName();
@@ -349,6 +360,9 @@ export default function Issues() {
   const previewId = useDeferredValue(selected);
   const previewIssue = previewId ? byId(previewId) ?? null : null;
   const peekIssue = peekId ? byId(peekId) ?? null : null;
+  const splitRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLElement>(null);
+  const preview = previewWidth.use();
   return (
     <>
       <PageHeader
@@ -446,7 +460,11 @@ export default function Issues() {
       {/* List-detail (docs/design-system.md §7.1): from a wide region (80rem) the selected row reads
           beside the list; narrower, Space opens it over the list and Enter opens its page. */}
       <div className="region">
-      <div className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+      <div
+        ref={splitRef}
+        style={{ "--issues-preview-w": preview === null ? undefined : `${preview}px` } as CSSProperties}
+        className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(320px,var(--issues-preview-w,26rem),min(60vw,100cqw_-_480px))]"
+      >
       <PanelRow>
         <PanelSection title={t("pages.issues.catalog")} anchorId="issues.catalog">
           <BucketChip />
@@ -628,11 +646,21 @@ export default function Issues() {
 
       </PanelRow>
       <aside
+        ref={previewRef}
+        id="issues-preview"
         data-issues-preview
         data-workspace-anchor="issues.preview"
         aria-label={t("pages.issues.preview")}
-        className="hidden min-h-0 border-l @xl:sticky @xl:top-[var(--page-header-h,0px)] @xl:block @xl:h-[calc(100dvh-2rem-var(--page-header-h,0px))]"
+        className="hidden min-h-0 min-w-0 border-l @xl:sticky @xl:top-[var(--page-header-h,0px)] @xl:block @xl:h-[calc(100dvh-2rem-var(--page-header-h,0px))]"
       >
+        <Splitter
+          grid={splitRef}
+          pane={{ id: "issues-preview", ref: previewRef }}
+          cssVar="--issues-preview-w"
+          bounds={previewBounds}
+          onChange={width => previewWidth.set(width)}
+          label={t("pages.issues.resizePreview")}
+        />
         {previewIssue ? (
           <IssueBody variant="pane" issueKey={previewIssue.key} connectionId={previewIssue.connectionId} maxSize="m" scrollKeyPrefix="preview" />
         ) : (

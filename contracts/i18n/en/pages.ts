@@ -420,6 +420,7 @@ export const pages = {
   },
   issues: {
     preview: "Preview",
+    resizePreview: "Resize the preview (arrows; double click: default width)",
     previewEmpty: "Choose an issue with a click or j / k to read it here; Space opens it over the list on a narrower screen.",
     peek: "Quick look at {key}",
     peekHint: "Esc closes it; Enter on the list opens its page.",
