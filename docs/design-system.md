@@ -219,6 +219,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | Page title row | `PageHeader` (breadcrumb, h1, description, actions; sets the tab title) | A custom `<h1>` row |
 | A block of the page panel | `PanelSection` / `PanelRow` (hairlines, not boxes) | Nested cards |
 | A page's figures | `StatStrip` (one row divided by hairlines, three to a row under lg (two for four figures), the cover's grainy sunset as a faint wash behind the row; the figure looked for first is `lead`: a step larger, in the primary colour; a figure can be a filter or carry a `meter` towards its target; `busy` while another period loads; variants compact/default/expanded) | A card with a cover and tiles (retired) |
+| A pane beside a list resized by dragging its edge (the Issues preview) | `Splitter` (the ARIA window splitter: ← / → 16 px, Shift 64, Home / End, a double click back to the default; written to a CSS variable on the grid once a frame while dragged; limits in `lib/layout/split.ts`, clamped by the grid's track too; the width kept with `deviceSetting`) | A pane of fixed width, or a resize handle of its own |
 | A collection (recent issues, a board column's cards, a day's entries, attachments) | `Collection` (§7.1): a bounded adaptive grid of its container's width, a row budget, then "Show all N" (the same total at every width), expanded in place or on the full page | A rail scrolled sideways, a column clipped by a mask, a list that grows the page, a `slice` with no way to the rest |
 | ▶ on an issue shown as a card or tile | `StartIssueButton` (`controlId` for FlowMap; none while its timer runs; never the card's drag or link) | A per-page start button |
 | A date typed or picked to jump to | `DateJump` (the picker jumps at once, typing on Enter or blur) | An `onChange` on a date input (typing "2" jumped to the 2nd) |
@@ -275,6 +276,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
   - Open, the quick tiles are one row; closed, a 2×2 block. No feature leaves the sidebar to save room, and no control is shown on hover only.
   - Checked at 700–1000 px high, open and closed.
 - **Horizontal scroll only inside a declared scroller** (a table, the Board). The page itself never scrolls sideways, at 320 px included.
+- **A wide table freezes what identifies a row and its live controls** (the Issues catalogue: pick, star, key and title at the start; timer and actions at the end), and the middle scrolls sideways under them (`useStickyTable`, `.sticky-table` in `index.css`). Frozen cells stand on the card with the row's tint drawn over it, and show an edge only while something is under them. They freeze only while the middle keeps room (160 px); narrower, the whole table scrolls. Its header stays under the page's bars as a mirrored strip (`aria-hidden`, skipped by the keyboard: the real header keeps the focus and the column names). A control focused under a frozen column is brought out from under it in JS, never with CSS `scroll-padding`.
 - **Phones.**
   - The tab bar is Home, Board, ⏱, Issues and More, and `--bottom-nav-h` reserves its space.
   - Rows and tab items are `min-h-touch`.
