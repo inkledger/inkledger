@@ -50,6 +50,12 @@ describe("icons", () => {
     }
   });
 
+  it("the native shell's server page draws the brand mark, not an older glyph", () => {
+    const page = read("src-tauri/ui/index.html");
+    expect(page).toContain(`d="${BRAND_ARMS}"`);
+    expect(page).toContain(`d="${BRAND_HEAD}"`);
+  });
+
   it("the app draws the same glyph as the OS icons", () => {
     expect([BRAND_HEAD, BRAND_ARMS, BRAND_HEAD_OPACITY]).toEqual([HEAD, ARMS, HEAD_OPACITY]);
     // The running-timer favicon (LiveTitle) is the favicon plus a dot: same ink and paper.
