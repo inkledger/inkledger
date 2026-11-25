@@ -182,14 +182,19 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
         const pb = await priority.boundingBox();
         assert.ok(pb.x >= titleRight - 1, `the focused button is clear of the frozen columns (${pb.x} < ${titleRight})`);
         // Tab into a frozen cell's control: the table does not jump sideways.
-        await scroller.evaluate(s => (s.scrollLeft = 120));
+        // Somewhere in the middle of the sideways room (fonts and scrollbars make it a few px different per OS).
+        const kept = await scroller.evaluate(s => {
+          s.scrollLeft = Math.min(120, Math.floor((s.scrollWidth - s.clientWidth) / 2));
+          return s.scrollLeft;
+        });
+        assert.ok(kept > 0, "the table has sideways room to keep");
         const star = table.locator("tbody tr").first().locator("td[data-stick='2'] button").first();
         await star.focus();
         await page.keyboard.press(TAB);
         await page.keyboard.press(`Shift+${TAB}`);
         await star.evaluate(el => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => done(el)))));
         const rooms = await page.evaluate(() => [...document.querySelectorAll(".sticky-table [data-sticky-scroll], .sticky-table > div")].map(s => `${s.scrollWidth - s.clientWidth}/${s.scrollLeft}`).join(" "));
-        assert.equal(await scroller.evaluate(s => s.scrollLeft), 120, `a frozen control's focus leaves the scroll as it was (room/left: ${rooms})`);
+        assert.equal(await scroller.evaluate(s => s.scrollLeft), kept, `a frozen control's focus leaves the scroll as it was (room/left: ${rooms})`);
 
         // Down the list: the header stays under the bars, lined up with the columns.
         await page.evaluate(() => document.getElementById("main").scrollBy(0, 900));

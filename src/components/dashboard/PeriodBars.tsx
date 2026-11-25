@@ -70,6 +70,9 @@ export function PeriodBars({
       .map(p => `${nameOf(p.project)} ${formatDurationLong(p.seconds)}`)
       .join(", ");
   const today = dayKey(useToday());
+  const todayDay = stacks.find(s => dayKey(s.day) === today)?.day;
+  const phoneMark = (date: number) => date === 1 || date % 5 === 0;
+  const nearToday = (day: Date) => todayDay !== undefined && Math.abs(day.getDate() - todayDay.getDate()) <= 2 && day.getMonth() === todayDay.getMonth();
   const live = usePendingSeconds(pending === true);
   const pendingSeconds = live?.pending ?? 0;
   const sums = stacks.map(s => s.parts.reduce((a, p) => a + p.seconds, 0));
@@ -196,6 +199,7 @@ export function PeriodBars({
           })}
         </div>
       </div>
+      {/* On a phone only the 1st, every 5th and today are labelled; a 5th within two days of today gives way to it (they would overlap). */}
       <div
         aria-hidden
         className={cn("mt-2 flex px-2 text-center text-caption text-muted-foreground", long ? "h-4 gap-px" : dense ? "h-4 gap-1 sm:gap-1.5" : "gap-1 sm:gap-1.5")}
@@ -223,7 +227,7 @@ export function PeriodBars({
               className={cn(
                 long || dense ? "relative min-w-0 flex-1 tabular" : "flex-1 truncate tabular",
                 key === today && "font-semibold text-foreground",
-                dense && s.day.getDate() !== 1 && s.day.getDate() % 5 !== 0 && key !== today && "max-sm:invisible",
+                dense && key !== today && (phoneMark(s.day.getDate()) === false || nearToday(s.day)) && "max-sm:invisible",
                 dense && s.day.getDate() % 2 === 0 && "sm:max-lg:invisible"
               )}
             >
