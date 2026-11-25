@@ -210,6 +210,18 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
         await page.locator("main").click({ position: { x: 5, y: 400 } });
         for (let i = 0; i < 12; i++) await page.keyboard.press("j");
         for (let i = 0; i < 6; i++) await page.keyboard.press("k");
+        // Read once the page has stopped moving (the strip can show or hide as the last k scrolls up).
+        await page.evaluate(() => new Promise(done => {
+          const main = document.getElementById("main");
+          let last = -1, still = 0;
+          const tick = () => {
+            const top = main.scrollTop;
+            still = top === last ? still + 1 : 0;
+            last = top;
+            if (still >= 3) done(); else requestAnimationFrame(tick);
+          };
+          tick();
+        }));
         const sel = await page.locator("tr[aria-selected=true]").boundingBox();
         // Under the strip while it shows, else under the table's own header row.
         const stripBottom = await table.evaluate(w => (w.hasAttribute("data-stuck") ? w.querySelector(".sticky-table-bar thead") : w.querySelector("table[data-slot=table] thead")).getBoundingClientRect().bottom);

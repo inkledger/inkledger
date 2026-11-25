@@ -156,7 +156,15 @@ export function useStickyTable({
     };
     const onFocus = (event: FocusEvent) => {
       const el = event.target;
-      if (!(el instanceof HTMLElement) || !box.hasAttribute("data-sticky") || el.closest("[data-stick]")) return;
+      if (!(el instanceof HTMLElement) || !box.hasAttribute("data-sticky")) return;
+      if (el.closest("[data-stick]")) {
+        // A frozen control is always in view: undo the browser's own scroll-into-view (it runs after focusin).
+        const kept = scroll.scrollLeft;
+        requestAnimationFrame(() => {
+          if (scroll.scrollLeft !== kept) scroll.scrollLeft = kept;
+        });
+        return;
+      }
       const rect = el.getBoundingClientRect();
       const port = scroll.getBoundingClientRect();
       const style = getComputedStyle(box);
