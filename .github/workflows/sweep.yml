@@ -1,0 +1,53 @@
+name: Visual sweep
+
+# The full visual sweep (e2e/visual-sweep.test.mjs, SWEEP=full): every look, both densities and four
+# widths, about 33 minutes on the runner. CI's e2e job runs a reduced matrix; this one, weekly and by hand.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 1"
+
+concurrency:
+  group: sweep-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      PROVIDERS_READ_ONLY: "1"
+      JIRA_READ_ONLY: "1"
+      SWEEP: full
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright-core install --with-deps chromium-headless-shell
+      - run: pnpm build && node --test --test-concurrency=1 --test-timeout=1800000 e2e/visual-sweep.test.mjs
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sweep-artifacts
+          path: e2e-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
