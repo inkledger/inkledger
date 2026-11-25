@@ -61,6 +61,15 @@ The user picks one base colour (Settings → Appearance, stored as `settings.the
 
 `src/lib/theme/derive.test.ts` checks the contrast of every pair that matters, for many base colours: AA text, and focus rings ≥ 3:1. A colour change that breaks contrast fails the unit tests.
 
+**Variant and contrast** (Settings → Appearance; `settings.theme_variant`, `settings.theme_contrast`) are derived from the same base colour, orthogonal to light/dark:
+- **Soft** (`standard | soft`): low glare, Solarized-inspired. Surfaces are parchment (light) or blue slate (dark), leaning at most 12° towards the base hue and kept under the hue rule's 0.03 chroma floor, so they read as a tint, never an accent. Accents follow the base as usual. Contrast never below AA (text 4.5:1, focus ring and field borders 3:1).
+- **High contrast** (`normal | high | system`; `system` follows `prefers-contrast: more`): AAA. Body, accented and state text 7:1, muted text above 7:1, hairlines, field borders, data bars and the focus ring 3:1; the focus outline is 3 px. Soft and high contrast combine.
+- State colours (`success`, `warning`, `danger`, `info`) keep their own fixed hues in every look (they carry meaning); soft and high contrast re-solve their lightness.
+- `index.html` sets `html[data-variant]` and the resolved `html[data-contrast]` before the first paint; `pnpm theme:tokens` also writes the default colour's high-contrast tokens (`:root[data-contrast="high"]`, `.dark[data-contrast="high"]`).
+- In high contrast, translucent text and hairline classes (`text-foreground/80`, `border-border/70`…) are drawn at full strength by `index.css`: never rely on opacity to make text quiet.
+- Modules get the active palette through the host's theme (`contrast` and `variant` are in `ThemeState`).
+- Forced colors (Windows contrast themes): the system palette wins; bars, chips and controls keep an outline in system colours.
+
 ### 3.3 Roles
 
 | Token | Role | Typical classes |
@@ -85,7 +94,7 @@ The user picks one base colour (Settings → Appearance, stored as `settings.the
 - **Hatched stripes mean one thing only:** tracked but not yet logged (a live timer). Never use them for logged data.
 - **No decorative covers** on cards, figures or the issue page. A page's figures are a `StatStrip` (the stat card with a cover and tiles was retired on 3 Nov, as a favourite-card banner was before it: wasted space).
 - **No gradients** except the theme's own sunset band on covers and the brand mark. No purple, blue or "AI" gradients.
-- **Dark mode is not inverted light.** It has its own derived values. Check both themes, every time.
+- **Dark mode is not inverted light.** It has its own derived values. Check both themes, every time, and the soft and high-contrast looks when you touch colour (`e2e/themes.test.mjs`).
 
 ---
 

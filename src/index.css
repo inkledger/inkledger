@@ -410,6 +410,17 @@
       outline: 2px solid Highlight !important;
       outline-offset: 2px;
     }
+    /* Fills become the system's Canvas: data bars, chips and controls keep an edge in system
+       colours so they do not vanish (an outline: no layout moves). */
+    [data-surface="bar"] {
+      outline: 1px solid CanvasText;
+      outline-offset: -1px;
+    }
+    [data-surface="chip"],
+    [data-surface="control"] {
+      outline: 1px solid ButtonBorder;
+      outline-offset: -1px;
+    }
     [aria-current="page"],
     [aria-pressed="true"],
     [aria-checked="true"],
