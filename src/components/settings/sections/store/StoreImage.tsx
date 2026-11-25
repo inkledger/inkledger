@@ -33,7 +33,7 @@ export function StoreImage({ src, alt = "", className, picture = false, name }: 
         {...surface("picture", { on: picture })}
         className={cn(
           "grain flex items-center justify-center font-display font-semibold text-cover-ink ring-1 ring-inset ring-cover-ink/10",
-          picture ? "text-heading" : "text-display",
+          picture ? "text-heading" : "text-title",
           coverClass(name ?? ""),
           className
         )}

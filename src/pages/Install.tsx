@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Clock, Download, Smartphone } from "lucide-react";
+import { Download, Smartphone } from "lucide-react";
 import { DOWNLOADS_PATH, type DownloadsManifest } from "@contracts/downloads";
 import { formatDate } from "@contracts/time";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -9,6 +9,7 @@ import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { CopyButton } from "@/components/app/CopyButton";
 import { Step, Steps } from "@/components/app/Steps";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/app/BrandMark";
 import { t } from "@/i18n";
 
 const PLATFORMS: { value: DevicePlatform; label: string }[] = [
@@ -46,12 +47,11 @@ export default function Install() {
     <main className="min-h-dvh bg-canvas px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
       <div className="mx-auto grid max-w-lg gap-4">
         <header className="grain cover-sunset flex items-center gap-3 rounded-xl p-5 text-cover-title">
-          <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-action text-action-foreground">
-            <Clock className="h-6 w-6" strokeWidth={2.25} aria-hidden />
-          </span>
+          {/* The app's mark, as on the sign-in cover (it was an older clock glyph). */}
+          <BrandMark className="h-11 w-11 shadow-sm ring-1 ring-cover-title/10" />
           <div>
             <h1 className="font-display text-title">{t("pages.install.title")}</h1>
-            <p className="text-body-sm opacity-80">{t("pages.install.tagline")}</p>
+            <p className="text-body-sm">{t("pages.install.tagline")}</p>
           </div>
         </header>
 
