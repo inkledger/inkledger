@@ -54,6 +54,9 @@ export function useSettingsForm() {
  * if refused; the answer is then the truth. Only the settings are read again,
  * never the page.
  */
+/** The newest settings save started (any section, any form): only its answer is written to the cache. */
+let lastSave = 0;
+
 export function useSettingsSave() {
   const utils = trpc.useUtils();
   return trpc.settings.update.useMutation({
@@ -71,9 +74,14 @@ export function useSettingsSave() {
         }
         utils.settings.get.setData(undefined, Object.assign({ ...previous }, patch));
       }
-      return { previous };
+      return { previous, seq: ++lastSave };
     },
-    onSuccess: data => utils.settings.get.setData(undefined, data),
+    // Only the newest save's answer is written: an earlier one answering late (done on the server before
+    // a later choice) took that choice back, and with it a radio tile's checked state and focus (CI,
+    // e2e/themes.test.mjs). The newest answer carries every earlier save too.
+    onSuccess: (data, _vars, ctx) => {
+      if (ctx?.seq === lastSave) utils.settings.get.setData(undefined, data);
+    },
     onError: (e, _vars, ctx) => {
       if (ctx?.previous) utils.settings.get.setData(undefined, ctx.previous);
       toast.error(t("ui.settingsForm.failed", { message: failureText(e) }));
