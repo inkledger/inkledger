@@ -355,6 +355,19 @@ describe("data palette: series colours for every base colour × look × scheme",
     expect(chromaOf({ variant: "standard", contrast: "high" })).toBeGreaterThan(chromaOf(LOOKS[0]));
   });
 
+  it("a series keeps its hue in light and dark and in every look (a type never changes colour family)", () => {
+    const drift = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+    for (const hex of [...THEME_PRESETS.map(p => p.hex), "#808080"]) {
+      const ref = series(derivePalette(hex).light).map(c => rgbToOklch(c).h);
+      for (const look of LOOKS) {
+        const pal = derivePalette(hex, look);
+        for (const mode of ["light", "dark"] as const) {
+          series(pal[mode]).forEach((c, i) => expect(drift(rgbToOklch(c).h, ref[i]), `${hex} ${lookName(look)} ${mode} data-${i + 1}`).toBeLessThan(12));
+        }
+      }
+    }
+  });
+
   it("gives a grey base eight distinct hues, not eight greys", () => {
     for (const hex of ["#808080", "#000000", "#FFFFFF"]) {
       const cols = series(derivePalette(hex).light).map(c => rgbToOklch(c));

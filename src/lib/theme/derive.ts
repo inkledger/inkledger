@@ -114,35 +114,31 @@ export const DATA_PALETTE_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => 
  */
 export const DATA_STYLE: Record<"standard" | "soft" | "high", { c: number; contrast: number }> = {
   standard: { c: 0.1, contrast: 3.1 },
-  soft: { c: 0.085, contrast: 3.1 },
+  soft: { c: 0.09, contrast: 3.1 },
   high: { c: 0.13, contrast: 3.6 },
 };
-const DATA_STEP = 0.1;
+const DATA_STEP = 0.11;
 /** A grey base has no hue to start from: a warm one, like the default. */
 const DATA_NEUTRAL_H = 45;
 
 /**
- * The series colours: the base hue first, then the other seven of eight hues 45° apart, ordered so that
- * neighbours (a stack's touching segments) stay furthest apart for normal vision and the three colour
- * blindnesses, in a lightness pair that reaches the look's contrast on every ground.
+ * The order of the eight hues (the base first): the one whose worst pair of neighbours stays furthest
+ * apart, for normal vision and the three colour blindnesses (7! orders). Found once per base on a
+ * reference pair of lightnesses, so a type keeps its hue in light and dark and in every look.
  */
-function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: number; contrast: number }): ThemeVars {
-  const h0 = base.c < NEUTRAL_C ? DATA_NEUTRAL_H : base.h;
+const orders = new Map<number, number[]>();
+function dataOrder(h0: number): number[] {
+  const known = orders.get(h0);
+  if (known) return known;
   const hues = Array.from({ length: DATA_COUNT }, (_, k) => h0 + k * 45);
-  // One lightness for all (the hardest hue decides), then the second level a step away from the ground.
-  const solved = hues.map(h => solveAgainst(h, style.c, grounds, style.contrast, dark ? 0.4 : 0.85, dark ? 1 : 0));
-  const nearL = dark ? Math.max(...solved) : Math.min(...solved);
-  const levels = [nearL, nearL + (dark ? DATA_STEP : -DATA_STEP)];
-  const cols = levels.map(l => hues.map(h => ({ l, c: style.c, h })));
-  const rgbs = cols.map(row => row.map(c => oklchToRgb({ ...c, h: wrap(c.h) })));
-  // Worst separation of two neighbours: any colour blindness, or normal vision (asked more of: 1.8×).
-  const apart = (a: number, la: number, b: number, lb: number) => {
-    const x = rgbs[la][a];
-    const y = rgbs[lb][b];
-    return Math.min(deltaE(x, y, "protan"), deltaE(x, y, "deutan"), deltaE(x, y, "tritan"), deltaE(x, y) / 1.8);
-  };
-  const sep: number[][][] = [0, 1].map(l => hues.map((_, a) => hues.map((_, b) => apart(a, l, b, 1 - l))));
-  // Slot i sits at level i % 2; the order with the widest worst neighbour wins (7! orders, the base first).
+  // Reference lightnesses, the even slots nearer the ground: light (darker steps) and dark (lighter steps).
+  const refs = [
+    [0.6, 0.6 - DATA_STEP],
+    [0.68, 0.68 + DATA_STEP],
+  ].map(levels => levels.map(l => hues.map(h => oklchToRgb({ l, c: DATA_STYLE.standard.c, h: wrap(h) }))));
+  // Worst separation of two neighbours in either scheme: any colour blindness, or normal vision (asked more of: 1.8×).
+  const apart = (x: Rgb, y: Rgb) => Math.min(deltaE(x, y, "protan"), deltaE(x, y, "deutan"), deltaE(x, y, "tritan"), deltaE(x, y) / 1.8);
+  const sep = [0, 1].map(l => hues.map((_, a) => hues.map((_, b) => Math.min(...refs.map(rgbs => apart(rgbs[l][a], rgbs[1 - l][b]))))));
   let best = -1;
   let order: number[] = hues.map((_, k) => k);
   const path = [0];
@@ -163,6 +159,24 @@ function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: numbe
     }
   };
   walk(1, Infinity);
+  if (orders.size > 32) orders.clear();
+  orders.set(h0, order);
+  return order;
+}
+
+/**
+ * The series colours: the base hue first, then the other seven of eight hues 45° apart in `dataOrder`,
+ * at one chroma per look, in a lightness pair that reaches the look's contrast on every ground.
+ */
+function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: number; contrast: number }): ThemeVars {
+  const h0 = base.c < NEUTRAL_C ? DATA_NEUTRAL_H : base.h;
+  const hues = Array.from({ length: DATA_COUNT }, (_, k) => h0 + k * 45);
+  // One lightness for all (the hardest hue decides), then the second level a step away from the ground.
+  const solved = hues.map(h => solveAgainst(h, style.c, grounds, style.contrast, dark ? 0.4 : 0.85, dark ? 1 : 0));
+  const nearL = dark ? Math.max(...solved) : Math.min(...solved);
+  const levels = [nearL, nearL + (dark ? DATA_STEP : -DATA_STEP)];
+  const cols = levels.map(l => hues.map(h => ({ l, c: style.c, h })));
+  const order = dataOrder(h0);
   const vars: ThemeVars = {};
   order.forEach((k, i) => {
     vars[`--data-${i + 1}`] = tri(cols[i % 2][k]);
