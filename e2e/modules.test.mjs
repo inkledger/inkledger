@@ -151,7 +151,7 @@ test("a module hears an issue closed while the app was closed, once", () =>
 test("without a licence a module stays off; the Store badge says so and can uninstall it", () =>
   withModules({ modules: ["hello"], path: "/settings/store" }, async ({ page }) => {
     const card = page.locator('[data-store-item="hello"]');
-    await card.getByRole("button", { name: "Manage hello (Needs a licence)" }).click();
+    await card.getByRole("button", { name: "Needs a licence: manage hello" }).click();
     assert.equal(await page.getByTestId("module-hello").count(), 0);
     await page.getByText("No licence on this server.").waitFor();
     await page.getByRole("menuitem", { name: "Uninstall" }).click();
@@ -163,11 +163,11 @@ test("the Store badge removes a licence after confirming, and the module stops",
   withModules({ modules: ["hello"], seed: licensed("hello"), path: "/settings/store" }, async ({ page }) => {
     await page.getByTestId("module-hello").waitFor();
     const card = page.locator('[data-store-item="hello"]');
-    await card.getByRole("button", { name: "Manage hello (Active)" }).click();
+    await card.getByRole("button", { name: "Active: manage hello" }).click();
     await page.getByText(/^Licence L-hell/).waitFor();
     await page.getByRole("menuitem", { name: "Remove licence" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Remove licence" }).click();
-    await card.getByRole("button", { name: "Manage hello (Needs a licence)" }).waitFor();
+    await card.getByRole("button", { name: "Needs a licence: manage hello" }).waitFor();
     await page.reload();
     await card.waitFor();
     assert.equal(await page.getByTestId("module-hello").count(), 0);
@@ -204,10 +204,10 @@ test("removing the licence of a running module leaves no page error", () =>
       window.__kitWrite = setInterval(() => void 0, 50);
     });
     const card = page.locator('[data-store-item="kit"]');
-    await card.getByRole("button", { name: "Manage kit (Active)" }).click();
+    await card.getByRole("button", { name: "Active: manage kit" }).click();
     await page.getByRole("menuitem", { name: "Remove licence" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Remove licence" }).click();
-    await card.getByRole("button", { name: "Manage kit (Needs a licence)" }).waitFor();
+    await card.getByRole("button", { name: "Needs a licence: manage kit" }).waitFor();
     await page.waitForTimeout(500);
   }));
 
@@ -256,14 +256,14 @@ test("on a phone the panel edge stands on the tab bar's top edge", () =>
 test("module settings open from the Store badge; uninstalling asks first", () =>
   withModules({ modules: ["kit"], seed: licensed("kit"), path: "/settings/store" }, async ({ page }) => {
     const card = page.locator('[data-store-item="kit"]');
-    await card.getByRole("button", { name: "Manage kit (Active)" }).click();
+    await card.getByRole("button", { name: "Active: manage kit" }).click();
     await page.getByRole("menuitem", { name: "Settings" }).click();
     await page.getByRole("dialog").getByText("kit settings", { exact: true }).waitFor();
     await page.getByTestId("kit-settings").waitFor();
     // Real weather is off in tests: the host answers null, no error.
     await page.locator('[data-module="kit"][data-weather="null"]').waitFor({ state: "attached" });
     await page.keyboard.press("Escape");
-    await card.getByRole("button", { name: "Manage kit (Active)" }).click();
+    await card.getByRole("button", { name: "Active: manage kit" }).click();
     await page.getByRole("menuitem", { name: "Uninstall" }).click();
     await page.getByRole("alertdialog").getByText(/starts from zero/).waitFor();
     await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
@@ -276,7 +276,7 @@ test("the Store switch turns one module off and back on, and it stays off after 
     await page.getByTestId("kit-sidebar-footer").waitFor();
     await page.getByRole("switch", { name: "kit on" }).click();
     await page.getByTestId("kit-sidebar-footer").waitFor({ state: "detached" });
-    await page.locator('[data-store-item="kit"]').getByRole("button", { name: "Manage kit (Off)" }).waitFor();
+    await page.locator('[data-store-item="kit"]').getByRole("button", { name: "Off: manage kit" }).waitFor();
     assert.equal(await page.getByTestId("module-hello").count(), 1, "the other module keeps running");
     await page.reload();
     await page.getByTestId("module-hello").waitFor();
@@ -294,7 +294,7 @@ test("progress exports to a file and comes back from it", () =>
       }).then(r => r.status), value);
     assert.equal(await set({ level: 7 }), 200);
     const card = page.locator('[data-store-item="kit"]');
-    await card.getByRole("button", { name: "Manage kit (Active)" }).click();
+    await card.getByRole("button", { name: "Active: manage kit" }).click();
     const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("menuitem", { name: "Export progress" }).click()]);
     assert.equal(download.suggestedFilename(), "kit.iklprogress");
     const file = await download.path();

@@ -252,7 +252,7 @@ test("a licence downloads as a file, is removed, and comes back from that file",
     async ({ page, dir }) => {
       const card = page.locator('[data-store-item="hello"]');
       await card.getByRole("button", { name: "Install" }).click();
-      await card.getByRole("button", { name: "Manage Hello (Active)" }).click();
+      await card.getByRole("button", { name: "Active: manage Hello" }).click();
       await page.getByText("Valid for good on this server.", { exact: false }).waitFor();
       const download = page.waitForEvent("download");
       await page.getByRole("menuitem", { name: "Download licence" }).click();
@@ -260,14 +260,14 @@ test("a licence downloads as a file, is removed, and comes back from that file",
       await (await download).saveAs(file);
       assert.equal(JSON.parse(readFileSync(file, "utf8")).format, "inkledger-license-v1");
 
-      await card.getByRole("button", { name: "Manage Hello (Active)" }).click();
+      await card.getByRole("button", { name: "Active: manage Hello" }).click();
       await page.getByRole("menuitem", { name: "Remove licence" }).click();
       await page.getByRole("alertdialog").getByRole("button", { name: "Remove licence" }).click();
-      await card.getByRole("button", { name: "Manage Hello (Needs a licence)" }).waitFor();
+      await card.getByRole("button", { name: "Needs a licence: manage Hello" }).waitFor();
 
       await page.getByLabel("Restore licence…").setInputFiles(file);
       await page.getByText("Licence for Hello restored").waitFor();
-      await card.getByRole("button", { name: "Manage Hello (Active)" }).waitFor();
+      await card.getByRole("button", { name: "Active: manage Hello" }).waitFor();
     },
     db => db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify([license()]), Date.now()),
   ));

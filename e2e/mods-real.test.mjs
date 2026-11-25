@@ -165,7 +165,7 @@ test("Kanbunny's panel takes the focus, keeps it through its two-step reset, and
 test("Bonsai's film is a modal dialog: Tab stays inside, the slider says where it is, Escape gives the focus back", { skip: skip || (!IDS.includes("bonsai") && "no bonsai"), timeout: 600_000 }, () =>
   withAll({}, async ({ page, base }) => {
     await page.goto(base + "/settings/store");
-    await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /^Manage Bonsai/ }).click();
+    await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /: manage Bonsai$/ }).click();
     await page.getByRole("menuitem", { name: "Settings" }).click();
     // The button is the module's, in its settings' view frame; the film opens in the host's sheet over it.
     const settingsFrame = page.locator('[data-module-slot="settings"] iframe[data-module-frame="view"]');
@@ -215,7 +215,7 @@ test("a module's sheet closes on a click on its backdrop, a click in its frame k
     await focusOn(page, actionFrame);
     // Bonsai's film over its settings' sheet: the backdrop closes the film only.
     await page.goto(base + "/settings/store");
-    await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /^Manage Bonsai/ }).click();
+    await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /: manage Bonsai$/ }).click();
     await page.getByRole("menuitem", { name: "Settings" }).click();
     const watch = page.frameLocator('[data-module-slot="settings"] iframe[data-module-frame="view"]').getByRole("button", { name: "Watch it grow" });
     await watch.waitFor({ timeout: 30_000 });
@@ -243,7 +243,7 @@ test("Shadow asks no weather until the person turns it on", { skip: skip || (!ID
     await page.waitForTimeout(3000);
     assert.deepEqual(asked, [], "no weather request by default");
     await page.goto(base + "/settings/store");
-    await page.locator('[data-store-item="shadow"]').getByRole("button", { name: /^Manage Shadow/ }).click();
+    await page.locator('[data-store-item="shadow"]').getByRole("button", { name: /: manage Shadow$/ }).click();
     await page.getByRole("menuitem", { name: "Settings" }).click();
     // Its settings are drawn in its own frame.
     const settings = page.locator('[data-module-slot="settings"] [data-module="shadow"] iframe[data-module-frame="view"]');

@@ -1549,7 +1549,7 @@ export const settings = {
       hint: "If something misbehaves: inkledger reloads without them. Adding ?modules=off to the address does the same once.",
     },
     manage: {
-      open: "Manage {name} ({status})",
+      open: "{status}: manage {name}",
       licence: "Licence {id}, issued {date}",
       noLicence: "No licence on this server.",
       forever: "Valid for good on this server. It holds a hash of the email, never the email.",

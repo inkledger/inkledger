@@ -1675,7 +1675,7 @@ export const settings: Shape<typeof en> = {
       hint: "Se qualcosa non va: inkledger si ricarica senza moduli. Aggiungere ?modules=off all'indirizzo fa lo stesso una volta.",
     },
     manage: {
-      open: "Gestisci {name} ({status})",
+      open: "{status}: gestisci {name}",
       licence: "Licenza {id}, rilasciata il {date}",
       noLicence: "Nessuna licenza su questo server.",
       forever: "Valida per sempre su questo server. Contiene un'impronta dell'email, mai l'email.",

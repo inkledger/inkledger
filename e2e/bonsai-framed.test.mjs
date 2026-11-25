@@ -156,7 +156,7 @@ async function workWhileTracing(page) {
 /** The Store's settings for Bonsai, place chosen: in the page (v1) or in its frame (v2). */
 async function choosePlace(page, base, place, framed) {
   await page.goto(base + "/settings/store");
-  await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /^Manage Bonsai/ }).click();
+  await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /: manage Bonsai$/ }).click();
   await page.getByRole("menuitem", { name: "Settings" }).click();
   const scope = framed ? (await page.locator(`${SETTINGS_FRAME}[data-state="live"]`).waitFor(), await (await page.locator(SETTINGS_FRAME).elementHandle()).contentFrame()) : page.mainFrame();
   const radio = scope.locator(`input[type=radio][value="${place}"]:not([disabled])`);

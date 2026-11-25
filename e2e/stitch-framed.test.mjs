@@ -183,7 +183,7 @@ test("framed Stitch (v2): the card draws, the panel opens in the host's sheet, a
 
     // Its settings in the Store: the frame takes the height of what it holds, not a default.
     await page.goto(base + "/settings/store");
-    await page.locator('[data-store-item="stitch"]').getByRole("button", { name: /^Manage Stitch/ }).click();
+    await page.locator('[data-store-item="stitch"]').getByRole("button", { name: /: manage Stitch$/ }).click();
     await page.getByRole("menuitem", { name: "Settings" }).click();
     await page.locator(`${SETTINGS}[data-state="live"]`).waitFor();
     const settings = await (await page.locator(SETTINGS).elementHandle()).contentFrame();
