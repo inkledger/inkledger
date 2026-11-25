@@ -106,7 +106,8 @@ test("Reports on a phone sort too, and the count says what it counts", async () 
     const sortBy = page.getByRole("combobox", { name: "Sort by" });
     await sortBy.waitFor();
     await sortBy.selectOption({ label: "Hours, most first" });
-    const items = page.locator("main ul li");
+    // The rows' list, not the trend's legend above it.
+    const items = page.getByRole("list", { name: "Issue", exact: true }).getByRole("listitem");
     await items.first().waitFor();
     assert.match(await items.first().innerText(), /DEMO-102/, "most hours first");
     assert.match(await items.first().innerText(), /1 entry/, "the count says entries");
