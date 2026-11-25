@@ -127,3 +127,43 @@ export function toHslTriplet({ r, g, b }: Rgb): string {
 }
 
 export const WHITE: Rgb = { r: 1, g: 1, b: 1 };
+
+/** A colour vision deficiency, as a dichromat sees (Machado, Oliveira &amp; Fernandes 2009, severity 1). */
+export type Cvd = "protan" | "deutan" | "tritan";
+const MACHADO: Record<Cvd, number[][]> = {
+  protan: [
+    [0.152286, 1.052583, -0.204868],
+    [0.114503, 0.786281, 0.099216],
+    [-0.003882, -0.048116, 1.051998],
+  ],
+  deutan: [
+    [0.367322, 0.860646, -0.227968],
+    [0.280085, 0.672501, 0.047413],
+    [-0.01182, 0.04294, 0.968881],
+  ],
+  tritan: [
+    [1.255528, -0.076749, -0.178779],
+    [-0.078411, 0.930809, 0.147602],
+    [0.004733, 0.691367, 0.3039],
+  ],
+};
+
+/** How `cvd` sees a colour (none: as it is). */
+export function simulateCvd(c: Rgb, cvd?: Cvd): Rgb {
+  if (!cvd) return c;
+  const lin = [toLinear(c.r), toLinear(c.g), toLinear(c.b)];
+  const [r, g, b] = MACHADO[cvd].map(row => fromLinear(clamp01(row[0] * lin[0] + row[1] * lin[1] + row[2] * lin[2])));
+  return { r, g, b };
+}
+
+/** Distance of two colours in OKLab ×100 (≈ 2 is a just-noticeable step), as `cvd` sees them. */
+export function deltaE(a: Rgb, b: Rgb, cvd?: Cvd): number {
+  const lab = (c: Rgb) => {
+    const o = rgbToOklch(simulateCvd(c, cvd));
+    const rad = (o.h * Math.PI) / 180;
+    return [o.l, o.c * Math.cos(rad), o.c * Math.sin(rad)];
+  };
+  const x = lab(a);
+  const y = lab(b);
+  return 100 * Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+}

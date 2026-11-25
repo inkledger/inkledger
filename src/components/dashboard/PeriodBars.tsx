@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { usePendingSeconds } from "@/hooks/useTimers";
 import { useToday } from "@/hooks/useToday";
 import { dayKey, formatDurationLong } from "@contracts/time";
@@ -27,6 +28,10 @@ export function PeriodBars({
   compact = false,
   pending,
   parallel,
+  order,
+  nameOf = (part: string) => part,
+  partsLabel,
+  tooltips = false,
 }: {
   stacks: DayStack[];
   colorOf: (project: string) => ProjectColor;
@@ -44,7 +49,26 @@ export function PeriodBars({
    * it. Solid: worked with an issue timer; dashed: with none (no issue covers it).
    */
   parallel?: Map<string, { linked: number; gap: number }>;
+  /** A fixed stack order, bottom first (a legend's: touching series keep their palette order); default the busiest at the bottom */
+  order?: string[];
+  /** A part's name in the tooltip and the table (default: its key) */
+  nameOf?: (part: string) => string;
+  /** The table's column of the parts (default: projects) */
+  partsLabel?: string;
+  /** Each bar a focus stop with a tooltip of its parts (hover or focus) */
+  tooltips?: boolean;
 }) {
+  const [at, setAt] = useState<number | null>(null);
+  const rank = (p: string) => {
+    const i = order?.indexOf(p) ?? -1;
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const stacked = (parts: DayStack["parts"]) =>
+    parts.filter(p => p.seconds > 0).sort((a, b) => (order ? rank(a.project) - rank(b.project) : b.seconds - a.seconds));
+  const partsText = (parts: DayStack["parts"]) =>
+    stacked(parts)
+      .map(p => `${nameOf(p.project)} ${formatDurationLong(p.seconds)}`)
+      .join(", ");
   const today = dayKey(useToday());
   const live = usePendingSeconds(pending === true);
   const pendingSeconds = live?.pending ?? 0;
@@ -87,13 +111,26 @@ export function PeriodBars({
             return (
               <div
                 key={dayKey(s.day)}
-                title={`${dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)}: ${formatDurationLong(total)}${isToday && pendingSeconds >= 60 ? t("views.dashboard.bars.toLog", { duration: formatDurationLong(pendingSeconds) }) : ""}${besideText}`}
+                {...(tooltips
+                  ? {
+                      role: "img",
+                      tabIndex: 0,
+                      "aria-label": `${dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)}: ${formatDurationLong(total)}${total > 0 ? ` (${partsText(s.parts)})` : ""}`,
+                      onMouseEnter: () => setAt(i),
+                      onMouseLeave: () => setAt(null),
+                      onFocus: () => setAt(i),
+                      onBlur: () => setAt(null),
+                    }
+                  : {
+                      title: `${dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)}: ${formatDurationLong(total)}${isToday && pendingSeconds >= 60 ? t("views.dashboard.bars.toLog", { duration: formatDurationLong(pendingSeconds) }) : ""}${besideText}`,
+                    })}
                 // A day with no goal is see-through: glass, no shadow.
                 {...(target > 0 ? surface("bar") : surface("glass"))}
                 className={cn(
                   "relative h-full min-w-0 flex-1",
                   long ? "rounded-sm" : "rounded-md",
-                  target > 0 ? "bg-muted" : "bg-muted/60"
+                  target > 0 ? "bg-muted" : "bg-muted/60",
+                  tooltips && "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 )}
               >
                 <div className={cn("absolute inset-0 flex flex-col-reverse overflow-hidden", long ? "rounded-sm" : "rounded-md")}>
@@ -113,14 +150,13 @@ export function PeriodBars({
                       style={{ height: `${(pendingSeconds / max) * 100}%` }}
                     />
                   )}
-                  {s.parts
-                    .filter(p => p.seconds > 0)
-                    .sort((a, b) => b.seconds - a.seconds)
+                  {stacked(s.parts)
                     .map(p => (
                       <span
                         key={p.project}
                         className={cn(
-                          "w-full border-t border-background/70 first:border-t-0",
+                          // A 1px gap of the card's own colour between stacked series, at full strength.
+                          "w-full border-t border-card first:border-t-0",
                           colorOf(p.project).fill
                         )}
                         style={{ height: `${((sums[i] > total ? (p.seconds * total) / sums[i] : p.seconds) / max) * 100}%` }}
@@ -133,6 +169,27 @@ export function PeriodBars({
                     {beside.linked > 0 && <span className="w-full rounded-sm bg-foreground/35" style={{ height: `${(beside.linked / max) * 100}%` }} />}
                     {beside.gap > 0 && <span className="w-full rounded-sm border border-dashed border-primary-strong/70" style={{ height: `${(beside.gap / max) * 100}%` }} />}
                   </span>
+                )}
+                {tooltips && at === i && (
+                  <div
+                    {...surface("menu")}
+                    role="presentation"
+                    className={cn(
+                      "pointer-events-none absolute bottom-full z-20 mb-1 w-max max-w-[14rem] rounded-md border bg-popover px-2 py-1 text-caption text-popover-foreground",
+                      i < stacks.length / 3 ? "left-0" : i >= (stacks.length * 2) / 3 ? "right-0" : "left-1/2 -translate-x-1/2"
+                    )}
+                  >
+                    <div className="font-medium">
+                      {dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)} · <span className="tabular">{formatDurationLong(total)}</span>
+                    </div>
+                    {stacked(s.parts).map(p => (
+                      <div key={p.project} className="flex items-center gap-1.5">
+                        <span aria-hidden className={cn("h-2.5 w-2.5 shrink-0 rounded-sm", colorOf(p.project).fill)} />
+                        <span className="min-w-0 truncate">{nameOf(p.project)}</span>
+                        <span className="ml-auto pl-2 tabular">{formatDurationLong(p.seconds)}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             );
@@ -210,7 +267,7 @@ export function PeriodBars({
               <th scope="col">{t("views.dashboard.bars.logged")}</th>
               <th scope="col">{t("views.dashboard.bars.target")}</th>
               {pending && <th scope="col">{t("views.dashboard.bars.pending")}</th>}
-              <th scope="col">{t("views.dashboard.bars.projects")}</th>
+              <th scope="col">{partsLabel ?? t("views.dashboard.bars.projects")}</th>
               {parallel && <th scope="col">{t("views.dashboard.bars.todo")}</th>}
             </tr>
           </thead>
@@ -222,11 +279,7 @@ export function PeriodBars({
                 <td>{targets[i] > 0 ? formatDurationLong(targets[i]) : "—"}</td>
                 {pending && <td>{dayKey(s.day) === today && pendingSeconds > 0 ? formatDurationLong(pendingSeconds) : "—"}</td>}
                 <td>
-                  {s.parts
-                    .filter(p => p.seconds > 0)
-                    .sort((a, b) => b.seconds - a.seconds)
-                    .map(p => `${p.project} ${formatDurationLong(p.seconds)}`)
-                    .join(", ") || "—"}
+                  {partsText(s.parts) || "—"}
                 </td>
                 {parallel && <td>{besides[i] && besides[i].linked + besides[i].gap >= 60 ? formatDurationLong(besides[i].linked + besides[i].gap) : "—"}</td>}
               </tr>

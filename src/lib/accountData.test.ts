@@ -22,11 +22,12 @@ afterEach(() => {
 });
 
 describe("signing out", () => {
-  it("forgets what this device keeps of the account: timer notes, Desk folders, the pinboard's board, the first-tracker \"not now\"", async () => {
+  it("forgets what this device keeps of the account: timer notes, Desk folders, the pinboard's board, the first-tracker \"not now\", the charts' series colours", async () => {
     const storage = memoryStorage();
     storage.setItem("ikl.timerNote.3:APP-1", "half a note");
     storage.setItem("ikl-pinboard-board", "12");
     storage.setItem("ikl-first-tracker-skipped", "1");
+    storage.setItem("ikl-data-colours", JSON.stringify({ type: ["bug"] }));
     storage.setItem("ikl-note-draft:v1:7:new:a:b", "{}");
     const deleteDatabase = vi.fn();
     vi.stubGlobal("localStorage", storage);

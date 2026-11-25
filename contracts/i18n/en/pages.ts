@@ -103,6 +103,11 @@ export const pages = {
   },
   reports: {
     tabsLabel: "Report sections",
+    typesLegend: "Issue types",
+    typesColumn: "Issue types",
+    noType: "No type",
+    otherTypes: "Other types",
+    typeShare: "{duration} · {share}%",
     tabPeriod: "Period",
     accuracyScope: "The last 90 days, whatever the period and the search above.",
     accuracy: {

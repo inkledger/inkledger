@@ -26,6 +26,8 @@ import { Tabs, TabPanel } from "@/components/ui/tabs";
 import { ReportRows } from "@/components/reports/ReportRows";
 import { ReportDays } from "@/components/reports/ReportDays";
 import { PeriodPicker } from "@/components/reports/PeriodPicker";
+import { DataLegend } from "@/components/reports/DataLegend";
+import { typeSeries } from "@/components/reports/typeSeries";
 import {
   activePreset,
   presetRange,
@@ -58,8 +60,6 @@ const groupOptions = (): {
 
 
 type Tab = "period" | "accuracy" | "forecast";
-
-const CHART_COLOR = () => ({ fill: "bg-chart-focus", soft: "", solid: "", stroke: "" });
 
 export default function Reports() {
   const now = useToday();
@@ -117,6 +117,8 @@ export default function Reports() {
     { from, to, groupBy: "client", ...scope },
     { ...enabled, enabled: enabled.enabled && groupBy === "client" }
   );
+  // The trend's bars by issue type, and the colour each type wears on every row.
+  const byType = trpc.reports.types.useQuery({ from, to, ...scope }, enabled);
   const daily = trpc.reports.daily.useQuery(
     { from, to, ...scope },
     { enabled: rangeValid && groupBy === "days" }
@@ -142,13 +144,17 @@ export default function Reports() {
     return list;
   }, [from, to, rangeValid]);
 
+  const types = useMemo(() => typeSeries(byType.data?.types ?? []), [byType.data]);
   const stacks: DayStack[] = useMemo(() => {
-    const secs = new Map((byDay.data?.rows ?? []).map(r => [r.key, r.seconds]));
-    return days.map(day => ({
-      day,
-      parts: [{ project: "_", seconds: secs.get(dayKey(day)) ?? 0 }],
-    }));
-  }, [days, byDay.data]);
+    const byKey = new Map((byType.data?.days ?? []).map(d => [d.day, d]));
+    return days.map(day => {
+      const d = byKey.get(dayKey(day));
+      const parts = new Map<string, number>();
+      for (const p of d?.parts ?? []) parts.set(types.keyOf(p.type), (parts.get(types.keyOf(p.type)) ?? 0) + p.seconds);
+      // The bar is the hours worked (parallel work once); its types share it in proportion.
+      return { day, parts: [...parts].map(([project, seconds]) => ({ project, seconds })), worked: d?.seconds ?? 0 };
+    });
+  }, [days, byType.data, types]);
 
   const data = report.data;
   const workedDays = (byDay.data?.rows ?? []).filter(r => r.seconds > 0).length;
@@ -271,9 +277,9 @@ export default function Reports() {
     </>
   );
 
-  const failed = report.error ?? byDay.error ?? (groupBy === "days" ? daily.error : null);
+  const failed = report.error ?? byDay.error ?? byType.error ?? (groupBy === "days" ? daily.error : null);
   const loading =
-    report.isPending || byDay.isPending || (groupBy === "days" && daily.isPending);
+    report.isPending || byDay.isPending || byType.isPending || (groupBy === "days" && daily.isPending);
 
   const empty = !loading && data?.rows.length === 0;
   const stats: StatItem[] = !data
@@ -323,6 +329,7 @@ export default function Reports() {
               onRetry={() => {
                 void report.refetch();
                 void byDay.refetch();
+                void byType.refetch();
                 if (groupBy === "days") void daily.refetch();
               }}
             />
@@ -346,7 +353,19 @@ export default function Reports() {
               {loading ? (
                 <Skeleton className="h-52 rounded-xl" />
               ) : (
-                <PeriodBars stacks={stacks} colorOf={CHART_COLOR} targetFor={targetFor} dense={days.length > 10} />
+                <div className="grid gap-3">
+                  <PeriodBars
+                    stacks={stacks}
+                    colorOf={types.barColour}
+                    order={types.order}
+                    nameOf={types.nameOf}
+                    partsLabel={t("pages.reports.typesColumn")}
+                    tooltips
+                    targetFor={targetFor}
+                    dense={days.length > 10}
+                  />
+                  {types.legend.length > 0 && <DataLegend items={types.legend} label={t("pages.reports.typesLegend")} className="px-2" />}
+                </div>
               )}
             </PanelSection>
             <PanelSection
@@ -361,9 +380,9 @@ export default function Reports() {
                   ))}
                 </div>
               ) : groupBy === "days" ? (
-                <ReportDays days={daily.data?.days ?? []} issues={daily.data?.issues ?? []} targetFor={targetFor} />
+                <ReportDays days={daily.data?.days ?? []} issues={daily.data?.issues ?? []} targetFor={targetFor} types={types} />
               ) : (
-                <ReportRows key={groupBy} rows={data.rows} groupBy={groupBy} />
+                <ReportRows key={groupBy} rows={data.rows} groupBy={groupBy} types={types} />
               )}
             </PanelSection>
           </>

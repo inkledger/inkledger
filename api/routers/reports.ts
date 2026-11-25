@@ -72,6 +72,8 @@ type Row = {
   remoteId?: string | null;
   tracker?: string;
   container?: string;
+  /** An issue row: its type as the tracker names it ("Bug", "Attività"; "" when the issue isn't in the catalogue) */
+  issueType?: string;
 };
 
 /** The user's trackers by connection, as a report names them (its label, else its service). */
@@ -150,6 +152,7 @@ export const reportsRouter = createRouter({
             connectionId: sql<number | null>`max(${worklogs.connectionId})`,
             remoteId: sql<string | null>`max(${issues.remoteId})`,
             container: sql<string>`coalesce(max(${containers.key}), max(${worklogProjectKey}))`,
+            issueType: sql<string>`coalesce(max(${issues.issueType}), '')`,
           })
           .from(worklogs)
           .leftJoin(issues, issueOfWorklog)
@@ -172,6 +175,7 @@ export const reportsRouter = createRouter({
             remoteId: r.remoteId,
             tracker: r.connectionId !== null ? (names.get(r.connectionId) ?? "") : "",
             container: r.container,
+            issueType: r.issueType,
           })),
           ...hours,
           totalEntries: rows.reduce((a, r) => a + r.entries, 0),
@@ -248,6 +252,7 @@ export const reportsRouter = createRouter({
         connectionId: worklogs.connectionId,
         remoteId: issues.remoteId,
         container: sql<string>`coalesce(${containers.key}, ${worklogProjectKey})`,
+        issueType: sql<string>`coalesce(${issues.issueType}, '')`,
       })
       .from(worklogs)
       .leftJoin(issues, issueOfWorklog)
@@ -268,6 +273,7 @@ export const reportsRouter = createRouter({
         remoteId: w.remoteId,
         tracker: names.get(w.connectionId) ?? "",
         container: w.container,
+        issueType: w.issueType,
       };
       m.set(w.id, { ...r, seconds: r.seconds + w.seconds, entries: r.entries + 1 });
     };
@@ -300,6 +306,48 @@ export const reportsRouter = createRouter({
       ...hoursOf(logs),
       totalEntries: rangeIssues.reduce((a, r) => a + r.entries, 0),
       query: { unsupported: scoped.unsupported },
+    };
+  }),
+
+  /**
+   * A range's time by issue type: the types' totals (the busiest first) and, per day, the hours worked
+   * (parallel work once) with the logged time of each type (the trend's stacked bars). "" is an issue
+   * not in the catalogue, whose type isn't known.
+   */
+  types: protectedProcedure.input(rangeInput).query(async ({ ctx, input }) => {
+    const { from, to } = rangeOf(input);
+    const scoped = await worklogScope(ctx.user.id, ctx.deviceId, input);
+    const logs = await getDb()
+      .select({
+        started: worklogs.started,
+        seconds: worklogs.timeSpentSeconds,
+        issueType: sql<string>`coalesce(${issues.issueType}, '')`,
+      })
+      .from(worklogs)
+      .leftJoin(issues, issueOfWorklog)
+      .where(and(eq(worklogs.userId, ctx.user.id), gte(worklogs.started, from), lt(worklogs.started, to), ...scoped.where));
+    const totals = new Map<string, { seconds: number; entries: number }>();
+    const days = new Map<string, Map<string, number>>();
+    for (const w of logs) {
+      const type = w.issueType.trim();
+      const total = totals.get(type) ?? { seconds: 0, entries: 0 };
+      totals.set(type, { seconds: total.seconds + w.seconds, entries: total.entries + 1 });
+      const day = dayKey(w.started);
+      const parts = days.get(day) ?? new Map<string, number>();
+      days.set(day, parts.set(type, (parts.get(type) ?? 0) + w.seconds));
+    }
+    const worked = realSecondsByDay(logs.map((w) => ({ start: w.started, seconds: w.seconds })));
+    return {
+      types: [...totals.entries()]
+        .map(([type, v]) => ({ type, ...v }))
+        .sort((a, b) => b.seconds - a.seconds || a.type.localeCompare(b.type)),
+      days: [...days.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([day, parts]) => ({
+          day,
+          seconds: worked.get(day) ?? 0,
+          parts: [...parts.entries()].map(([type, seconds]) => ({ type, seconds })),
+        })),
     };
   }),
 });

@@ -78,6 +78,17 @@ module.exports = {
           5: token("project-5"),
           6: token("project-6"),
         },
+        // The categorical series colours, charts only (src/lib/dataColors.ts, docs/design-system.md §3.5).
+        data: {
+          1: token("data-1"),
+          2: token("data-2"),
+          3: token("data-3"),
+          4: token("data-4"),
+          5: token("data-5"),
+          6: token("data-6"),
+          7: token("data-7"),
+          8: token("data-8"),
+        },
         border: token("border"),
         input: token("input"),
         ring: token("ring"),

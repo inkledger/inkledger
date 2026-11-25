@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   contrast,
+  deltaE,
   oklchToRgb,
   parseHex,
   rgbToOklch,
@@ -19,8 +20,13 @@ import {
   THEME_PRESETS,
   CONTRAST_TARGETS,
   STATUS_TOKENS,
+  DATA_PALETTE_TOKENS,
+  DATA_STYLE,
   type ThemeLook,
 } from "./derive";
+
+/** Series colours tell series apart: they are exempt from the tone-on-tone and neutral rules (their own tests below). */
+const isData = (k: string) => (DATA_PALETTE_TOKENS as readonly string[]).includes(k);
 import { themeCss } from "./apply";
 
 const rgbOf = (triplet: string) => {
@@ -156,6 +162,7 @@ describe("derivePalette", () => {
       const { light, dark } = derivePalette(hex);
       for (const vars of [light, dark]) {
         for (const [k, v] of Object.entries(vars)) {
+          if (isData(k)) continue;
           const col = rgbToOklch(rgbOf(v));
           if (col.c < 0.03) continue; // hue of near-neutral greys is noise
           expect(drift(col.h, base.h), `${hex} ${k}`).toBeLessThanOrEqual(
@@ -177,6 +184,7 @@ describe("derivePalette", () => {
       const { light, dark } = derivePalette(hex);
       for (const vars of [light, dark]) {
         for (const [k, v] of Object.entries(vars)) {
+          if (isData(k)) continue;
           expect(chroma(v), `${hex} ${k}`).toBeLessThanOrEqual(baseC + noise);
         }
       }
@@ -317,7 +325,7 @@ describe("contrast matrix: every base colour × scheme × variant × contrast", 
           expect(chroma(vars["--primary"]), `${hex} ${lookName(look)} fill`).toBeLessThanOrEqual(PASTEL_FILL_C + 0.012);
           if (base.c < 0.04) continue;
           for (const [k, v] of Object.entries(vars)) {
-            if (status.has(k)) continue;
+            if (status.has(k) || isData(k)) continue;
             const col = rgbToOklch(rgbOf(v));
             if (col.c < 0.03) continue;
             expect(drift(col.h, base.h), `${hex} ${lookName(look)} ${k}`).toBeLessThanOrEqual(MAX_HUE_DRIFT + 4);
@@ -334,6 +342,82 @@ describe("contrast matrix: every base colour × scheme × variant × contrast", 
     expect(card(light["--card"]).h).toBeLessThan(100);
     expect(card(dark["--card"]).h).toBeGreaterThan(210);
     expect(card(dark["--card"]).h).toBeLessThan(260);
+  });
+});
+
+describe("data palette: series colours for every base colour × look × scheme", () => {
+  const bases = [...THEME_PRESETS.map(p => p.hex), ...EXTREMES, ...randomColours(40)];
+  const CVDS = ["protan", "deutan", "tritan"] as const;
+  /**
+   * OKLab ×100 between series that may touch: one or two slots apart (a period without the types between
+   * them). 6 under each colour blindness (the dataviz floor, legal with the secondary cues every chart has:
+   * a text legend, separators, textures in high contrast), 12 for normal vision.
+   */
+  const MIN_CVD_DE = 6;
+  const MIN_NORMAL_DE = 12;
+  const series = (vars: Record<string, string>) => DATA_PALETTE_TOKENS.map(k => rgbOf(vars[k]));
+
+  for (const look of LOOKS) {
+    it(`${lookName(look)}: 3:1 on the chart grounds, series one or two slots apart told apart under deuteranopia, protanopia and tritanopia`, () => {
+      const failures: string[] = [];
+      const min = look.contrast === "high" ? DATA_STYLE.high.contrast : 3;
+      for (const hex of bases) {
+        const pal = derivePalette(hex, look);
+        for (const mode of ["light", "dark"] as const) {
+          const v = pal[mode];
+          const cols = series(v);
+          for (const [i, col] of cols.entries()) {
+            for (const bg of ["--card", "--canvas", "--muted"]) {
+              const ratio = contrast(col, rgbOf(v[bg]));
+              if (ratio < min - 0.05) failures.push(`${hex} ${mode} --data-${i + 1} on ${bg} ${ratio.toFixed(2)}`);
+            }
+          }
+          for (const gap of [1, 2]) {
+            for (let i = gap; i < cols.length; i++) {
+              for (const cvd of CVDS) {
+                const d = deltaE(cols[i - gap], cols[i], cvd);
+                if (d < MIN_CVD_DE) failures.push(`${hex} ${mode} ${cvd} data-${i - gap + 1}/${i + 1} ΔE ${d.toFixed(1)}`);
+              }
+              const d = deltaE(cols[i - gap], cols[i]);
+              if (d < MIN_NORMAL_DE) failures.push(`${hex} ${mode} normal data-${i - gap + 1}/${i + 1} ΔE ${d.toFixed(1)}`);
+            }
+          }
+        }
+      }
+      expect(failures.slice(0, 20)).toEqual([]);
+    });
+  }
+
+  it("starts from the base hue, one chroma per look: calmer in soft, firmer in high contrast", () => {
+    const drift = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+    const chromaOf = (look: ThemeLook) => rgbToOklch(series(derivePalette("#2F5F98", look).light)[0]).c;
+    for (const hex of THEME_PRESETS.map(p => p.hex)) {
+      const first = rgbToOklch(rgbOf(derivePalette(hex).light["--data-1"]));
+      expect(drift(first.h, rgbToOklch(parseHex(hex)!).h), hex).toBeLessThan(4);
+    }
+    expect(chromaOf({ variant: "soft", contrast: "normal" })).toBeLessThan(chromaOf(LOOKS[0]));
+    expect(chromaOf({ variant: "standard", contrast: "high" })).toBeGreaterThan(chromaOf(LOOKS[0]));
+  });
+
+  it("a series keeps its hue in light and dark and in every look (a type never changes colour family)", () => {
+    const drift = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+    for (const hex of [...THEME_PRESETS.map(p => p.hex), "#808080"]) {
+      const ref = series(derivePalette(hex).light).map(c => rgbToOklch(c).h);
+      for (const look of LOOKS) {
+        const pal = derivePalette(hex, look);
+        for (const mode of ["light", "dark"] as const) {
+          series(pal[mode]).forEach((c, i) => expect(drift(rgbToOklch(c).h, ref[i]), `${hex} ${lookName(look)} ${mode} data-${i + 1}`).toBeLessThan(12));
+        }
+      }
+    }
+  });
+
+  it("gives a grey base eight distinct hues, not eight greys", () => {
+    for (const hex of ["#808080", "#000000", "#FFFFFF"]) {
+      const cols = series(derivePalette(hex).light).map(c => rgbToOklch(c));
+      expect(new Set(cols.map(c => Math.round(c.h / 10))).size, hex).toBe(8);
+      for (const c of cols) expect(c.c, hex).toBeGreaterThan(0.06);
+    }
   });
 });
 
