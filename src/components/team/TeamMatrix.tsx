@@ -104,7 +104,9 @@ const Row = memo(function Row({
         );
       })}
       <td className="z-[5] bg-card p-0 pl-3 sm:sticky sm:right-0">
-        <div className={cn("grid items-baseline justify-items-end gap-x-2 whitespace-nowrap", compare ? "grid-cols-[4rem_2.5rem] sm:grid-cols-[4rem_2.5rem_3.5rem]" : "grid-cols-[4rem_2.5rem]")}>
+        {/* The hours take what the longest needs (the column is the table's, so every row alike): a fixed
+            4rem let "158 h 30 min" run left over the last day's cells. */}
+        <div className={cn("grid w-full items-baseline justify-items-end gap-x-2 whitespace-nowrap", compare ? "grid-cols-[minmax(max-content,1fr)_3rem] sm:grid-cols-[minmax(max-content,1fr)_3rem_4.5rem]" : "grid-cols-[minmax(max-content,1fr)_3rem]")}>
           <span className="text-body-sm font-semibold tabular">{formatDurationLong(p.loggedSeconds)}</span>
           <span className="text-caption text-muted-foreground tabular">{p.coverage === null ? "—" : percent(p.coverage)}</span>
           {compare && <Delta value={row.delta} className="max-sm:hidden" />}
