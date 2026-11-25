@@ -20,7 +20,9 @@ export function ScopePicker<T extends string>({ label, value, options, onChange 
     <div
       role="radiogroup"
       aria-label={label}
-      className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+      // Tiles as wide as their name, growing to fill the row and wrapping whole when the pane is narrow
+      // (four fixed columns in a narrow settings pane broke "Dashboard" into "Dash/board").
+      className="flex flex-wrap gap-2"
       onKeyDown={event => {
         const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : event.key === "Home" ? "first" : event.key === "End" ? "last" : null;
         if (step === null) return;
@@ -42,12 +44,12 @@ export function ScopePicker<T extends string>({ label, value, options, onChange 
             onClick={() => onChange(option.value)}
             {...surface("control", { on: checked })}
             className={cn(
-              "flex min-h-touch min-w-0 items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-body-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              "flex min-h-touch min-w-0 max-w-full flex-[1_1_auto] items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-body-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
               checked ? "border-primary-strong/50 bg-primary-soft font-medium text-foreground" : "bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >
             <FrameIcon frame={option.frame} on={checked} />
-            <span className="min-w-0 [overflow-wrap:anywhere]">{option.label}</span>
+            <span className="min-w-0">{option.label}</span>
           </button>
         );
       })}

@@ -27,7 +27,7 @@ export function NoteTrash() {
         title={t("pages.notes.trash")}
         description={t("pages.notes.trashDescription")}
         actions={
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline">
             <Link to="/notes">
               <ChevronLeft />
               {t("pages.notes.backToNotes")}

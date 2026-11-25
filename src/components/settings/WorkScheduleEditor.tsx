@@ -203,7 +203,8 @@ export function WorkScheduleEditor() {
                 key={days[i]}
                 className={cn(
                   // A phone: the day and its total on top, its times a whole line below (a 12 h locale is wider).
-                  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-lg px-2 py-2 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto]",
+                  // The day's column holds its switch and name (3.5rem let "Dom" run over "Non lavorativo").
+                  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-lg px-2 py-2 sm:grid-cols-[minmax(5rem,max-content)_minmax(0,1fr)_auto]",
                   !d.enabled && "text-muted-foreground"
                 )}
               >

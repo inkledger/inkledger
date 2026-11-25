@@ -166,7 +166,7 @@ function Grid({ days, todayKey, targetFor, locked, selected, busy, onToggle, onT
               const today = day.key === todayKey;
               return (
                 <td key={day.key} className={cn("px-1 pt-2 align-top", today && "rounded-b-lg bg-primary-soft pb-1.5")}>
-                  <span className="block whitespace-nowrap text-center font-semibold tabular">{dayTotals[d] > 0 ? formatSeconds(dayTotals[d], { days: false }) : "–"}</span>
+                  <span className="block text-center font-semibold leading-tight tabular">{dayTotals[d] > 0 ? formatSeconds(dayTotals[d], { days: false }) : "–"}</span>
                   {target > 0 && <Meter value={dayTotals[d]} max={Math.max(target, dayTotals[d], 1)} size="xs" tone={goalTone(pct)} label={t("views.timesheet.week.goalOf", { label })} valueNow={pct} className="mt-1" />}
                   {!locked && (
                     <span className="mt-1 flex flex-wrap justify-center">
@@ -366,8 +366,9 @@ function DayStrip({ days, byDay, todayKey, targetFor, locked, selected, busy, on
               )}
             >
               <span className={cn("capitalize", today && "font-semibold text-foreground")}>{weekday().format(d.date)}</span>
-              {/* The short form ("5h 10m"): seven days across a phone. */}
-              <span className="whitespace-nowrap font-semibold tabular">{(dayTotals[i] ?? 0) > 0 ? formatSeconds(dayTotals[i], { days: false }) : "–"}</span>
+              {/* The short form ("5h 10m"): seven days across a phone; on the narrowest, hours over minutes
+                  (nowrap ran "5h 30m" past its tile). */}
+              <span className="text-center font-semibold leading-tight tabular">{(dayTotals[i] ?? 0) > 0 ? formatSeconds(dayTotals[i], { days: false }) : "–"}</span>
             </button>
           );
         })}

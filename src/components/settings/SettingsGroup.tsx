@@ -135,11 +135,13 @@ export function SettingsRow({
         "flex gap-2 border-b py-3 first:pt-0 last:border-b-0 last:pb-0",
         inline
           ? "items-center justify-between gap-4"
-          : "flex-col sm:flex-row sm:items-center sm:justify-between sm:gap-6",
+          : // The control goes under the label when both do not fit side by side (by the row's own width, not
+            // the window's): beside three look tiles a hint was squeezed to a word per line.
+            "flex-wrap items-center justify-between gap-x-6",
         className
       )}
     >
-      <div className="min-w-0">
+      <div className={cn("min-w-0", !inline && "flex-[1_1_16rem]")}>
         {htmlFor ? (
           <label htmlFor={htmlFor} className="font-medium">
             {label}
@@ -149,7 +151,7 @@ export function SettingsRow({
         )}
         {hint && <p className="text-caption text-muted-foreground">{hint}</p>}
       </div>
-      {children && <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>}
+      {children && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{children}</div>}
     </div>
   );
 }
