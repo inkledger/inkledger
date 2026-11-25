@@ -319,6 +319,19 @@ describe("contrast matrix: every base colour × scheme × variant × contrast", 
 });
 
 describe("static fallback tokens", () => {
+  it("the browser bar and the PWA splash use the default canvas (light and dark)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const read = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
+    const p = derivePalette(DEFAULT_BASE);
+    const light = toHex(rgbOf(p.light["--canvas"]));
+    const dark = toHex(rgbOf(p.dark["--canvas"]));
+    const html = read("../../../index.html");
+    expect(html).toContain(`<meta name="theme-color" content="${light}" media="(prefers-color-scheme: light)" />`);
+    expect(html).toContain(`<meta name="theme-color" content="${dark}" media="(prefers-color-scheme: dark)" />`);
+    const manifest = JSON.parse(read("../../../public/manifest.webmanifest")) as { background_color: string; theme_color: string };
+    expect([manifest.background_color, manifest.theme_color]).toEqual([light, light]);
+  });
+
   it("index.css defaults equal the derived default palette (no flash on first load)", async () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(
