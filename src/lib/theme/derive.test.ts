@@ -277,6 +277,25 @@ describe("contrast matrix: every base colour × scheme × variant × contrast", 
     expect(failures.slice(0, 20)).toEqual([]);
   });
 
+  it("the covers' ink (banner initials) reads on every cover stop, in every look", () => {
+    const failures: string[] = [];
+    const stops = [0, 1, 2, 3, 4, 5].flatMap(i => ["a", "b", "c", "bg"].map(s => `--cover-${i}-${s}`));
+    for (const look of LOOKS) {
+      const target = CONTRAST_TARGETS[look.contrast].text;
+      for (const hex of bases) {
+        const pal = derivePalette(hex, look);
+        for (const mode of ["light", "dark"] as const) {
+          const v = pal[mode];
+          for (const stop of stops) {
+            const ratio = contrast(rgbOf(v["--cover-ink"]), rgbOf(v[stop]));
+            if (ratio < target - 0.05) failures.push(`${hex} ${lookName(look)} ${mode} ${stop} ${ratio.toFixed(2)} < ${target}`);
+          }
+        }
+      }
+    }
+    expect(failures.slice(0, 20)).toEqual([]);
+  });
+
   it("high contrast promises AAA, soft never falls under AA", () => {
     // With the 0.05 the matrix allows for rounding, each target still lands on or over the promise.
     expect(CONTRAST_TARGETS.high.text - 0.05).toBeGreaterThanOrEqual(7);

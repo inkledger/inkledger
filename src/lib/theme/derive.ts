@@ -316,6 +316,9 @@ function deriveStandard(baseHex: string): Palette {
     [6, -8, 0],
     [10, 2, -10],
   ];
+  // Dark covers are a dusk too, with a pale ink: mid-tone tiles left the banner
+  // initials near 3.8:1 with either a dark or a pale ink.
+  const coverStops: { light: Oklch[]; dark: Oklch[] } = { light: [], dark: [] };
   offsets.forEach(([a, b, d], i) => {
     const stops: [string, Oklch][] = [
       [`--cover-${i}-a`, { l: 0.8 + (i % 3) * 0.03, c: deco(0.075), h: h + a }],
@@ -324,8 +327,11 @@ function deriveStandard(baseHex: string): Palette {
       [`--cover-${i}-bg`, { l: 0.89, c: deco(0.045), h }],
     ];
     for (const [name, col] of stops) {
+      const night = { ...col, l: col.l - 0.42, c: col.c * 0.7 };
       light[name] = tone(col);
-      dark[name] = tone({ ...col, l: col.l - 0.24, c: col.c * 0.7 });
+      dark[name] = tone(night);
+      coverStops.light.push(col);
+      coverStops.dark.push(night);
     }
   });
   // Pastel "dawn" band (reference sunset, softened): light stops, dark title ink.
@@ -347,6 +353,8 @@ function deriveStandard(baseHex: string): Palette {
   const titleOn = (cols: Oklch[], dark: boolean, chroma: number) =>
     tone({ l: solveAgainst(h, limit(chroma), band(cols), CONTRAST_TARGETS.normal.text, dark ? 0.95 : 0.3, dark ? 1 : 0), c: chroma, h });
   light["--cover-title"] = titleOn(sunset.map(([, col]) => col), false, textC * 0.8);
+  light["--cover-ink"] = titleOn(coverStops.light, false, 0.035);
+  dark["--cover-ink"] = titleOn(coverStops.dark, true, 0.03);
   dark["--cover-title"] = titleOn(sunset.map(([, col]) => dusk(col)), true, textC * 0.35);
 
   return { light, dark, base: baseHex.toUpperCase() };
@@ -504,6 +512,15 @@ function deriveLook(baseHex: string, standard: Palette, look: ThemeLook): Palett
       if (dark) stops.forEach((col, i) => (vars[`--sunset-${i + 1}`] = T(col)));
       const titleC = dark ? textC * 0.3 : textC * 0.6;
       vars["--cover-title"] = T({ l: solveAgainst(h, limit(titleC), stops.map(rgb), target.text, dark ? 0.97 : 0.2, dark ? 1 : 0), c: titleC, h });
+      // The covers' ink (banner initials) likewise reaches AAA on every cover stop.
+      const coverNames = [0, 1, 2, 3, 4, 5].flatMap(i => ["a", "b", "c", "bg"].map(s => `--cover-${i}-${s}`));
+      const tiles = coverNames.map(name => {
+        const was = rgbToOklch(parseTriplet(from[name]));
+        return dark ? { ...was, l: was.l - 0.1 } : was;
+      });
+      if (dark) tiles.forEach((col, i) => (vars[coverNames[i]] = T(col)));
+      const inkC = dark ? 0.03 : 0.035;
+      vars["--cover-ink"] = T({ l: solveAgainst(h, limit(inkC), tiles.map(rgb), target.text, dark ? 0.97 : 0.2, dark ? 1 : 0), c: inkC, h });
     }
     // State colours: text on its soft fill and on every surface, at this level's target.
     for (const [name, hue] of Object.entries(STATUS_HUES)) {
