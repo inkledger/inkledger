@@ -32,7 +32,10 @@ export function TrackerSearchPanel({ initialQuery = "" }: { initialQuery?: strin
   const utils = trpc.useUtils();
   const invalidateIssues = useInvalidateIssues();
   // What the local search already holds: the trackers are asked the same at once, no typing it again.
-  const [input, setInput] = useState(initialQuery);
+  // Followed until typed here: opened in the same moment the local search is typed, it would
+  // otherwise keep the text from before (the page's URL state lands a render later).
+  const [typed, setInput] = useState<string | null>(null);
+  const input = typed ?? initialQuery;
   const query = useDebouncedValue(input.trim(), 300);
   const enabled = query.length >= 2;
   // One question per tracker: each answer shows as it arrives.
