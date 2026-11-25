@@ -104,6 +104,8 @@ function readTheme(night = true): ThemeStateV2 {
   ) as ThemeState["tokens"];
   return {
     mode: root.classList.contains("dark") ? "dark" : "light",
+    contrast: root.dataset.contrast === "high" ? "high" : "normal",
+    variant: root.dataset.variant === "soft" ? "soft" : "standard",
     reducedMotion: prefersReducedMotion(),
     tokens,
     night,
@@ -235,7 +237,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
   }, 60_000);
 
   const themeObserver = new MutationObserver(() => theme.set(readTheme(nightOf())));
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-contrast", "data-variant", "data-theme-base"] });
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const onMotion = () => theme.set(readTheme(nightOf()));
   motion.addEventListener("change", onMotion);

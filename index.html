@@ -58,6 +58,19 @@
         root.classList.add(dark ? "dark" : "light");
         root.style.colorScheme = dark ? "dark" : "light";
       } catch (e) {}
+      // Variant and contrast (Settings → Appearance) before first paint; "system" contrast
+      // follows prefers-contrast, so a new device already gets high contrast when asked.
+      try {
+        var look = null;
+        try {
+          look = JSON.parse(localStorage.getItem("ikl-appearance") || "null");
+        } catch (e) {}
+        var el = document.documentElement;
+        el.dataset.variant = look && look.variant === "soft" ? "soft" : "standard";
+        var c = look && (look.contrast === "high" || look.contrast === "normal") ? look.contrast : "system";
+        if (c === "system") c = window.matchMedia("(prefers-contrast: more)").matches ? "high" : "normal";
+        el.dataset.contrast = c;
+      } catch (e) {}
     </script>
   </head>
   <body>

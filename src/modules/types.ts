@@ -25,6 +25,10 @@ export type ThemeState = {
   /** Resolved CSS colors of the design tokens. */
   /** CSS colours; `ring` is the focus outline colour. */
   tokens: Record<"primary" | "foreground" | "muted" | "card" | "border" | "background" | "ring", string>;
+  /** High contrast is on (Settings → Appearance or the system's): marks and text need their full strength. Optional: older hosts don't say. */
+  contrast?: "normal" | "high";
+  /** The palette's family: "soft" is the low-glare parchment/slate one. Optional: older hosts don't say. */
+  variant?: "standard" | "soft";
   /** The person wants night on the Dashboard (Settings → Appearance). Optional: older hosts don't say. */
   night?: boolean;
   /**

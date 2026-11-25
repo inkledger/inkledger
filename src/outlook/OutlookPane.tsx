@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { applyTheme } from "@/lib/theme/apply";
+import { applyTheme, appearancePrefs } from "@/lib/theme/apply";
 import { DueSelect } from "@/components/mail/DueSelect";
 import { dueOnOf, type Due } from "@/components/mail/due";
 import { cn } from "@/lib/utils";
@@ -164,9 +164,9 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
 
   // The user's theme colour; and a pinned pane follows the mail selected.
   useEffect(() => {
-    const me = call<{ themeColor: string; mailCopies: "off" | "body" | "full" }>("GET", "me");
+    const me = call<{ themeColor: string; themeVariant?: string; themeContrast?: string; mailCopies: "off" | "body" | "full" }>("GET", "me");
     copies.current = me.then(answer => answer.mailCopies, () => "off" as const);
-    me.then(answer => applyTheme(answer.themeColor, false), onFailed);
+    me.then(answer => applyTheme(answer.themeColor, false, appearancePrefs(answer.themeVariant, answer.themeContrast)), onFailed);
     onMailChanged(() => {
       setMail(openMail());
       onStatus(null);

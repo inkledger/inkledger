@@ -1,6 +1,6 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { trpc } from "@/lib/trpc";
-import { applyTheme } from "@/lib/theme/apply";
+import { appearancePrefs, applyTheme, watchSystemContrast, type AppearancePrefs } from "@/lib/theme/apply";
 import { DEFAULT_BASE } from "@/lib/theme/derive";
 
 // Unsaved colour being tried in Settings (null = use the saved one).
@@ -39,11 +39,21 @@ export function useThemeColor() {
   };
 }
 
-/** Keeps the document palette in sync with the saved colour or the live preview. */
+/** The saved variant and contrast (Settings → Appearance). */
+export function useAppearancePrefs(): AppearancePrefs {
+  const data = trpc.settings.get.useQuery(undefined, { staleTime: 60_000 }).data;
+  const { variant, contrast } = appearancePrefs(data?.themeVariant, data?.themeContrast);
+  return useMemo(() => ({ variant, contrast }), [variant, contrast]);
+}
+
+/** Keeps the document palette in sync with the saved colour and look, or the live preview. */
 export function useThemeSync() {
   const { current, previewing, loaded } = useThemeColor();
+  const prefs = useAppearancePrefs();
   useEffect(() => {
     // Only cache what is saved; previews are transient.
-    if (loaded || previewing) applyTheme(current, !previewing);
-  }, [current, previewing, loaded]);
+    if (loaded || previewing) applyTheme(current, !previewing, prefs);
+  }, [current, previewing, loaded, prefs]);
+  // "Follow the system": the system's contrast setting can change while the app is open.
+  useEffect(() => (loaded ? watchSystemContrast(prefs.contrast) : undefined), [loaded, prefs.contrast]);
 }

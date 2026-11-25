@@ -191,9 +191,9 @@ export function registerOutlookRoutes(app: Hono<{ Bindings: HttpBindings }>) {
   /** The key works; the pane takes the user's theme colour. */
   app.get(`${BASE}/me`, c =>
     asKeyOwner(c, async (_caller, user) => {
-      const [s] = await getDb().select({ themeColor: settings.themeColor }).from(settings).where(eq(settings.userId, user.id));
+      const [s] = await getDb().select({ themeColor: settings.themeColor, themeVariant: settings.themeVariant, themeContrast: settings.themeContrast }).from(settings).where(eq(settings.userId, user.id));
       // Whether the pane sends the open mail's copy after a pin (docs/work/ideas/mail-copies.md R-1.6).
-      return { themeColor: s?.themeColor ?? "#B5562F", mailCopies: await copyMode(user.id) };
+      return { themeColor: s?.themeColor ?? "#B5562F", themeVariant: s?.themeVariant ?? "standard", themeContrast: s?.themeContrast ?? "system", mailCopies: await copyMode(user.id) };
     }),
   );
   app.get(`${BASE}/issues`, c =>

@@ -91,9 +91,9 @@ const wrap = (h: number) => ((h % 360) + 360) % 360;
  */
 export const CONTRAST_TARGETS: Record<ThemeContrast, { text: number; muted: number; ui: number }> = {
   normal: { text: MIN_CONTRAST, muted: MIN_CONTRAST, ui: 3 },
-  // AAA: text 7:1 (muted text is promised 4.5:1 and delivered at 7:1, so axe's enhanced check
-  // passes too), every mark 3:1.
-  high: { text: 7.1, muted: 7.1, ui: 3.1 },
+  // AAA: text 7:1; muted text is promised 4.5:1 and delivered above 7:1 (clearly firmer than
+  // standard, and axe's enhanced check passes too); every mark 3:1.
+  high: { text: 7.1, muted: 8.5, ui: 3.1 },
 };
 /** The soft variant's surfaces: parchment (light) and blue slate (dark), leaning ≤ 12° towards the base. */
 export const SOFT_PAPER_H = 82;
