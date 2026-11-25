@@ -487,7 +487,7 @@ export const pages: Shape<(typeof en)["pages"]> = {
     typesLegend: "Tipi di issue",
     typesColumn: "Tipi di issue",
     noType: "Senza tipo",
-    otherTypes: "Altri tipi",
+    otherTypes: "Altro",
     typeShare: "{duration} · {share}%",
     tabPeriod: "Periodo",
     accuracyScope: "Gli ultimi 90 giorni, qualunque siano il periodo e la ricerca sopra.",

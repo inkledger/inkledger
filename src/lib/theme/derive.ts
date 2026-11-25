@@ -1,7 +1,6 @@
 import { t } from "@contracts/i18n";
 import {
   contrast,
-  deltaE,
   oklchToRgb,
   parseHex,
   rgbToOklch,
@@ -104,124 +103,45 @@ export const SOFT_SURFACE_C = 0.026;
 
 const tri = (c: Oklch) => toHslTriplet(oklchToRgb({ ...c, h: wrap(c.h) }));
 
-/** The categorical data palette: eight series colours, for charts only (docs/design-system.md §3.5). */
-export const DATA_COUNT = 8;
-export const DATA_PALETTE_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-${i + 1}`);
 /**
- * Each series' 1px outline (WCAG 1.4.11): a series under the look's contrast on the chart's grounds
- * wears a tone of itself that reaches it; one that already reaches it wears its own colour (no visible line).
+ * The tones of a chart split by issue type (docs/design-system.md §3.5): `--chart-focus` is the first,
+ * `--chart-tone-2..5` are lightness steps of the same hue and chroma. The steps sit on a grid of
+ * `CHART_TONE_STEP_L` from chart-focus: away from the ground first (in light it's pale, so the others are
+ * deeper), towards it when the band runs out, skipping a step that would land on "Other"
+ * (`--chart-other`, the neutral). Stack order: neighbours two or more steps apart; any two at least one.
  */
-export const DATA_EDGE_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-edge-${i + 1}`);
-/**
- * The two neutrals of a series chart, never a hue (a hue always means a real category): "No type" and
- * "Other" (past the eighth). Greys placed where they stand furthest from all eight series: "No type" next
- * to the ground (a near-hollow segment, outlined), "Other" in the ladder's widest gap.
- */
-export const DATA_NEUTRAL_TOKENS = ["--data-none", "--data-other", "--data-edge-none", "--data-edge-other"];
-/** The ink of each series' high-contrast texture: the card or a near-ink tone, whichever stands out more on it. */
-export const DATA_MARK_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-mark-${i + 1}`);
-/**
- * Per look: the chroma of a full-strength series (calmer in soft, firmer in high contrast, where textures
- * help too) and the contrast a series or its outline reaches on the chart's grounds (card, canvas, the
- * bars' muted track).
- */
-export const DATA_STYLE: Record<"standard" | "soft" | "high", { c: number; contrast: number }> = {
-  standard: { c: 0.095, contrast: 3.1 },
-  soft: { c: 0.075, contrast: 3.1 },
-  // High contrast: firmer chroma and textures; 3:1 like the others (the bands leave no room for more).
-  high: { c: 0.12, contrast: 3.1 },
-};
-/**
- * The eight series: one family around the base hue, told apart by lightness first. `dh`: degrees from the
- * base along the warm arc (negative: the step back); `c`: share of the look's chroma; `dl`: lightness
- * from the series that just reaches the look's contrast (positive: lighter). Neighbours differ by ≥ 0.08
- * in lightness, alternating light and dark. On terracotta: terracotta, light sand, dark olive, dusty rose,
- * warm slate, muted sage, deep clay, sage-teal; on another base the arc moves with it.
- */
-export const DATA_SERIES: readonly { dh: number; c: number; dl: number }[] = [
-  { dh: 0, c: 1, dl: 0 },
-  { dh: 41, c: 0.65, dl: 0.2 },
-  { dh: 62, c: 0.61, dl: -0.226 },
-  { dh: -21, c: 0.62, dl: 0.087 },
-  { dh: 192, c: 0.26, dl: -0.128 },
-  { dh: 90, c: 0.39, dl: 0.199 },
-  { dh: 15, c: 0.59, dl: -0.223 },
-  { dh: 130, c: 0.39, dl: 0.059 },
-];
-/** The lightness band of the series: light never near-black (heavy), dark never near-white (glare). */
-const DATA_LIGHT_BAND = [0.42, 0.86] as const;
-const DATA_DARK_BAND = [0.45, 0.82] as const;
-/** Floor for the muted companions: below it a hue is noise and drifts between looks. */
-const DATA_MIN_C = 0.03;
-/** A grey base has no hue to start from: a warm one, like the default. */
-const DATA_NEUTRAL_H = 45;
+export const CHART_TONE_TOKENS = [2, 3, 4, 5].map(i => `--chart-tone-${i}`);
+/** One step: series that touch in a stack (any two, when a type has no hours that day) differ by this much. */
+export const CHART_TONE_STEP_L = 0.08;
+/** Never near-black (heavy) nor near-white (glare). */
+export const CHART_TONE_BAND = [0.3, 0.9] as const;
+/** A tone closer than this in lightness to "Other" would pass for it. */
+const OTHER_GAP_L = 0.06;
+/** The stack order of five tones sorted by lightness, by chart-focus's place among them (first in each). */
+const TONE_ORDERS = [
+  [0, 3, 1, 4, 2],
+  [1, 3, 0, 4, 2],
+  [2, 0, 3, 1, 4],
+  [3, 1, 4, 0, 2],
+  [4, 1, 3, 0, 2],
+] as const;
 
-/**
- * The warm arc's direction from the base: from red-violet to ochre the family steps up towards ochre and
- * olive; from olive to violet it steps down, through teal and sage, never across violet and magenta.
- */
-const arcDirection = (h0: number) => (wrap(h0) >= 100 && wrap(h0) < 320 ? -1 : 1);
-
-/**
- * The series colours (`DATA_SERIES`) for one look and scheme, and their outlines. Cool hues are calmer at
- * the same chroma (equal OKLCH chroma reads as louder there), and a muted base keeps a muted family.
- */
-function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: number; contrast: number }): ThemeVars {
-  const grey = base.c < NEUTRAL_C;
-  const h0 = grey ? DATA_NEUTRAL_H : base.h;
-  const dir = arcDirection(h0);
-  const mute = grey ? 1 : Math.min(1, Math.max(0.6, base.c / 0.08));
-  const cols = DATA_SERIES.map(s => {
-    const h = wrap(h0 + dir * s.dh);
-    const cool = h > 170 && h < 300 ? 0.75 : 1;
-    return { h, c: Math.max(DATA_MIN_C, style.c * s.c * cool * mute), dl: s.dl };
-  });
-  // The anchor: the lightness at which every series reaches the contrast (the hardest decides).
-  const solved = cols.map(col => solveAgainst(col.h, col.c, grounds, style.contrast, dark ? 0.3 : 0.85, dark ? 1 : 0));
+/** The four tones after chart-focus, from its colour and Other's. */
+function chartTones(focusTriplet: string, otherTriplet: string, dark: boolean): ThemeVars {
+  const focus = rgbToOklch(parseTriplet(focusTriplet));
+  const otherL = rgbToOklch(parseTriplet(otherTriplet)).l;
+  const away = dark ? 1 : -1;
+  const [lo, hi] = CHART_TONE_BAND;
+  const inBand = (l: number) => l >= lo - 1e-9 && l <= hi + 1e-9;
+  const grid = [1, 2, 3, 4, 5, 6, 7, 8].map(n => focus.l + away * n * CHART_TONE_STEP_L).filter(inBand);
+  const back = [1, 2, 3, 4, 5, 6, 7, 8].map(n => focus.l - away * n * CHART_TONE_STEP_L).filter(inBand);
+  const others = [...grid, ...back].filter(l => Math.abs(l - otherL) >= OTHER_GAP_L).slice(0, 4);
+  const ls = [focus.l, ...others].sort((a, b) => a - b);
+  const order = TONE_ORDERS[ls.indexOf(focus.l)];
   const vars: ThemeVars = {};
-  const dls = DATA_SERIES.map(s => s.dl);
-  const [lo, hi] = [Math.min(...dls), Math.max(...dls)];
-  // Light: the base at the contrast, the light series above it (outlined), the dark ones below.
-  // Dark: from a little under the contrast (the deepest outlined) up to a pale top, squeezed if needed.
-  const lightness = (dl: number) => {
-    if (!dark) {
-      // Light: the base on the contrast line, the ladder squeezed (if needed) into the light band.
-      const at = Math.min(...solved);
-      const k = Math.min(1, (at - DATA_LIGHT_BAND[0]) / -lo, (DATA_LIGHT_BAND[1] - at) / hi);
-      return at + k * dl;
-    }
-    // Dark: the ladder spread over the dark band, never near-white (glare) nor near the ground.
-    return DATA_DARK_BAND[0] + ((dl - lo) / (hi - lo)) * (DATA_DARK_BAND[1] - DATA_DARK_BAND[0]);
-  };
-  cols.forEach((col, i) => {
-    const fill = { l: lightness(col.dl), c: col.c, h: col.h };
-    const edgeL = solveAgainst(col.h, col.c, grounds, style.contrast, fill.l, dark ? 1 : 0);
-    vars[`--data-${i + 1}`] = tri(fill);
-    vars[`--data-edge-${i + 1}`] = tri({ ...fill, l: edgeL });
-    const rgbFill = oklchToRgb(fill);
-    const ink = oklchToRgb({ l: dark ? 0.95 : 0.22, c: Math.min(col.c, 0.02), h: col.h });
-    vars[`--data-mark-${i + 1}`] = toHslTriplet(contrast(ink, rgbFill) > contrast(grounds[0], rgbFill) ? ink : grounds[0]);
+  order.slice(1).forEach((k, i) => {
+    vars[CHART_TONE_TOKENS[i]] = tri({ ...focus, l: ls[k] ?? focus.l });
   });
-  // The neutrals: the grey lightness furthest from every series (normal vision asked more of), on a grid.
-  const fills = cols.map(col => oklchToRgb({ l: lightness(col.dl), c: col.c, h: col.h }));
-  const neutral = (l: number) => ({ l, c: 0.006, h: h0 });
-  const apart = (l: number) =>
-    Math.min(...fills.map(f => Math.min(deltaE(oklchToRgb(neutral(l)), f) / 1.6, deltaE(oklchToRgb(neutral(l)), f, "protan"), deltaE(oklchToRgb(neutral(l)), f, "deutan"), deltaE(oklchToRgb(neutral(l)), f, "tritan"))));
-  const furthest = (from: number, to: number, skip: (l: number) => boolean) => {
-    let best = from;
-    let score = -1;
-    for (let l = from; l <= to + 1e-9; l += 0.01) {
-      const s = skip(l) ? -1 : apart(l);
-      if (s > score) [best, score] = [l, s];
-    }
-    return best;
-  };
-  const noneL = dark ? furthest(0.26, 0.36, () => false) : furthest(0.9, 0.96, () => false);
-  const otherL = furthest(0.3, 0.92, l => Math.abs(l - noneL) < 0.12);
-  for (const [name, l] of [["none", noneL], ["other", otherL]] as const) {
-    vars[`--data-${name}`] = tri(neutral(l));
-    vars[`--data-edge-${name}`] = tri(neutral(solveAgainst(h0, 0.006, grounds, style.contrast, l, dark ? 1 : 0)));
-  }
   return vars;
 }
 
@@ -256,13 +176,12 @@ function solveLightness(
  */
 export function derivePalette(baseHex: string, look: ThemeLook = STANDARD_LOOK): Palette {
   const plain = look.variant === "standard" && look.contrast === "normal";
-  // Another look solves its own series colours: the standard ones would be thrown away.
-  const standard = deriveStandard(baseHex, plain);
+  const standard = deriveStandard(baseHex);
   if (plain) return standard;
   return deriveLook(baseHex, standard, look);
 }
 
-function deriveStandard(baseHex: string, withData = true): Palette {
+function deriveStandard(baseHex: string): Palette {
   const rgb = parseHex(baseHex) ?? parseHex(DEFAULT_BASE)!;
   const base = rgbToOklch(rgb);
   const h = base.h;
@@ -481,12 +400,9 @@ function deriveStandard(baseHex: string, withData = true): Palette {
   dark["--cover-ink"] = titleOn(coverStops.dark, true, 0.03);
   dark["--cover-title"] = titleOn(sunset.map(([, col]) => dusk(col)), true, textC * 0.35);
 
-  // ---- data: the categorical series colours (not tone-on-tone: they tell series apart) ----
-  if (withData) {
-    const grounds = (vars: ThemeVars) => ["--card", "--canvas", "--muted"].map(k => parseTriplet(vars[k]));
-    Object.assign(light, dataTones(base, grounds(light), false, DATA_STYLE.standard));
-    Object.assign(dark, dataTones(base, grounds(dark), true, DATA_STYLE.standard));
-  }
+  // ---- chart tones: lightness steps of chart-focus, for a chart split by issue type ----
+  Object.assign(light, chartTones(light["--chart-focus"], light["--chart-other"], false));
+  Object.assign(dark, chartTones(dark["--chart-focus"], dark["--chart-other"], true));
 
   return { light, dark, base: baseHex.toUpperCase() };
 }
@@ -653,8 +569,8 @@ function deriveLook(baseHex: string, standard: Palette, look: ThemeLook): Palett
       const inkC = dark ? 0.03 : 0.035;
       vars["--cover-ink"] = T({ l: solveAgainst(h, limit(inkC), tiles.map(rgb), target.text, dark ? 0.97 : 0.2, dark ? 1 : 0), c: inkC, h });
     }
-    // Series colours solved against this look's own grounds: calmer in soft, firmer in high contrast.
-    Object.assign(vars, dataTones(base, [s.card, s.canvas, s.muted].map(rgb), dark, DATA_STYLE[high ? "high" : soft ? "soft" : "standard"]));
+    // The chart tones follow this look's chart-focus (in high contrast, solved to 3:1 above).
+    Object.assign(vars, chartTones(vars["--chart-focus"] ?? from["--chart-focus"], vars["--chart-other"] ?? from["--chart-other"], dark));
     // State colours: text on its soft fill and on every surface, at this level's target.
     for (const [name, hue] of Object.entries(STATUS_HUES)) {
       const fillCol: Oklch = dark ? { l: high ? 0.22 : 0.3, c: 0.04, h: hue } : { l: high ? 0.955 : 0.93, c: 0.035, h: hue };

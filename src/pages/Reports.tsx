@@ -61,6 +61,9 @@ const groupOptions = (): {
 
 type Tab = "period" | "accuracy" | "forecast";
 
+/** One series (one type, or none): the plain chart colour, as every one-measure chart. */
+const CHART_COLOR = () => ({ fill: "bg-chart-focus", soft: "", solid: "", stroke: "" });
+
 export default function Reports() {
   const now = useToday();
   // Period and grouping live in the URL (Back from an issue finds them).
@@ -117,7 +120,7 @@ export default function Reports() {
     { from, to, groupBy: "client", ...scope },
     { ...enabled, enabled: enabled.enabled && groupBy === "client" }
   );
-  // The trend's bars by issue type, and the colour each type wears on every row.
+  // The trend's bars by issue type.
   const byType = trpc.reports.types.useQuery({ from, to, ...scope }, enabled);
   const daily = trpc.reports.daily.useQuery(
     { from, to, ...scope },
@@ -356,7 +359,7 @@ export default function Reports() {
                 <div className="grid gap-3">
                   <PeriodBars
                     stacks={stacks}
-                    colorOf={types.barColour}
+                    colorOf={types.split ? types.barColour : CHART_COLOR}
                     order={types.order}
                     nameOf={types.nameOf}
                     partsLabel={t("pages.reports.typesColumn")}
@@ -364,7 +367,7 @@ export default function Reports() {
                     targetFor={targetFor}
                     dense={days.length > 10}
                   />
-                  {types.legend.length > 0 && <DataLegend items={types.legend} label={t("pages.reports.typesLegend")} className="px-2" />}
+                  {types.split && <DataLegend items={types.legend} label={t("pages.reports.typesLegend")} className="px-2" />}
                 </div>
               )}
             </PanelSection>
@@ -380,9 +383,9 @@ export default function Reports() {
                   ))}
                 </div>
               ) : groupBy === "days" ? (
-                <ReportDays days={daily.data?.days ?? []} issues={daily.data?.issues ?? []} targetFor={targetFor} types={types} />
+                <ReportDays days={daily.data?.days ?? []} issues={daily.data?.issues ?? []} targetFor={targetFor} />
               ) : (
-                <ReportRows key={groupBy} rows={data.rows} groupBy={groupBy} types={types} />
+                <ReportRows key={groupBy} rows={data.rows} groupBy={groupBy} />
               )}
             </PanelSection>
           </>

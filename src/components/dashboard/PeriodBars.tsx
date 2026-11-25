@@ -155,8 +155,8 @@ export function PeriodBars({
                       <span
                         key={p.project}
                         className={cn(
-                          // A 1px gap of the card's own colour between stacked series, at full strength.
-                          "w-full border-t border-card first:border-t-0",
+                          // A 1px gap of the card's own colour between stacked series (2px of the canvas in high contrast).
+                          "chart-seg w-full border-t border-card first:border-t-0",
                           colorOf(p.project).fill
                         )}
                         style={{ height: `${((sums[i] > total ? (p.seconds * total) / sums[i] : p.seconds) / max) * 100}%` }}

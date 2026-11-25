@@ -106,7 +106,7 @@ export const pages = {
     typesLegend: "Issue types",
     typesColumn: "Issue types",
     noType: "No type",
-    otherTypes: "Other types",
+    otherTypes: "Other",
     typeShare: "{duration} · {share}%",
     tabPeriod: "Period",
     accuracyScope: "The last 90 days, whatever the period and the search above.",

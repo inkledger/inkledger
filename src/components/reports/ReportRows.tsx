@@ -1,9 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { surface } from "@/components/app/surface";
-import { useMemo, useState } from "react";
-import { assignColours, NONE_COLOUR } from "@/lib/dataColors";
-import { cn } from "@/lib/utils";
-import type { TypeSeries } from "./typeSeries";
+import { useState } from "react";
 import { Link } from "react-router";
 import { formatDuration } from "@contracts/time";
 import {
@@ -84,8 +81,7 @@ function RowLabel({ groupBy, row, typeName }: { groupBy: GroupBy; row: ReportRow
         )}
         {(tail || typeName) && (
           <span className="block truncate text-body-sm text-muted-foreground">
-            {/* The type in words: the bar's colour is never the only cue. */}
-            {typeName && <span className="font-medium text-foreground/80">{typeName}</span>}
+            {typeName && <span className="font-medium text-foreground">{typeName}</span>}
             {typeName && tail && " · "}
             {tail}
           </span>
@@ -102,34 +98,12 @@ const REPORT_FIRST = 10;
 export function ReportRows({
   rows,
   groupBy,
-  types,
 }: {
   rows: ReportRow[];
   groupBy: GroupBy;
-  /** The range's issue types: an issue's bar wears its type's colour */
-  types?: TypeSeries;
 }) {
-  // A project's or a client's bar: its own stable series colour (the busiest eight; the rest Other).
-  // "No client" (the server's "none") is no category: a neutral, and no palette slot.
-  const isNone = (r: ReportRow) => groupBy === "client" && r.key === "none";
-  const keyed = useMemo(
-    () =>
-      groupBy === "project" || groupBy === "client"
-        ? assignColours(
-            [...rows]
-              .filter(r => !(groupBy === "client" && r.key === "none"))
-              .sort((a, b) => b.seconds - a.seconds)
-              .map(r => r.key),
-            groupBy
-          )
-        : null,
-    [rows, groupBy]
-  );
-  const toneOf = (r: ReportRow) => {
-    const c = groupBy === "issue" && types ? types.colourOf(types.keyOf(r.issueType)) : isNone(r) ? NONE_COLOUR : keyed?.get(r.key);
-    return c ? cn(c.fill, c.texture) : "bg-chart-focus";
-  };
-  const typeName = (r: ReportRow) => (groupBy === "issue" && types ? types.nameOf(types.keyOf(r.issueType)) : undefined);
+  // An issue's type in words (every bar is chart-focus: one measure, hours).
+  const typeName = (r: ReportRow) => (groupBy === "issue" ? r.issueType?.trim() || t("pages.reports.noType") : undefined);
   const [sort, setSort] = useState<Sort>(null);
   const toggle = (key: SortKey) =>
     setSort(s =>
@@ -180,7 +154,7 @@ export function ReportRows({
                 <Meter
                   value={r.seconds}
                   max={max}
-                  tone={toneOf(r)}
+                  tone="bg-chart-focus"
                   size="lg"
                   lit
                 />
@@ -229,7 +203,7 @@ export function ReportRows({
             <Meter
               value={r.seconds}
               max={max}
-              tone={toneOf(r)}
+              tone="bg-chart-focus"
               size="lg"
               lit
             />

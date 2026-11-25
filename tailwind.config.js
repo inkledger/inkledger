@@ -68,6 +68,11 @@ module.exports = {
           other: token("chart-other"),
           break: token("chart-break"),
           ink: token("chart-ink"),
+          // Lightness steps of chart-focus, for a chart split by issue type (docs/design-system.md §3.5).
+          "tone-2": token("chart-tone-2"),
+          "tone-3": token("chart-tone-3"),
+          "tone-4": token("chart-tone-4"),
+          "tone-5": token("chart-tone-5"),
         },
         // Stable per-project data colours (src/lib/projectColors.ts).
         project: {
@@ -77,19 +82,6 @@ module.exports = {
           4: token("project-4"),
           5: token("project-5"),
           6: token("project-6"),
-        },
-        // The categorical series colours, charts only (src/lib/dataColors.ts, docs/design-system.md §3.5).
-        data: {
-          1: token("data-1"),
-          2: token("data-2"),
-          3: token("data-3"),
-          4: token("data-4"),
-          5: token("data-5"),
-          6: token("data-6"),
-          7: token("data-7"),
-          8: token("data-8"),
-          none: token("data-none"),
-          other: token("data-other"),
         },
         border: token("border"),
         input: token("input"),

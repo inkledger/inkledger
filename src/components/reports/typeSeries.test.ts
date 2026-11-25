@@ -1,40 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetDataColoursCache } from "@/lib/dataColors";
+import { describe, expect, it } from "vitest";
 import { typeSeries } from "./typeSeries";
 
 describe("issue types as chart series", () => {
-  beforeEach(() => {
-    const data = new Map<string, string>();
-    vi.stubGlobal("localStorage", {
-      getItem: (k: string) => data.get(k) ?? null,
-      setItem: (k: string, v: string) => void data.set(k, v),
-      removeItem: (k: string) => void data.delete(k),
-    });
-    resetDataColoursCache();
-  });
-
-  it("gives hues to real types only: no type is a neutral, takes no slot, and stacks after them", () => {
+  it("gives the five types with the most hours the five tones, ties by name, in that order", () => {
     const s = typeSeries([
-      { type: "", seconds: 9000 },
       { type: "Bug", seconds: 3600 },
-      { type: "Attività", seconds: 1800 },
+      { type: "Attività", seconds: 7200 },
+      { type: "Storia", seconds: 3600 },
+      { type: "Epic", seconds: 1800 },
+      { type: "Task", seconds: 900 },
     ]);
-    const none = s.keyOf("");
-    expect(s.colourOf(none).fill).toBe("bg-data-none");
-    expect(s.colourOf(none).slot).toBe(0);
-    expect(s.colourOf(s.keyOf("Bug")).slot).toBe(1);
-    expect(s.colourOf(s.keyOf("Attività")).slot).toBe(2);
-    expect(s.order).toEqual(["Bug", "Attività", none]);
+    expect(s.order).toEqual(["Attività", "Bug", "Storia", "Epic", "Task"]);
+    expect(s.order.map(k => s.colourOf(k).fill)).toEqual(["bg-chart-focus", "bg-chart-tone-2", "bg-chart-tone-3", "bg-chart-tone-4", "bg-chart-tone-5"]);
   });
 
-  it("sums types past the eighth as Other, in its own neutral, last", () => {
-    const types = Array.from({ length: 10 }, (_, i) => ({ type: `T${i}`, seconds: 1000 - i }));
-    const s = typeSeries([...types, { type: "", seconds: 1 }]);
-    const other = s.keyOf("T9");
-    expect(s.keyOf("T8")).toBe(other);
-    expect(s.colourOf(other).fill).toBe("bg-data-other");
+  it("sums every other type and No type as Other, in the neutral, last", () => {
+    const types = Array.from({ length: 7 }, (_, i) => ({ type: `T${i}`, seconds: 1000 - i }));
+    const s = typeSeries([...types, { type: "", seconds: 50 }]);
+    const other = s.keyOf("T6");
+    expect(s.keyOf("T5")).toBe(other);
+    expect(s.keyOf("")).toBe(other);
+    expect(s.keyOf(undefined)).toBe(other);
+    expect(s.colourOf(other).fill).toBe("bg-chart-other");
+    expect(s.colourOf(other).slot).toBe(0);
+    expect(s.order).toHaveLength(6);
     expect(s.order.at(-1)).toBe(other);
-    expect(s.order.at(-2)).toBe(s.keyOf(""));
-    expect(s.legend.find(l => l.key === other)?.seconds).toBe(992 + 991);
+    expect(s.legend.find(l => l.key === other)?.seconds).toBe(995 + 994 + 50);
+    expect(s.nameOf(other)).toMatch(/Other|Altro/);
+  });
+
+  it("one type is one series: no split, no Other", () => {
+    const s = typeSeries([{ type: "Bug", seconds: 60 }]);
+    expect(s.order).toEqual(["Bug"]);
+    expect(s.split).toBe(false);
+    expect(typeSeries([{ type: "Bug", seconds: 60 }, { type: "", seconds: 5 }]).split).toBe(true);
   });
 });
