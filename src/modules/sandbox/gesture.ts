@@ -140,6 +140,39 @@ export function ownReports(onReport: (kind: OwnReport) => void, onFocus?: () => 
   };
 }
 
+/**
+ * How long after a frame's grab was refused the host keeps handing the focus back. Chrome moves its
+ * own focus into the frame apart from the page and may tell the page (activeElement, blur) frames
+ * later, or move it again after the page took it back: one look after a frame would miss either.
+ */
+export const GIVE_BACK_MS = 3000;
+
+/**
+ * A refused grab, watched until the deadline: after each of the browser's frames, the focus still in
+ * the frame (and not put there since by the person or the host) goes back. Ends early once the focus
+ * there is placed, or a newer grab of the same frame is watched instead.
+ */
+export function watchGiveBack(env: {
+  now(): number;
+  /** The next look: after the browser's frame and a task. */
+  next(fn: () => void): void;
+  /** The page's focus is in the frame. */
+  holds(): boolean;
+  /** The person (or the host) put the focus in the frame since. */
+  placed(): boolean;
+  /** Still the frame's latest watch. */
+  current(): boolean;
+  giveBack(): void;
+}) {
+  const until = env.now() + GIVE_BACK_MS;
+  const look = () => {
+    if (!env.current() || env.placed()) return;
+    if (env.holds()) env.giveBack();
+    if (env.now() < until) env.next(look);
+  };
+  env.next(look);
+}
+
 let page: Gestures | null = null;
 /** The page's element, or the frame the person put it in, that had the focus last. */
 let holder: HTMLElement | null = null;
@@ -183,7 +216,10 @@ export function pageGestures(): Gestures {
   // The page's window loses the focus to one of its frames (no event reaches the iframe element itself).
   window.addEventListener("blur", () => {
     const at = document.activeElement;
-    if (at instanceof HTMLIFrameElement && at.dataset.moduleFrame === "view") g.focusIn(at);
+    if (!(at instanceof HTMLIFrameElement && at.dataset.moduleFrame === "view")) return;
+    g.focusIn(at);
+    // Told late that a frame whose grab was refused has the focus: given back all the same.
+    if (!g.placedIn(at) && performance.now() - (refusedAt.get(at) ?? -Infinity) <= REFUSED_MS) later(g, at);
   });
   page = g;
   return g;
@@ -196,9 +232,11 @@ export function pageGestures(): Gestures {
 export function frameTookFocus(frame: HTMLIFrameElement): "kept" | "refused" {
   const g = pageGestures();
   if (g.tookFocus(frame)) {
+    refusedAt.delete(frame);
     holder = frame;
     return "kept";
   }
+  refusedAt.set(frame, performance.now());
   later(g, frame);
   return "refused";
 }
@@ -208,12 +246,24 @@ export function focusBack() {
   if (holder?.isConnected && document.activeElement !== holder) holder.focus({ preventScroll: true });
 }
 
+/** When a frame's grab was refused, and how long the page's late word of it still counts. */
+const refusedAt = new WeakMap<HTMLIFrameElement, number>();
+const REFUSED_MS = 10_000;
+/** Each frame's latest watch. */
+const watches = new WeakMap<HTMLIFrameElement, object>();
+
 // After the browser has moved its own focus into the frame (Chrome does that apart from the page, and
 // may tell the page later): given back sooner, the page believes it has the keys while the browser
 // still sends them to the frame.
-const later = (g: Gestures, frame: HTMLIFrameElement) =>
-  requestAnimationFrame(() =>
-    setTimeout(() => {
-      if (document.activeElement === frame && !g.placedIn(frame)) giveBack(g, frame);
-    }),
-  );
+const later = (g: Gestures, frame: HTMLIFrameElement) => {
+  const token = {};
+  watches.set(frame, token);
+  watchGiveBack({
+    now: () => performance.now(),
+    next: fn => requestAnimationFrame(() => setTimeout(fn)),
+    holds: () => document.activeElement === frame,
+    placed: () => g.placedIn(frame),
+    current: () => watches.get(frame) === token,
+    giveBack: () => giveBack(g, frame),
+  });
+};

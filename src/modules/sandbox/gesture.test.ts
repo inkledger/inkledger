@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGestures, GESTURE_MS, ownReports, PICTURE_GESTURE_MS } from "./gesture";
+import { createGestures, GESTURE_MS, GIVE_BACK_MS, ownReports, PICTURE_GESTURE_MS, watchGiveBack } from "./gesture";
 
 function setup() {
   let t = 10_000;
@@ -178,5 +178,76 @@ describe("a view's own reports", () => {
       vi.useRealTimers();
       own.close();
     }
+  });
+});
+
+describe("a refused grab, given back", () => {
+  function watch(at: { holds: boolean; placed?: boolean; current?: boolean }) {
+    let t = 0;
+    const looks: (() => void)[] = [];
+    const given: number[] = [];
+    watchGiveBack({
+      now: () => t,
+      next: fn => looks.push(fn),
+      holds: () => at.holds,
+      placed: () => at.placed === true,
+      current: () => at.current !== false,
+      giveBack: () => {
+        given.push(t);
+        at.holds = false;
+      },
+    });
+    /** The browser's next frame, `ms` later. */
+    const frame = (ms = 16) => {
+      t += ms;
+      looks.shift()?.();
+    };
+    return { frame, given, pending: () => looks.length };
+  }
+
+  it("the page told late that the frame has the focus: given back when it is, not only at the first look", () => {
+    const at = { holds: false };
+    const w = watch(at);
+    w.frame();
+    w.frame();
+    expect(w.given).toEqual([]);
+    at.holds = true;
+    w.frame();
+    expect(w.given).toHaveLength(1);
+  });
+
+  it("the browser moving its focus into the frame again after it was given back: given back again", () => {
+    const at = { holds: true };
+    const w = watch(at);
+    w.frame();
+    expect(w.given).toHaveLength(1);
+    at.holds = true;
+    w.frame();
+    expect(w.given).toHaveLength(2);
+  });
+
+  it("the person (or the host) put the focus there meanwhile: left where it is, the watch ends", () => {
+    const at = { holds: true, placed: true };
+    const w = watch(at);
+    w.frame();
+    expect(w.given).toEqual([]);
+    expect(w.pending()).toBe(0);
+  });
+
+  it("a newer grab of the same frame watched instead: this watch ends", () => {
+    const at = { holds: true, current: false };
+    const w = watch(at);
+    w.frame();
+    expect(w.given).toEqual([]);
+    expect(w.pending()).toBe(0);
+  });
+
+  it("ends past its deadline: the focus moved there after it stays", () => {
+    const at = { holds: false };
+    const w = watch(at);
+    for (let i = 0; i < 1000 && w.pending() > 0; i++) w.frame(100);
+    expect(w.pending()).toBe(0);
+    expect(w.given).toEqual([]);
+    expect(GIVE_BACK_MS).toBeGreaterThanOrEqual(1000);
   });
 });
