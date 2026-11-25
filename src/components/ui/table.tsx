@@ -54,11 +54,13 @@ function SortableHead({
   onSort,
   className,
   children,
-}: {
+  tabIndex,
+  ...props
+}: Omit<React.ComponentProps<"th">, "onClick"> & {
   sort: "ascending" | "descending" | "none";
   onSort: () => void;
-  className?: string;
-  children: React.ReactNode;
+  /** -1 for a mirror of the header that the keyboard skips (the real one takes the focus). */
+  tabIndex?: number;
 }) {
   return (
     <th
@@ -66,9 +68,11 @@ function SortableHead({
       aria-sort={sort}
       data-slot="table-head"
       className={cn("pb-2 font-medium", className)}
+      {...props}
     >
       <button
         type="button"
+        tabIndex={tabIndex}
         onClick={onSort}
         className={cn(
           "inline-flex items-center gap-1.5 rounded text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",

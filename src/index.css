@@ -1294,3 +1294,69 @@ html.ikl-hit-cursor * {
   .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 17) { display: none; }
   .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(17))) > .collection-more { display: none; }
 }
+
+/*
+ * A table with frozen columns and a header that stays under the bars (useStickyTable, the Issues
+ * catalogue). The frozen cells stand on the card, with the row's tint drawn over it (the row's own tint
+ * is translucent and the middle columns pass under them); an edge shows only while something is under it.
+ */
+.sticky-table tr[data-picked] { --row-tint: hsl(var(--primary-soft) / 0.4); }
+.sticky-table tr[aria-selected="true"] { --row-tint: hsl(var(--accent) / 0.7); }
+.sticky-table tr[data-drop-over] { --row-tint: hsl(var(--primary-soft) / 0.6); }
+.sticky-table[data-sticky] [data-stick] {
+  position: sticky;
+  z-index: 1;
+  background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)) hsl(var(--card));
+}
+.sticky-table[data-sticky] [data-stick="1"] { left: var(--stick-1, 0px); }
+.sticky-table[data-sticky] [data-stick="2"] { left: var(--stick-2, 0px); }
+.sticky-table[data-sticky] [data-stick="3"] { left: var(--stick-3, 0px); }
+.sticky-table[data-sticky] [data-stick="4"] { left: var(--stick-4, 0px); }
+.sticky-table[data-sticky] [data-stick="r1"] { right: var(--stick-r1, 0px); }
+.sticky-table[data-sticky] [data-stick="r2"] { right: var(--stick-r2, 0px); }
+/* The selected row's mark: on its first cell, which covers the row's own. */
+.sticky-table[data-sticky] tr[aria-selected="true"] > [data-stick="1"] { box-shadow: inset 2px 0 0 hsl(var(--primary)); }
+/* A frozen cell sticks at the scroller's content edge; its room beside it (the padding kept for cast shadows) is
+   covered while columns pass under, or they would show in it. */
+.sticky-table[data-sticky][data-under-start] [data-stick="1"]::before,
+.sticky-table[data-sticky][data-under-end] [data-stick="r1"]::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: var(--room-l, var(--surface-room));
+  background: inherit;
+}
+.sticky-table[data-sticky][data-under-start] [data-stick="1"]::before { right: 100%; }
+.sticky-table[data-sticky][data-under-end] [data-stick="r1"]::after { left: 100%; }
+/* The edge: a hairline and a soft shade over what passes under (a pseudo-element: a cell's own box-shadow is
+   not drawn in a collapsed table). */
+.sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after,
+.sticky-table[data-sticky][data-under-end] [data-stick-edge="end"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 0.5rem;
+  pointer-events: none;
+}
+.sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after {
+  left: 100%;
+  border-left: 1px solid hsl(var(--border));
+  background: linear-gradient(to right, hsl(var(--shadow-color) / 0.1), transparent);
+}
+.sticky-table[data-sticky][data-under-end] [data-stick-edge="end"]::before {
+  right: 100%;
+  border-right: 1px solid hsl(var(--border));
+  background: linear-gradient(to left, hsl(var(--shadow-color) / 0.1), transparent);
+}
+/* The header strip: no height of its own, under the page header (and the toolbar that sticks from lg). */
+.sticky-table-bar {
+  position: sticky;
+  top: var(--page-header-h, 0px);
+  z-index: 5;
+  height: 0;
+  visibility: hidden;
+}
+@media (min-width: 1024px) {
+  .sticky-table-bar { top: calc(var(--page-header-h, 0px) + var(--chrome-toolbar-h, 0px)); }
+}
+.sticky-table[data-stuck] .sticky-table-bar { visibility: visible; }
