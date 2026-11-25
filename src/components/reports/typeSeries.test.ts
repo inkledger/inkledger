@@ -20,7 +20,7 @@ describe("issue types as chart series", () => {
       { type: "Attività", seconds: 1800 },
     ]);
     const none = s.keyOf("");
-    expect(s.colourOf(none).fill).toBe("bg-chart-other");
+    expect(s.colourOf(none).fill).toBe("bg-data-none");
     expect(s.colourOf(none).slot).toBe(0);
     expect(s.colourOf(s.keyOf("Bug")).slot).toBe(1);
     expect(s.colourOf(s.keyOf("Attività")).slot).toBe(2);
@@ -32,7 +32,7 @@ describe("issue types as chart series", () => {
     const s = typeSeries([...types, { type: "", seconds: 1 }]);
     const other = s.keyOf("T9");
     expect(s.keyOf("T8")).toBe(other);
-    expect(s.colourOf(other).fill).toBe("bg-chart-break");
+    expect(s.colourOf(other).fill).toBe("bg-data-other");
     expect(s.order.at(-1)).toBe(other);
     expect(s.order.at(-2)).toBe(s.keyOf(""));
     expect(s.legend.find(l => l.key === other)?.seconds).toBe(992 + 991);

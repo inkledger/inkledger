@@ -124,6 +124,10 @@
     --data-8: 167.9 12.1% 55.3%;
     --data-edge-8: 168 10.9% 50.9%;
     --data-mark-8: 169.1 30.6% 8.9%;
+    --data-none: 16.3 26.8% 94.9%;
+    --data-edge-none: 16.3 2.7% 54.2%;
+    --data-other: 16.3 2.5% 46.9%;
+    --data-edge-other: 16.3 2.5% 46.9%;
     /* @theme-derived:end */
 
     --radius: 0.5rem;
@@ -243,6 +247,10 @@
     --data-8: 167.8 15.3% 63.9%;
     --data-edge-8: 167.8 15.3% 63.9%;
     --data-mark-8: 16.3 8.7% 8.7%;
+    --data-none: 16.3 6.8% 14.2%;
+    --data-edge-none: 16.3 2.8% 42.2%;
+    --data-other: 16.3 2.8% 56.2%;
+    --data-edge-other: 16.3 2.8% 56.2%;
     /* @theme-derived:end */
 
     --danger: 5 55% 72%;
@@ -357,6 +365,10 @@
     --data-8: 168.4 13.8% 50.1%;
     --data-edge-8: 168.5 14.9% 45.8%;
     --data-mark-8: 169.1 30.6% 8.9%;
+    --data-none: 16.3 26.8% 94.9%;
+    --data-edge-none: 16.3 2.4% 50.1%;
+    --data-other: 16.3 2.6% 44.6%;
+    --data-edge-other: 16.3 2.6% 44.6%;
     --danger-soft: 7.3 100% 95.5%;
     --danger: 5.5 36.9% 32.8%;
     --success-soft: 129.4 59.6% 92.5%;
@@ -461,6 +473,10 @@
     --data-8: 168.1 19.5% 63.5%;
     --data-edge-8: 168.1 19.5% 63.5%;
     --data-mark-8: 15.4 14.5% 3.6%;
+    --data-none: 16.3 6.8% 14.2%;
+    --data-edge-none: 16.3 2.7% 42.7%;
+    --data-other: 16.3 2.9% 57.4%;
+    --data-edge-other: 16.3 2.9% 57.4%;
     --danger-soft: 5.6 44.8% 11.5%;
     --danger: 6.6 49% 70.7%;
     --success-soft: 134.7 47.2% 8.5%;
@@ -771,6 +787,8 @@
 .bg-data-6 { outline: 1px solid hsl(var(--data-edge-6)); outline-offset: -1px; }
 .bg-data-7 { outline: 1px solid hsl(var(--data-edge-7)); outline-offset: -1px; }
 .bg-data-8 { outline: 1px solid hsl(var(--data-edge-8)); outline-offset: -1px; }
+.bg-data-none { outline: 1px solid hsl(var(--data-edge-none)); outline-offset: -1px; }
+.bg-data-other { outline: 1px solid hsl(var(--data-edge-other)); outline-offset: -1px; }
 html[data-contrast="high"] .data-texture-2 { background-image: radial-gradient(hsl(var(--data-mark-2)) 0.8px, transparent 1.2px); background-size: 4px 4px; }
 html[data-contrast="high"] .data-texture-3 { background-image: repeating-linear-gradient(0deg, hsl(var(--data-mark-3)) 0 1px, transparent 1px 4px); }
 html[data-contrast="high"] .data-texture-4 { background-image: repeating-linear-gradient(90deg, hsl(var(--data-mark-4)) 0 1px, transparent 1px 4px); }

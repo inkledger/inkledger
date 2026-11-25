@@ -1,6 +1,7 @@
 import { t } from "@contracts/i18n";
 import {
   contrast,
+  deltaE,
   oklchToRgb,
   parseHex,
   rgbToOklch,
@@ -111,6 +112,12 @@ export const DATA_PALETTE_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => 
  * wears a tone of itself that reaches it; one that already reaches it wears its own colour (no visible line).
  */
 export const DATA_EDGE_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-edge-${i + 1}`);
+/**
+ * The two neutrals of a series chart, never a hue (a hue always means a real category): "No type" and
+ * "Other" (past the eighth). Greys placed where they stand furthest from all eight series: "No type" next
+ * to the ground (a near-hollow segment, outlined), "Other" in the ladder's widest gap.
+ */
+export const DATA_NEUTRAL_TOKENS = ["--data-none", "--data-other", "--data-edge-none", "--data-edge-other"];
 /** The ink of each series' high-contrast texture: the card or a near-ink tone, whichever stands out more on it. */
 export const DATA_MARK_TOKENS = Array.from({ length: DATA_COUNT }, (_, i) => `--data-mark-${i + 1}`);
 /**
@@ -193,6 +200,26 @@ function dataTones(base: Oklch, grounds: Rgb[], dark: boolean, style: { c: numbe
     const ink = oklchToRgb({ l: dark ? 0.95 : 0.22, c: Math.min(col.c, 0.02), h: col.h });
     vars[`--data-mark-${i + 1}`] = toHslTriplet(contrast(ink, rgbFill) > contrast(grounds[0], rgbFill) ? ink : grounds[0]);
   });
+  // The neutrals: the grey lightness furthest from every series (normal vision asked more of), on a grid.
+  const fills = cols.map(col => oklchToRgb({ l: lightness(col.dl), c: col.c, h: col.h }));
+  const neutral = (l: number) => ({ l, c: 0.006, h: h0 });
+  const apart = (l: number) =>
+    Math.min(...fills.map(f => Math.min(deltaE(oklchToRgb(neutral(l)), f) / 1.6, deltaE(oklchToRgb(neutral(l)), f, "protan"), deltaE(oklchToRgb(neutral(l)), f, "deutan"), deltaE(oklchToRgb(neutral(l)), f, "tritan"))));
+  const furthest = (from: number, to: number, skip: (l: number) => boolean) => {
+    let best = from;
+    let score = -1;
+    for (let l = from; l <= to + 1e-9; l += 0.01) {
+      const s = skip(l) ? -1 : apart(l);
+      if (s > score) [best, score] = [l, s];
+    }
+    return best;
+  };
+  const noneL = dark ? furthest(0.26, 0.36, () => false) : furthest(0.9, 0.96, () => false);
+  const otherL = furthest(0.3, 0.92, l => Math.abs(l - noneL) < 0.12);
+  for (const [name, l] of [["none", noneL], ["other", otherL]] as const) {
+    vars[`--data-${name}`] = tri(neutral(l));
+    vars[`--data-edge-${name}`] = tri(neutral(solveAgainst(h0, 0.006, grounds, style.contrast, l, dark ? 1 : 0)));
+  }
   return vars;
 }
 

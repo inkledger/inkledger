@@ -23,13 +23,14 @@ import {
   DATA_PALETTE_TOKENS,
   DATA_EDGE_TOKENS,
   DATA_MARK_TOKENS,
+  DATA_NEUTRAL_TOKENS,
   DATA_SERIES,
   DATA_STYLE,
   type ThemeLook,
 } from "./derive";
 
 /** Series colours tell series apart: they are exempt from the tone-on-tone and neutral rules (their own tests below). */
-const isData = (k: string) => [...DATA_PALETTE_TOKENS, ...DATA_EDGE_TOKENS, ...DATA_MARK_TOKENS].includes(k);
+const isData = (k: string) => [...DATA_PALETTE_TOKENS, ...DATA_EDGE_TOKENS, ...DATA_MARK_TOKENS, ...DATA_NEUTRAL_TOKENS].includes(k);
 import { themeCss } from "./apply";
 
 const rgbOf = (triplet: string) => {
@@ -415,6 +416,18 @@ describe("data palette: one family around the base colour, told apart by lightne
             const mark = contrast(rgbOf(v[DATA_MARK_TOKENS[i]]), col);
             if (mark < 2.5) failures.push(at(`data-${i + 1} texture ink ${mark.toFixed(2)}`));
           });
+          // The neutrals never pass for a series: "No type" (common) as far as two series are, "Other"
+          // (past the eighth, always on top of the stack, named in the legend) at least 4 apart.
+          for (const [name, cvdMin, normalMin] of [["--data-none", MIN_CVD_DE, MIN_NORMAL_DE], ["--data-other", 4, 6]] as const) {
+            const n = rgbOf(v[name]);
+            cols.forEach((col, i) => {
+              const cvd = Math.min(...CVDS.map(x => deltaE(n, col, x)));
+              const normal = deltaE(n, col);
+              if (cvd < cvdMin || normal < normalMin) failures.push(at(`${name} vs data-${i + 1} ΔE ${cvd.toFixed(1)}/${normal.toFixed(1)}`));
+            });
+            const edge = rgbOf(v[name.replace("--data-", "--data-edge-")]);
+            if (!GROUNDS.every(bg => contrast(edge, rgbOf(v[bg])) >= min - 0.05)) failures.push(at(`${name} outline under ${min}`));
+          }
         }
       }
       expect(failures.slice(0, 20)).toEqual([]);
