@@ -3,7 +3,7 @@
 // sets (Android themed icon included). Run `pnpm icons` after changing the
 // glyph; the outputs are committed.
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { chromium } from "playwright-core";
@@ -88,15 +88,18 @@ const rasters = [
   [g.tile(0.504), 512, 0, "public/icon-maskable-512.png"],
   [g.monochrome(0.504), 512, 0, "public/icon-monochrome-512.png"],
   [g.tile(0.634), 180, 0, "public/apple-touch-icon.png"],
+  // Outlook add-in (api/mail/addin.ts): the ribbon's 16/32/80 and the manifest's 64/128, each at its own size.
+  ...[16, 32, 64, 80, 128].map(size => [g.tile(0.72), size, 22, `public/icon-${size}.png`]),
   [g.macSource(), 1024, 0, "src-tauri/icons/source.png"],
   [g.tray(), 44, 0, "src-tauri/icons/tray.png"],
   [g.androidForeground(), 1024, 0, "src-tauri/icons/src/android-fg.png"],
   [g.monochrome(0.4), 1024, 0, "src-tauri/icons/src/android-mono.png"],
 ];
+async function render(list) {
 const browser = await chromium.launch({ executablePath: chromiumPath() });
 try {
   const page = await browser.newPage();
-  for (const [svg, size, radius, out] of rasters) {
+  for (const [svg, size, radius, out] of list) {
     await page.setViewportSize({ width: size, height: size });
     await page.setContent(
       `<html><body style="margin:0;background:transparent"><div style="width:${size}px;height:${size}px;border-radius:${radius}%;overflow:hidden">${svg.replace(/^<!--.*-->\n/, "").replace("<svg ", '<svg style="display:block;width:100%;height:100%" ')}</div></body></html>`
@@ -107,6 +110,8 @@ try {
 } finally {
   await browser.close();
 }
+}
+await render(rasters);
 
 // 3. Native sets. The adaptive foreground already sits in the safe zone.
 writeFileSync(
@@ -128,4 +133,18 @@ execFileSync("pnpm", ["tauri", "icon", join(SRC, "manifest.json")], { cwd: ROOT,
 for (const f of ["drawable/ic_launcher_background.xml", "drawable-v24/ic_launcher_foreground.xml"]) {
   rmSync(join(ROOT, "src-tauri/gen/android/app/src/main/res", f), { force: true });
 }
+// iOS masks its icons itself and wants them opaque and full-bleed: `tauri icon` cuts them
+// from the macOS source (a rounded tile inside a margin), which left a ghost outline and a
+// small glyph. Redrawn here from the full-bleed tile, each at its own pixel size.
+const IOS = join(ICONS, "ios");
+await render(
+  readdirSync(IOS)
+    .filter(f => f.endsWith(".png"))
+    .map(f => {
+      const m = /AppIcon-(?:([\d.]+)x[\d.]+|(512))@(\d)x/.exec(f);
+      if (!m) throw new Error(`unknown iOS icon ${f}`);
+      const size = Math.round(Number(m[1] ?? m[2]) * Number(m[3]));
+      return [g.tile(0.634), size, 0, `src-tauri/icons/ios/${f}`];
+    })
+);
 console.log("icons written");

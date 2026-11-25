@@ -21,6 +21,14 @@ describe("icons", () => {
     }
   });
 
+  it("the Outlook add-in has an icon at each size its manifest names", () => {
+    const addin = read("api/mail/addin.ts");
+    for (const size of [16, 32, 64, 80, 128]) {
+      expect(existsSync(join(ROOT, `public/icon-${size}.png`)), `icon-${size}`).toBe(true);
+    }
+    expect(addin).toContain("icon(128)");
+  });
+
   it("Android has a themed (monochrome) adaptive icon", () => {
     const res = "src-tauri/gen/android/app/src/main/res";
     expect(read(`${res}/mipmap-anydpi-v26/ic_launcher.xml`)).toContain("<monochrome");

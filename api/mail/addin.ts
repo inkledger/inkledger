@@ -75,7 +75,8 @@ function manifestXml(origin: string): string {
   const o = escapeXml(origin);
   const en = (k: "button" | "buttonTip") => escapeXml(withLocale("en", () => t(`server.outlook.${k}`)));
   const it = (k: "button" | "buttonTip") => escapeXml(withLocale("it", () => t(`server.outlook.${k}`)));
-  const icon = `${o}/icon-192.png`;
+  // Each slot gets its own size (scripts/icons.mjs), not one picture scaled by Outlook.
+  const icon = (size: number) => `${o}/icon-${size}.png`;
   // 1.1 (Mailbox 1.5) lets the pane stay open and follow the mail selected; older clients read 1.0.
   const overrides = (minVersion: string, pinnable: boolean) => `    <Requirements><bt:Sets DefaultMinVersion="${minVersion}"><bt:Set Name="Mailbox"/></bt:Sets></Requirements>
     <Hosts>
@@ -88,7 +89,7 @@ function manifestXml(origin: string): string {
                 <Control xsi:type="Button" id="inkledgerPin">
                   <Label resid="Pin.Label"/>
                   <Supertip><Title resid="Pin.Label"/><Description resid="Pin.Tip"/></Supertip>
-                  <Icon><bt:Image size="16" resid="Icon"/><bt:Image size="32" resid="Icon"/><bt:Image size="80" resid="Icon"/></Icon>
+                  <Icon><bt:Image size="16" resid="Icon.16"/><bt:Image size="32" resid="Icon.32"/><bt:Image size="80" resid="Icon.80"/></Icon>
                   <Action xsi:type="ShowTaskpane"><SourceLocation resid="Pane.Url"/>${pinnable ? "<SupportsPinning>true</SupportsPinning>" : ""}</Action>
                 </Control>
               </Group>
@@ -98,7 +99,7 @@ function manifestXml(origin: string): string {
       </Host>
     </Hosts>
     <Resources>
-      <bt:Images><bt:Image id="Icon" DefaultValue="${icon}"/></bt:Images>
+      <bt:Images>${[16, 32, 80].map(s => `<bt:Image id="Icon.${s}" DefaultValue="${icon(s)}"/>`).join("")}</bt:Images>
       <bt:Urls><bt:Url id="Pane.Url" DefaultValue="${o}/outlook.html"/></bt:Urls>
       <bt:ShortStrings>
         <bt:String id="Group.Label" DefaultValue="inkledger"/>
@@ -116,8 +117,8 @@ function manifestXml(origin: string): string {
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="inkledger"/>
   <Description DefaultValue="${en("buttonTip")}"><Override Locale="it-IT" Value="${it("buttonTip")}"/></Description>
-  <IconUrl DefaultValue="${icon}"/>
-  <HighResolutionIconUrl DefaultValue="${icon}"/>
+  <IconUrl DefaultValue="${icon(64)}"/>
+  <HighResolutionIconUrl DefaultValue="${icon(128)}"/>
   <SupportUrl DefaultValue="${o}/"/>
   <AppDomains><AppDomain>${o}</AppDomain></AppDomains>
   <Hosts><Host Name="Mailbox"/></Hosts>
