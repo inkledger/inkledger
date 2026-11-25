@@ -135,14 +135,17 @@ const PINNED_INPUT = {
 
 /**
  * The preview's width beside the list (px; null: the default 26rem), dragged on its edge and kept on this
- * device. Its limits: 320 px up to 60% of the window, the list never under 480 px; the grid's track
+ * device. Its limits: 320 px up to 60% of the window, the list never under 480 px nor under what its table
+ * needs to keep each row's name and one scrolled column in sight (`--list-min`); the grid's track
  * clamps it in CSS as well, so a width kept from a wider window still holds them.
  */
 const previewWidth = deviceSetting("ikl-issues-preview-width", parseWidth, formatWidth);
 const PREVIEW_MIN = 320;
 const LIST_MIN = 480;
+/** The list's least width: 480 px, or what its table needs to keep the row's name and one column in sight. */
+const listMin = () => Math.max(LIST_MIN, parseFloat(document.querySelector<HTMLElement>("[data-list-min-host]")?.style.getPropertyValue("--list-min") ?? "") || 0);
 const previewBounds = (container: number) =>
-  splitBounds({ container, viewport: window.innerWidth, paneMin: PREVIEW_MIN, mainMin: LIST_MIN, viewportShare: 0.6 });
+  splitBounds({ container, viewport: window.innerWidth, paneMin: PREVIEW_MIN, mainMin: listMin(), viewportShare: 0.6 });
 
 export default function Issues() {
   const provider = useProviderName();
@@ -463,7 +466,8 @@ export default function Issues() {
       <div
         ref={splitRef}
         style={{ "--issues-preview-w": preview === null ? undefined : `${preview}px` } as CSSProperties}
-        className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(320px,var(--issues-preview-w,26rem),min(60vw,100cqw_-_480px))]"
+        data-list-min-host
+        className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(320px,var(--issues-preview-w,26rem),min(60vw,100cqw_-_max(480px,var(--list-min,480px))))]"
       >
       <PanelRow>
         <PanelSection title={t("pages.issues.catalog")} anchorId="issues.catalog">

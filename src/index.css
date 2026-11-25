@@ -1298,6 +1298,8 @@ html.ikl-hit-cursor * {
 /* The Issues preview's width (Splitter): read by the grid's own track only, so not inherited and a drag
    restyles the grid alone, not every row of the list under it. */
 @property --issues-preview-w { syntax: "*"; inherits: false; }
+/* The list's least width beside it (useStickyTable): the grid's track alone reads it. */
+@property --list-min { syntax: "*"; inherits: false; }
 
 /*
  * A table with frozen columns and a header that stays under the bars (useStickyTable, the Issues
@@ -1316,6 +1318,8 @@ html.ikl-hit-cursor * {
 .sticky-table[data-sticky] [data-stick="2"] { left: var(--stick-2, 0px); }
 .sticky-table[data-sticky] [data-stick="3"] { left: var(--stick-3, 0px); }
 .sticky-table[data-sticky] [data-stick="4"] { left: var(--stick-4, 0px); }
+/* Too narrow for both ends: the end (the timer, the actions) scrolls with the middle; what names the row stays. */
+.sticky-table[data-sticky][data-free-end] :is([data-stick="r1"], [data-stick="r2"]) { position: static; background: none; }
 .sticky-table[data-sticky] [data-stick="r1"] { right: var(--stick-r1, 0px); }
 .sticky-table[data-sticky] [data-stick="r2"] { right: var(--stick-r2, 0px); }
 /* The selected row's mark: on its first cell, which covers the row's own. */
@@ -1329,7 +1333,7 @@ html.ikl-hit-cursor * {
 /* The edge: a hairline, and what passes under fades into the frozen cells (a pseudo-element: a cell's own
    box-shadow is not drawn in a collapsed table). */
 .sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after,
-.sticky-table[data-sticky][data-under-end] [data-stick-edge="end"]::before {
+.sticky-table[data-sticky][data-under-end]:not([data-free-end]) [data-stick-edge="end"]::before {
   content: "";
   position: absolute;
   inset-block: 0;
@@ -1344,7 +1348,7 @@ html.ikl-hit-cursor * {
     linear-gradient(to right, hsl(var(--card)), hsl(var(--card) / 0) 85%),
     linear-gradient(to right, hsl(var(--shadow-color) / 0.12), transparent 50%);
 }
-.sticky-table[data-sticky][data-under-end] [data-stick-edge="end"]::before {
+.sticky-table[data-sticky][data-under-end]:not([data-free-end]) [data-stick-edge="end"]::before {
   right: 100%;
   border-right: 1px solid hsl(var(--border));
   background:

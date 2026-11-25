@@ -62,12 +62,23 @@ test("issues: the preview is resized on its edge and keeps its width", { timeout
     const list = await page.locator("section[data-workspace-anchor='issues.catalog']").evaluate(el => el.getBoundingClientRect().width);
     assert.ok(list >= 480 - 1, `the list keeps 480 px (${list})`);
     assert.ok(widest <= 1440 * 0.6 + 1, "at most 60% of the window");
-    // At its widest some middle column of the table can still be reached by scrolling it.
-    const reach = await page.locator(".sticky-table").last().evaluate(w => {
-      const s = w.querySelector("[data-slot=table-container]");
-      return { sticky: w.hasAttribute("data-sticky"), scroll: s.scrollWidth - s.clientWidth };
-    });
-    assert.ok(!reach.sticky || reach.scroll === 0, "at its widest nothing is frozen over the middle's room: the whole table scrolls");
+    // At its widest the list keeps its least width (the row's name frozen, one column scrolling beside it):
+    // scrolled to the end, every row's key is still there, not under anything.
+    const listMin = await page.locator("[data-list-min-host]").evaluate(el => parseFloat(el.style.getPropertyValue("--list-min")));
+    assert.ok(listMin > 480 ? list >= listMin - 1 : true, `the list keeps its table's least width (${list} < ${listMin})`);
+    const main = page.locator(".sticky-table").last();
+    assert.equal(await main.getAttribute("data-sticky"), "", "the row's name stays frozen");
+    await main.locator("[data-slot=table-container]").evaluate(s => (s.scrollLeft = s.scrollWidth));
+    await page.waitForTimeout(200);
+    const hidden = await main.evaluate(w =>
+      [...w.querySelectorAll("table[data-slot=table] tbody tr")]
+        .map(tr => tr.cells[2])
+        .filter(td => { const b = td.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; })
+        .filter(td => { const b = td.getBoundingClientRect(); return !td.contains(document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)); })
+        .map(td => td.textContent)
+    );
+    assert.deepEqual(hidden, [], "every row's key stays in sight at the narrowest list, scrolled to the end");
+    await main.locator("[data-slot=table-container]").evaluate(s => (s.scrollLeft = 0));
 
     // A double click: back to the default, and nothing kept.
     await handle.dblclick();

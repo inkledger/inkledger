@@ -1,6 +1,10 @@
 import { useEffect, type RefObject } from "react";
 
-/** The middle columns keep at least this much room; narrower, nothing sticks and the whole table scrolls. */
+/**
+ * The middle columns keep at least this much room. Narrower, the frozen end (the timer) scrolls with them;
+ * the frozen start (what names the row) always stays, and the list is never narrower than it plus this
+ * (`--list-min`, the splitter's limit).
+ */
 const MIDDLE_MIN = 160;
 
 /**
@@ -8,7 +12,7 @@ const MIDDLE_MIN = 160;
  * from the right) and a header strip that stays under the page's bars while its header row has scrolled
  * away (docs/design-system.md §7). Everything is written to the DOM directly, never through React state:
  * - the frozen cells' offsets and the strip's column widths, from a ResizeObserver on the header row;
- * - whether the columns stick at all (`data-sticky` on the wrapper: only when the middle keeps room);
+ * - whether the end's columns stick too (`data-free-end` on the wrapper when the middle would lose its room);
  * - whether something is scrolled under either frozen edge (`data-under-start` / `data-under-end`), from
  *   an IntersectionObserver on two sentinels at the ends of the scrolled content;
  * - whether the header row is under the bars (`data-stuck`, the strip shows), from an IntersectionObserver;
@@ -60,10 +64,12 @@ export function useStickyTable({
         at += widths[cells.length - 1 - j];
         end = at;
       });
-      put(box, "--stick-start", `${start}px`);
-      put(box, "--stick-end", `${end}px`);
       const overflow = scroll.scrollWidth > scroll.clientWidth + 1;
-      box.toggleAttribute("data-sticky", !overflow || scroll.clientWidth - start - end >= MIDDLE_MIN);
+      const freeEnd = overflow && scroll.clientWidth - start - end < MIDDLE_MIN;
+      box.toggleAttribute("data-sticky", true);
+      box.toggleAttribute("data-free-end", freeEnd);
+      put(box, "--stick-start", `${start}px`);
+      put(box, "--stick-end", `${freeEnd ? 0 : end}px`);
       // The strip: the same widths, the same total.
       const table = strip.current?.querySelector("table");
       const real = row.closest("table");
@@ -168,8 +174,8 @@ export function useStickyTable({
   }, [wrap, scroller, strip]);
 }
 
-/** The title's least width: the column that takes what the others leave. */
-const TITLE_MIN_REM = 14;
+/** The title's least width (two lines, clamped): the column that takes what the others leave. */
+const TITLE_MIN = 160;
 const TITLE_COLUMN = 3;
 
 type Group = { tables: Map<HTMLElement, HTMLElement>; ro: ResizeObserver; mo: MutationObserver; measure: () => void };
@@ -208,8 +214,23 @@ function joinGroup(root: HTMLElement, box: HTMLElement, scroll: HTMLElement): ()
         const value = `${w}px`;
         if (root.style.getPropertyValue(`--col-${i}`) !== value) root.style.setProperty(`--col-${i}`, value);
       });
-      const min = `${Math.ceil(sum + TITLE_MIN_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 14))}px`;
+      const min = `${Math.ceil(sum + TITLE_MIN)}px`;
       if (root.style.getPropertyValue("--cols-min") !== min) root.style.setProperty("--cols-min", min);
+      // The list's least width, for the split around it (`[data-list-min-host]`, its first child the list): the
+      // frozen start, one scrolled column's room, and what the list puts around its table.
+      const host = root.closest<HTMLElement>("[data-list-min-host]");
+      const wrap = tables.keys().next().value;
+      const scroll = wrap && tables.get(wrap);
+      const list = host?.firstElementChild;
+      if (host && scroll && list) {
+        const st = getComputedStyle(scroll);
+        const around = list.getBoundingClientRect().width - (scroll.clientWidth - (parseFloat(st.paddingLeft) || 0) - (parseFloat(st.paddingRight) || 0));
+        const startCols = [0, 1, 2].reduce((s, i) => s + (widest[i] ?? 0), 0);
+        // Room for one column, and for the end's (the timer, the actions) once they scroll with the middle.
+        const room = Math.max(MIDDLE_MIN, (widest[9] ?? 0) + (widest[10] ?? 0));
+        const listMin = `${Math.ceil(startCols + TITLE_MIN + room + around)}px`;
+        if (host.style.getPropertyValue("--list-min") !== listMin) host.style.setProperty("--list-min", listMin);
+      }
     };
     const ro = new ResizeObserver(measure);
     const watchAll = () => {
