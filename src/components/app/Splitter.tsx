@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { clampWidth, widthForKey, type SplitBounds } from "@/lib/layout/split";
 import { cn } from "@/lib/utils";
-import { surface } from "@/components/app/surface";
 
 /**
  * The line between a list and the pane on its right that resizes the pane (the ARIA window splitter):
  * dragged, ← / → (16 px, Shift: 64 px), Home / End to its limits, a double click back to the default.
  * While dragged it writes `cssVar` on the grid directly, once a frame, and the width is changed once, when
  * it is let go. The grid's track clamps the variable in CSS too, so a stored width never breaks a minimum
- * after the window narrows. Sits over the pane's left edge (its parent is the pane, positioned).
+ * after the window narrows. Sits over the pane's left edge (its parent is the pane, positioned, with its own
+ * `border-l`): that border is the handle, always drawn; on hover, focus and drag a 2 px line in the primary
+ * marks it, over an 8 px hit area that is never drawn.
  */
 export function Splitter({
   grid,
@@ -109,17 +110,16 @@ export function Splitter({
       onPointerCancel={onPointerUp}
       onDoubleClick={() => onChange(null)}
       className={cn(
-        // A 24 px hit area over the 1 px edge of the pane; its grip always shows, stronger on hover, focus and drag.
-        "group/splitter absolute inset-y-0 -left-3 z-20 flex w-target cursor-col-resize touch-none items-center justify-center outline-none",
+        // An 8 px hit area centred on the pane's 1 px border (the visible handle at rest).
+        "group/splitter absolute inset-y-0 -left-[4.5px] z-20 w-[8px] cursor-col-resize touch-none outline-none",
         className
       )}
     >
       <span
         aria-hidden
-        {...surface("control")}
         className={cn(
-          "h-10 w-1.5 rounded-full border border-border bg-card transition-colors group-hover/splitter:border-muted-foreground group-hover/splitter:bg-muted-foreground/60 group-focus-visible/splitter:border-ring group-focus-visible/splitter:bg-muted-foreground/60 group-focus-visible/splitter:ring-2 group-focus-visible/splitter:ring-ring",
-          dragging && "border-primary bg-primary"
+          "pointer-events-none absolute inset-y-0 left-[2.5px] w-[2px] bg-primary/60 opacity-0 group-hover/splitter:opacity-100 group-focus-visible/splitter:bg-primary group-focus-visible/splitter:opacity-100",
+          dragging && "bg-primary opacity-100"
         )}
       />
     </div>

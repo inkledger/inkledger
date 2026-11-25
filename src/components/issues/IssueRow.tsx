@@ -322,12 +322,15 @@ function Head({
   onSort,
   mirror,
   stick,
+  optional,
   children,
   className,
 }: {
   k: SortMode;
   /** Frozen column (useStickyTable). */
   stick?: string;
+  /** Hidden while the list is too narrow for it (useStickyTable). */
+  optional?: boolean;
   sort?: SortMode;
   /** Without it the column is a plain label (e.g. the manually ordered pins). */
   onSort?: (k: SortMode) => void;
@@ -336,7 +339,7 @@ function Head({
   children: React.ReactNode;
   className?: string;
 }) {
-  if (!onSort) return <TableHead data-stick={stick} className={className}><span data-col className="inline-block w-max">{children}</span></TableHead>;
+  if (!onSort) return <TableHead data-stick={stick} data-opt={optional || undefined} className={className}><span data-col className="inline-block w-max">{children}</span></TableHead>;
   return (
     <SortableHead
       sort={
@@ -345,6 +348,7 @@ function Head({
       onSort={() => onSort(k)}
       tabIndex={mirror ? -1 : undefined}
       data-stick={stick}
+      data-opt={optional || undefined}
       className={className}
     >
       {children}
@@ -376,10 +380,10 @@ function HeadCells({ sort, onSort, mirror = false }: { sort?: SortMode; onSort?:
       <Head k="priority" sort={sort} onSort={onSort} mirror={mirror} className="pr-3">
         {t("views.issues.row.priority")}
       </Head>
-      <Head k="updated" sort={sort} onSort={onSort} mirror={mirror} className="pr-3">
+      <Head k="updated" sort={sort} onSort={onSort} mirror={mirror} optional className="pr-3">
         {t("views.issues.row.updated")}
       </Head>
-      <Head k="due" sort={sort} onSort={onSort} mirror={mirror} className="pr-3">
+      <Head k="due" sort={sort} onSort={onSort} mirror={mirror} optional className="pr-3">
         {t("views.issues.row.due")}
       </Head>
       <TableHead className="whitespace-nowrap pr-3 text-right"><span data-col className="inline-block w-max">{t("views.issues.row.logged")}</span></TableHead>
@@ -407,8 +411,8 @@ function Columns() {
       <col />
       <col className="[width:var(--col-4)]" />
       <col className="[width:var(--col-5)]" />
-      <col className="[width:var(--col-6)]" />
-      <col className="[width:var(--col-7)]" />
+      <col data-opt className="[width:var(--col-6)]" />
+      <col data-opt className="[width:var(--col-7)]" />
       <col className="[width:var(--col-8)]" />
       <col className="[width:var(--col-9)]" />
       <col className="[width:var(--col-10)]" />
@@ -417,8 +421,9 @@ function Columns() {
 }
 
 /**
- * Desktop table (same look as the dashboard activity table). Its first and last columns stay put while
- * the middle scrolls sideways, and its header stays under the page's bars (useStickyTable).
+ * Desktop table (same look as the dashboard activity table). Too narrow for every column, Aggiornata and
+ * Scadenza leave; still too narrow, its first and last columns stay put while the middle scrolls sideways.
+ * Its header stays under the page's bars (useStickyTable).
  */
 export function IssueTable({
   sort,
@@ -576,7 +581,7 @@ export const IssueRow = memo(function IssueRow({
           )}
         </div>
       </td>
-      <td className="whitespace-nowrap py-3 pr-3 text-muted-foreground">
+      <td data-opt className="whitespace-nowrap py-3 pr-3 text-muted-foreground">
         <div data-col className="w-max">
           {updated ? (
             <HistoryLink issueKey={issue.key} connectionId={issue.connectionId}>{updated}</HistoryLink>
@@ -585,7 +590,7 @@ export const IssueRow = memo(function IssueRow({
           )}
         </div>
       </td>
-      <td className="whitespace-nowrap py-3 pr-3 text-muted-foreground">
+      <td data-opt className="whitespace-nowrap py-3 pr-3 text-muted-foreground">
         <div data-col className="w-max">{due ?? "—"}</div>
       </td>
       <td className="whitespace-nowrap py-3 pr-3 text-right text-muted-foreground tabular">
@@ -601,8 +606,8 @@ export const IssueRow = memo(function IssueRow({
         </div>
       </td>
       <td data-stick="r1" className="py-3 pr-1">
-        {/* Shown on hover; always on a touch screen, which has none. */}
-        <div data-col className="ml-auto flex w-max items-center justify-end opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 coarse:opacity-100">
+        {/* Always shown, quiet at rest; full strength on the row's hover or focus. */}
+        <div data-col className="ml-auto flex w-max items-center justify-end text-muted-foreground group-focus-within:text-foreground group-hover:text-foreground">
           <Actions issue={issue} onLog={onLog} pin={pin} pick={pick} />
         </div>
       </td>

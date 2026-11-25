@@ -1412,9 +1412,13 @@ html.ikl-hit-cursor * {
 
 /*
  * A table with frozen columns and a header that stays under the bars (useStickyTable, the Issues
- * catalogue). The frozen cells stand on the card, with the row's tint drawn over it (the row's own tint
- * is translucent and the middle columns pass under them); an edge shows only while something is under it.
+ * catalogue). Its optional columns leave first when the list is too narrow for them (`data-narrow` on the
+ * group); only a table still wider than its room freezes (`data-sticky`). The frozen cells stand on the
+ * card, with the row's tint drawn over it (the row's own tint is translucent and the middle columns pass
+ * under them); an edge, a hairline, shows only while something is under it.
  */
+[data-narrow] .sticky-table [data-opt],
+.sticky-table[data-narrow] [data-opt] { display: none; }
 .sticky-table tr[data-picked] { --row-tint: hsl(var(--primary-soft) / 0.4); }
 .sticky-table tr[aria-selected="true"] { --row-tint: hsl(var(--accent) / 0.7); }
 .sticky-table tr[data-drop-over] { --row-tint: hsl(var(--primary-soft) / 0.6); }
@@ -1439,31 +1443,23 @@ html.ikl-hit-cursor * {
 .sticky-table .sticky-table-bar > div {
   clip-path: inset(0 var(--room-r, 0px) 0 var(--room-l, 0px));
 }
-/* The edge: a hairline, and what passes under fades into the frozen cells (a pseudo-element: a cell's own
-   box-shadow is not drawn in a collapsed table). */
+/* The edge: a plain hairline, no fade (a pseudo-element: a cell's own border does not travel with a sticky
+   cell in a collapsed table). */
 .sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after,
 .sticky-table[data-sticky][data-under-end]:not([data-free-end]) [data-stick-edge="end"]::before {
   content: "";
   position: absolute;
   inset-block: 0;
-  width: 1rem;
+  width: 0;
   pointer-events: none;
 }
 .sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after {
-  left: 100%;
-  border-left: 1px solid hsl(var(--border));
-  background:
-    linear-gradient(to right, var(--row-tint, transparent), transparent),
-    linear-gradient(to right, hsl(var(--card)), hsl(var(--card) / 0) 85%),
-    linear-gradient(to right, hsl(var(--shadow-color) / 0.12), transparent 50%);
+  right: 0;
+  border-right: 1px solid hsl(var(--border));
 }
 .sticky-table[data-sticky][data-under-end]:not([data-free-end]) [data-stick-edge="end"]::before {
-  right: 100%;
-  border-right: 1px solid hsl(var(--border));
-  background:
-    linear-gradient(to left, var(--row-tint, transparent), transparent),
-    linear-gradient(to left, hsl(var(--card)), hsl(var(--card) / 0) 85%),
-    linear-gradient(to left, hsl(var(--shadow-color) / 0.12), transparent 50%);
+  left: 0;
+  border-left: 1px solid hsl(var(--border));
 }
 /* The header strip: no height of its own, under the page header (and the toolbar that sticks from lg). */
 .sticky-table-bar {
