@@ -53,7 +53,7 @@ describe("a range's time by issue type", () => {
 
   it("issue rows carry their type, by issue and by day", async () => {
     const byIssue = await caller.reports.generate({ ...range, groupBy: "issue" });
-    expect(Object.fromEntries(byIssue.rows.map((r) => [r.key, r.issueType]))).toEqual({ "APP-1": "Bug", "APP-2": "Attività", "APP-3": "Bug", "OLD-9": "" });
+    expect(Object.fromEntries(byIssue.rows.map((r) => [r.key, "issueType" in r ? r.issueType : undefined]))).toEqual({ "APP-1": "Bug", "APP-2": "Attività", "APP-3": "Bug", "OLD-9": "" });
     const daily = await caller.reports.daily(range);
     expect(daily.issues.find((r) => r.key === "APP-2")?.issueType).toBe("Attività");
   });

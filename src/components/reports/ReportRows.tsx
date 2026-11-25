@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { surface } from "@/components/app/surface";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { assignColours } from "@/lib/dataColors";
+import { cn } from "@/lib/utils";
+import type { TypeSeries } from "./typeSeries";
 import { Link } from "react-router";
 import { formatDuration } from "@contracts/time";
 import {
@@ -59,7 +62,7 @@ function Head({
   );
 }
 
-function RowLabel({ groupBy, row }: { groupBy: GroupBy; row: ReportRow }) {
+function RowLabel({ groupBy, row, typeName }: { groupBy: GroupBy; row: ReportRow; typeName?: string }) {
   if (groupBy === "day") {
     return <span className="font-medium">{rowLabel(groupBy, row)}</span>;
   }
@@ -79,8 +82,11 @@ function RowLabel({ groupBy, row }: { groupBy: GroupBy; row: ReportRow }) {
         ) : (
           <span className="font-semibold">{head}</span>
         )}
-        {tail && (
+        {(tail || typeName) && (
           <span className="block truncate text-body-sm text-muted-foreground">
+            {/* The type in words: the bar's colour is never the only cue. */}
+            {typeName && <span className="font-medium text-foreground/80">{typeName}</span>}
+            {typeName && tail && " · "}
             {tail}
           </span>
         )}
@@ -96,10 +102,23 @@ const REPORT_FIRST = 10;
 export function ReportRows({
   rows,
   groupBy,
+  types,
 }: {
   rows: ReportRow[];
   groupBy: GroupBy;
+  /** The range's issue types: an issue's bar wears its type's colour */
+  types?: TypeSeries;
 }) {
+  // A project's or a client's bar: its own stable series colour (the busiest eight; the rest Other).
+  const keyed = useMemo(
+    () => (groupBy === "project" || groupBy === "client" ? assignColours([...rows].sort((a, b) => b.seconds - a.seconds).map(r => r.key), groupBy) : null),
+    [rows, groupBy]
+  );
+  const toneOf = (r: ReportRow) => {
+    const c = groupBy === "issue" && types ? types.colourOf(types.keyOf(r.issueType)) : keyed?.get(r.key);
+    return c ? cn(c.fill, c.texture) : "bg-chart-focus";
+  };
+  const typeName = (r: ReportRow) => (groupBy === "issue" && types ? types.nameOf(types.keyOf(r.issueType)) : undefined);
   const [sort, setSort] = useState<Sort>(null);
   const toggle = (key: SortKey) =>
     setSort(s =>
@@ -144,13 +163,13 @@ export function ReportRows({
           {shown.map(r => (
             <TableRow key={r.id ?? r.key}>
               <td className="max-w-0 py-3 pl-1 pr-4 sm:w-[34%]">
-                <RowLabel groupBy={groupBy} row={r} />
+                <RowLabel groupBy={groupBy} row={r} typeName={typeName(r)} />
               </td>
               <td className="py-3 pr-4">
                 <Meter
                   value={r.seconds}
                   max={max}
-                  tone="bg-chart-focus"
+                  tone={toneOf(r)}
                   size="lg"
                   lit
                 />
@@ -189,7 +208,7 @@ export function ReportRows({
           <li key={r.id ?? r.key} className="grid grid-cols-[minmax(0,1fr)] gap-2 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <RowLabel groupBy={groupBy} row={r} />
+                <RowLabel groupBy={groupBy} row={r} typeName={typeName(r)} />
               </div>
               <span className="shrink-0 text-body-sm tabular">
                 <span className="font-medium">{formatDuration(r.seconds)}</span>
@@ -199,7 +218,7 @@ export function ReportRows({
             <Meter
               value={r.seconds}
               max={max}
-              tone="bg-chart-focus"
+              tone={toneOf(r)}
               size="lg"
               lit
             />
