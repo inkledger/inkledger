@@ -12,6 +12,8 @@ export type ReportRow = {
   remoteId?: string | null;
   tracker?: string;
   container?: string;
+  /** An issue row: its type ("" when unknown) */
+  issueType?: string;
 };
 
 export type GroupBy = "day" | "issue" | "project" | "client";
