@@ -32,6 +32,17 @@ test("issues: the preview is resized on its edge and keeps its width", { timeout
     assert.ok(Math.abs(dragged - (before + 120)) <= 2, `dragged to ${dragged}, expected ${before + 120}`);
     assert.equal(Number(await handle.getAttribute("aria-valuenow")), Math.round(dragged));
 
+    // Grabbed while the list is scrolled: the page stays where it was (the pane stays put beside it).
+    await page.evaluate(() => document.getElementById("main").scrollTo(0, 400));
+    const scrolled = await page.evaluate(() => document.getElementById("main").scrollTop);
+    const grab = await handle.boundingBox();
+    await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+    assert.equal(await page.evaluate(() => document.getElementById("main").scrollTop), scrolled, "grabbing the edge never scrolls the page");
+    await page.evaluate(() => document.getElementById("main").scrollTo(0, 0));
+
     // Kept after a reload.
     await page.reload();
     await handle.waitFor();
@@ -56,7 +67,7 @@ test("issues: the preview is resized on its edge and keeps its width", { timeout
       const s = w.querySelector("[data-slot=table-container]");
       return { sticky: w.hasAttribute("data-sticky"), scroll: s.scrollWidth - s.clientWidth };
     });
-    assert.ok(!reach.sticky || reach.scroll >= 0, "nothing frozen past the middle's room");
+    assert.ok(!reach.sticky || reach.scroll === 0, "at its widest nothing is frozen over the middle's room: the whole table scrolls");
 
     // A double click: back to the default, and nothing kept.
     await handle.dblclick();
