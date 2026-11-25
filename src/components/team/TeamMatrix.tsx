@@ -80,7 +80,7 @@ const Row = memo(function Row({
         const future = c.step === "future";
         const label = cellText(p.displayName, buckets[i], c);
         return (
-          <td key={buckets[i].key} className="p-0">
+          <td key={buckets[i].key} className="px-px py-0">
             {/* surface: none — a heat map's cells are flat data marks, thousands of them: nothing stands on or casts from them */}
             <button
               type="button"
@@ -200,7 +200,7 @@ export function TeamMatrix({
     >
       <table
         aria-label={t("pages.team.matrix", { unit: t(kind === "day" ? "pages.team.unitDay" : kind === "week" ? "pages.team.unitWeek" : "pages.team.unitMonth") })}
-        className="w-full border-separate border-spacing-0.5"
+        className="w-full border-separate border-spacing-x-0 border-spacing-y-0.5"
         onMouseOver={read}
         onFocus={read}
       >
@@ -219,7 +219,7 @@ export function TeamMatrix({
                   scope="col"
                   title={bucketLabel(b)}
                   className={cn(
-                    "bg-card p-0 text-center align-bottom text-caption font-normal leading-tight lg:sticky lg:top-0 lg:z-10",
+                    "bg-card px-px py-0 text-center align-bottom text-caption font-normal leading-tight lg:sticky lg:top-0 lg:z-10",
                     weekend ? "text-muted-foreground/60" : "text-muted-foreground",
                     isToday && "font-semibold text-foreground"
                   )}
@@ -240,7 +240,7 @@ export function TeamMatrix({
               <span className="block w-28 px-1 sm:w-44 sm:pl-8">{t("pages.team.team")}</span>
             </th>
             {team.map((x, i) => (
-              <td key={buckets[i].key} className="p-0 align-bottom">
+              <td key={buckets[i].key} className="px-px py-0 align-bottom">
                 <div data-r={-2} data-c={i} aria-hidden className={cn("relative mx-auto flex h-6 w-full items-end overflow-hidden rounded-sm bg-muted/40", WIDTH[kind])}>
                   {x.target > 0 && (
                     <span className="absolute inset-x-0 border-t border-dashed border-foreground/30" style={{ bottom: `${(x.target / teamMax) * 100}%` }} />
