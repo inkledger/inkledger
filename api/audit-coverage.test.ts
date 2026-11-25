@@ -76,6 +76,8 @@ const CASES: Record<string, { input: (t: { member: number }) => unknown; action?
   "users.rename": { input: ({ member }) => ({ id: member, displayName: "Renamed", username: `ren${Date.now()}` }) },
   "users.resetPassword": { input: ({ member }) => ({ id: member }) },
   "users.setDisabled": { input: ({ member }) => ({ id: member, disabled: false }) },
+  // The username typed wrong: refused, and still one event (the erasure itself: api/gdpr/gdpr.test.ts)
+  "users.erase": { input: ({ member }) => ({ id: member, confirmUsername: "not-the-name" }) },
   "roles.create": { input: () => ({ key: `r${Date.now()}`, name: "Ops", permissions: ["manageServer"] }) },
   "roles.update": { input: () => ({ id: 999_999, name: "Gone", permissions: [] }) },
   "roles.remove": { input: () => ({ id: 999_999 }) },

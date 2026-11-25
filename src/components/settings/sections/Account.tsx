@@ -2,7 +2,7 @@ import { failureText } from "@/lib/errorText";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useState } from "react";
-import { KeyRound, Link2, LogOut, Pencil, RefreshCw, ShieldOff } from "lucide-react";
+import { Download, KeyRound, Link2, LogOut, Pencil, RefreshCw, ShieldOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { initials } from "@/lib/initials";
@@ -138,6 +138,17 @@ export function AccountSection() {
             {t("settings.account.changePasswordButton")}
           </Button>
         </SettingsRow>
+        {user && (
+          <SettingsRow label={t("settings.account.exportData")} hint={t("settings.account.exportDataHint")}>
+            <Button asChild variant="outline" size="sm">
+              {/* Anyone's own, streamed by the server (api/gdpr/routes.ts). */}
+              <a href={`/api/users/${user.id}/export`} download>
+                <Download />
+                {t("settings.account.exportDataButton")}
+              </a>
+            </Button>
+          </SettingsRow>
+        )}
         <Dialog open={changing} onOpenChange={setChanging}>
           <DialogContent>
             <DialogHeader>

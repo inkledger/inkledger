@@ -513,6 +513,13 @@ exports[`each system role reaches what its permissions hold > matches the checke
     "owner": "allow",
     "team-lead": "deny",
   },
+  "users.erase": {
+    "auditor": "deny",
+    "it-admin": "deny",
+    "member": "deny",
+    "owner": "allow",
+    "team-lead": "deny",
+  },
   "users.invite": {
     "auditor": "deny",
     "it-admin": "allow",

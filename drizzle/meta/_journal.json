@@ -379,6 +379,13 @@
       "when": 1795556285558,
       "tag": "0053_single_sign_on",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795558297971,
+      "tag": "0054_gdpr_erase",
+      "breakpoints": true
     }
   ]
 }

@@ -602,6 +602,9 @@ export const settings = {
     jiraKeywords: "jira connect site token credentials connection",
     jiraNotConnected: "Not connected",
     jiraNone: "No tracker connected yet: connect one to sync your issues and log time.",
+    exportData: "Your data",
+    exportDataHint: "A ZIP of everything of yours on this server: time, timers, plans, notes, to-dos, ideas, settings, connections (without passwords or tokens) and the audit events about you. Time in a tracker is exported from the tracker.",
+    exportDataButton: "Export",
   },
   connections: {
     sink: {
@@ -812,6 +815,13 @@ export const settings = {
     renameSave: "Save",
     renamed: "Account renamed",
     actions: "Actions for {name}",
+    exportData: "Export data",
+    erase: "Erase account…",
+    eraseTitle: "Erase {name}",
+    eraseHint: "Deletes the account and everything it holds on this server: time, timers, plans, notes, to-dos, ideas, settings and connections. The audit log keeps its events under erased-user-{id}. Time already in a tracker stays there, and older backups keep the data until they are pruned.",
+    eraseConfirmLabel: "Type {username} to confirm",
+    eraseButton: "Erase account",
+    erased: "Account erased",
     permission: {
       manageUsers: "Users",
       manageAuth: "How people sign in",
@@ -955,6 +965,8 @@ export const settings = {
         resetPassword: "Reset a password",
         setDisabled: "Turned an account off or on",
         setBreakGlass: "Changed who keeps password sign-in",
+        exportData: "Exported a person's data",
+        erase: "Erased an account",
       },
       sso: {
         createProvider: "Added an identity provider",

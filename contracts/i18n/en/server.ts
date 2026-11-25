@@ -77,6 +77,10 @@ export const server = {
     tokenNotFound: "That SCIM token is gone.",
     inviteEnforced: "Single sign-on is enforced: new people sign in through the identity provider instead of an invite.",
   },
+  users: {
+    eraseConfirm: "Type the account's username to confirm.",
+    eraseOwnerOnly: "Only an owner can erase an account.",
+  },
   url: {
     invalid: "Invalid URL",
     httpOnly: "Only http(s) URLs are allowed",

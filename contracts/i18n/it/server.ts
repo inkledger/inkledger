@@ -77,6 +77,10 @@ export const server: Shape<typeof en> = {
     tokenNotFound: "Quel token SCIM non esiste più.",
     inviteEnforced: "Il single sign-on è obbligatorio: le nuove persone accedono dal provider di identità invece che con un invito.",
   },
+  users: {
+    eraseConfirm: "Scrivi il nome utente dell'account per confermare.",
+    eraseOwnerOnly: "Solo un proprietario può cancellare un account.",
+  },
   url: {
     invalid: "URL non valido",
     httpOnly: "Sono ammessi solo URL http(s)",

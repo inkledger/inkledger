@@ -1380,6 +1380,10 @@
     "type": "query"
   },
   {
+    "path": "users.erase",
+    "type": "mutation"
+  },
+  {
     "path": "users.invite",
     "type": "mutation"
   },

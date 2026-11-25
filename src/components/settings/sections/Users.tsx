@@ -1,8 +1,8 @@
 import { toastError, failureText } from "@/lib/errorText";
 import { copyText } from "@/lib/issues";
 import { QrCode } from "@/components/app/QrCode";
-import { useState } from "react";
-import { Copy, MoreHorizontal, UserPlus } from "lucide-react";
+import { lazy, Suspense, useState } from "react";
+import { Copy, Download, MoreHorizontal, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { INVITE_DAYS, OWNER_ONLY_PERMISSIONS, PERMISSIONS, SYSTEM_ROLES, type Permission, type SystemRole, DEFAULT_PERMISSIONS } from "@contracts/accounts";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -31,6 +31,9 @@ import { loc } from "./store/format";
 import { surface } from "@/components/app/surface";
 import { useDirtyClose } from "@/components/app/DirtyClose";
 import { RenameForm } from "@/components/settings/RenameForm";
+
+/** Loaded only when an owner opens it. */
+const EraseUser = lazy(() => import("./EraseUser"));
 
 type Account = inferRouterOutputs<AppRouter>["users"]["list"][number];
 type RoleView = inferRouterOutputs<AppRouter>["roles"]["list"][number];
@@ -235,6 +238,10 @@ export function UsersSection() {
   // Teams to pick from only for whoever may manage them; the others see an account's teams as they are.
   const canTeams = (me?.permissions ?? []).includes("manageTeams");
   const canAuth = (me?.permissions ?? []).includes("manageAuth");
+  // A person's data on request: exported with exportUserData, erased by an owner (the server checks both).
+  const canExport = (me?.permissions ?? []).includes("exportUserData");
+  const canErase = me?.role === "admin" && (me.permissions ?? []).includes("eraseUserData");
+  const [erasing, setErasing] = useState<Account | null>(null);
   const teams = trpc.teams.list.useQuery(undefined, { enabled: canTeams }).data?.teams ?? null;
   const refresh = () => void utils.users.list.invalidate();
   const [inviting, setInviting] = useState(false);
@@ -377,6 +384,20 @@ export function UsersSection() {
                   <DropdownMenuItem onSelect={() => setDisabled.mutate({ id: u.id, disabled: !u.disabled })}>
                     {u.disabled ? t("settings.users.turnOn") : t("settings.users.turnOff")}
                   </DropdownMenuItem>
+                  {canExport && (
+                    <DropdownMenuItem asChild>
+                      <a href={`/api/users/${u.id}/export`} download>
+                        <Download />
+                        {t("settings.users.exportData")}
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                  {canErase && (
+                    <DropdownMenuItem variant="destructive" onSelect={() => setErasing(u)}>
+                      <Trash2 />
+                      {t("settings.users.erase")}
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -458,6 +479,18 @@ export function UsersSection() {
       </Dialog>
 
       <HandOver shown={shown} onClose={() => setShown(null)} />
+      {erasing && (
+        <Suspense fallback={null}>
+          <EraseUser
+            target={erasing}
+            onClose={() => setErasing(null)}
+            onErased={() => {
+              setErasing(null);
+              refresh();
+            }}
+          />
+        </Suspense>
+      )}
     </SettingsGroup>
   );
 }

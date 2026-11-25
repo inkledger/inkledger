@@ -39,6 +39,9 @@ export const AUDIT_ACTIONS = {
   "users.resetPassword": ["username"],
   "users.setDisabled": ["username", "disabled"],
   "users.setBreakGlass": ["username", "breakGlass"],
+  // A person's data on request (api/gdpr): never their name, only their id as the target
+  "users.exportData": ["self"],
+  "users.erase": ["erased", "rows", "connections", "auditPseudonymised"],
   // Single sign-on (Settings › Single sign-on) and what identity providers do here
   "sso.createProvider": ["kind", "name", "issuer", "jitEnabled", "enforced", "disabled"],
   "sso.updateProvider": ["kind", "name", "issuer", "jitEnabled", "enforced", "disabled", "clientChanged"],

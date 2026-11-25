@@ -2362,6 +2362,11 @@ export const auditEvents = pgTable(
     after: text("after"),
     prevHash: text("prev_hash").notNull(),
     hash: text("hash").notNull(),
+    /**
+     * When an erasure pseudonymised the row (api/gdpr): its label, address and names were
+     * replaced after it was chained, so verify checks its link but not its content hash.
+     */
+    pseudonymisedAt: epochMs("pseudonymised_at"),
   },
   (t) => [
     index("idx_audit_events_at").on(t.at),

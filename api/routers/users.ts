@@ -40,6 +40,8 @@ import {
   type Granted,
 } from "../queries/accounts";
 import { hashPassword, temporaryPassword } from "../lib/password";
+import { erasedLabel } from "../lib/audit";
+import { eraseUser } from "../gdpr/erase";
 import { assertFreeUsername, renameInput, renameValues, renameWrite } from "./auth";
 import { ssoEnforced } from "../sso/store";
 
@@ -364,6 +366,42 @@ export const usersRouter = createRouter({
     ctx.audit.set({ target: userTarget(user), after: { username: user.username } });
     return { password };
   }),
+
+  /**
+   * Erases an account and everything it owns on this server (api/gdpr/erase.ts): for
+   * eraseUserData, confirmed by an owner (whoever erases must be one) typing the account's
+   * username. Never one's own, never the last active owner. Its audit rows stay, pseudonymised;
+   * the event says what went, never who it was. Tracker-side data and older backups stay.
+   */
+  erase: permProcedure("eraseUserData")
+    .input(z.object({ id: z.number().int(), confirmUsername: z.string().trim().min(1).max(64) }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.id === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.notYourself") });
+      const found = await userById(input.id);
+      if (!found) throw new TRPCError({ code: "NOT_FOUND" });
+      if ((found.username ?? "").toLowerCase() !== input.confirmUsername.toLowerCase()) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.users.eraseConfirm") });
+      const erased = await getDb().transaction(async (tx) => {
+        // The owners locked first (as writeAccount does): two erasures at once can't leave none.
+        const admins = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.role, "admin"), isNull(users.disabledAt)))
+          .orderBy(asc(users.id))
+          .for("update");
+        const [me] = await tx.select().from(users).where(eq(users.id, ctx.user.id)).for("share");
+        const actor = me ? await withAccess(me, tx) : undefined;
+        if (!actor || actor.disabledAt || !actor.access.owner || !can(actor, "eraseUserData")) throw new TRPCError({ code: "FORBIDDEN", message: t("server.users.eraseOwnerOnly") });
+        const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt }).from(users).where(eq(users.id, input.id));
+        if (!now) throw new TRPCError({ code: "NOT_FOUND" });
+        if (now.role === "admin" && !now.disabledAt && !admins.some((a) => a.id !== input.id)) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.lastAdmin") });
+        return eraseUser(tx, input.id);
+      });
+      ctx.audit.set({
+        target: { type: "user", id: input.id, ownerUserId: input.id },
+        after: { erased: erasedLabel(input.id), rows: erased.rows, connections: erased.connections, auditPseudonymised: erased.auditPseudonymised },
+      });
+      return { erased: erasedLabel(input.id), connections: erased.connections, auditPseudonymised: erased.auditPseudonymised };
+    }),
 
   /** Turns an account off (signed out everywhere, no sign-in) or on again. Its data stays. */
   /**
