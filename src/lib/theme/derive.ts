@@ -336,12 +336,18 @@ function deriveStandard(baseHex: string): Palette {
     ["--sunset-4", { l: 0.88, c: deco(0.055), h: h + 8 }],
     ["--sunset-5", { l: 0.79, c: deco(0.07), h: h - 2 }],
   ];
+  // Dark: a dusk band with a pale title, deep enough for AA (a mid-tone band
+  // left the dark title near 3:1 on the sign-in cover and the brand mark).
+  const dusk = (col: Oklch): Oklch => ({ ...col, l: col.l - 0.42, c: col.c * 0.75 });
   for (const [name, col] of sunset) {
     light[name] = tone(col);
-    dark[name] = tone({ ...col, l: col.l - 0.26, c: col.c * 0.75 });
+    dark[name] = tone(dusk(col));
   }
-  light["--cover-title"] = tone({ l: 0.3, c: textC * 0.8, h });
-  dark["--cover-title"] = tone({ l: 0.2, c: textC * 0.6, h });
+  const band = (cols: Oklch[]) => cols.map(col => oklchToRgb({ ...col, c: limit(col.c) }));
+  const titleOn = (cols: Oklch[], dark: boolean, chroma: number) =>
+    tone({ l: solveAgainst(h, limit(chroma), band(cols), CONTRAST_TARGETS.normal.text, dark ? 0.95 : 0.3, dark ? 1 : 0), c: chroma, h });
+  light["--cover-title"] = titleOn(sunset.map(([, col]) => col), false, textC * 0.8);
+  dark["--cover-title"] = titleOn(sunset.map(([, col]) => dusk(col)), true, textC * 0.35);
 
   return { light, dark, base: baseHex.toUpperCase() };
 }
@@ -490,7 +496,14 @@ function deriveLook(baseHex: string, standard: Palette, look: ThemeLook): Palett
         const was = rgbToOklch(parseTriplet(from[name]));
         vars[name] = tri({ l: solveAgainst(was.h, was.c, onCard, ratio, was.l, dark ? 1 : 0), c: was.c, h: was.h });
       }
-      vars["--cover-title"] = T({ l: dark ? 0.16 : 0.2, c: textC * 0.6, h });
+      // The cover title reaches AAA on every stop of the band; in dark the band goes a step deeper for it.
+      const stops = [1, 2, 3, 4, 5].map(i => {
+        const was = rgbToOklch(parseTriplet(from[`--sunset-${i}`]));
+        return dark ? { ...was, l: was.l - 0.1 } : was;
+      });
+      if (dark) stops.forEach((col, i) => (vars[`--sunset-${i + 1}`] = T(col)));
+      const titleC = dark ? textC * 0.3 : textC * 0.6;
+      vars["--cover-title"] = T({ l: solveAgainst(h, limit(titleC), stops.map(rgb), target.text, dark ? 0.97 : 0.2, dark ? 1 : 0), c: titleC, h });
     }
     // State colours: text on its soft fill and on every surface, at this level's target.
     for (const [name, hue] of Object.entries(STATUS_HUES)) {
