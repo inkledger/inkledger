@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import type { inferRouterOutputs } from "@trpc/server";
 import { Search, StickyNote } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -9,6 +10,10 @@ import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { formatQuery, parseQuery } from "@contracts/query";
 import { t, useLocale } from "@/i18n";
+import { showNewBoard } from "./followBoard";
+import type { AppRouter } from "../../../api/router";
+
+type Board = inferRouterOutputs<AppRouter>["pinboard"]["boards"][number];
 
 type Field = "label" | "component";
 
@@ -57,12 +62,20 @@ function TagChip({ field, value }: { field: Field; value: string }) {
     if (following) return open(following.id);
     if (creating.current) return;
     creating.current = true;
+    const name = value.slice(0, 60);
     void utils.client.pinboard.createBoard
-      .mutate({ name: value.slice(0, 60), follow: { field, value } })
+      .mutate({ name, follow: { field, value } })
       .then(async ({ id }) => {
         pinboardBoard.set(id);
-        // The menu says "Open" as soon as it is told the board exists.
-        await utils.pinboard.invalidate();
+        // The menu says "Open" from now on: the board in the list at once (a load from before it dropped), then the list read again.
+        await showNewBoard<Board>(
+          {
+            cancel: () => utils.pinboard.boards.cancel(),
+            setData: update => utils.pinboard.boards.setData(undefined, update),
+            invalidate: () => utils.pinboard.invalidate(),
+          },
+          { id, name, follow: { connectionId: null, field, value }, bucket: null, count: 0, group: "all", hidden: 0 },
+        );
         toast.success(t("views.board.pinboard.created", { name: value }), {
           action: canShowPinboard() ? { label: t("ui.pin.open"), onClick: () => open(id) } : undefined,
         });
