@@ -186,7 +186,7 @@ export function useStickyTable({
 const TITLE_MIN = 160;
 const TITLE_COLUMN = 3;
 
-type Group = { tables: Map<HTMLElement, HTMLElement>; ro: ResizeObserver; mo: MutationObserver; measure: () => void };
+type Group = { tables: Map<HTMLElement, HTMLElement>; ro: ResizeObserver; mo: MutationObserver; measure: () => void; leader?: HTMLElement | null };
 const groups = new WeakMap<HTMLElement, Group>();
 
 /**
@@ -253,8 +253,15 @@ function joinGroup(root: HTMLElement, box: HTMLElement, scroll: HTMLElement): ()
   }
   const g = group;
   // Sideways together: a scroll of one is set on the others (the same value fires no further change).
+  // A table whose sideways room is a pixel or two shorter clamps the value it is given: its own scroll event must not
+  // echo that clamped value back to the table that led (it would move the leader by those pixels).
   const follow = () => {
+    if (g.leader && g.leader !== scroll) return;
+    g.leader = scroll;
     for (const other of g.tables.values()) if (other !== scroll && other.scrollLeft !== scroll.scrollLeft) other.scrollLeft = scroll.scrollLeft;
+    requestAnimationFrame(() => {
+      if (g.leader === scroll) g.leader = null;
+    });
   };
   const first = g.tables.values().next().value;
   g.tables.set(box, scroll);

@@ -188,7 +188,8 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
         await page.keyboard.press(TAB);
         await page.keyboard.press(`Shift+${TAB}`);
         await star.evaluate(el => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => done(el)))));
-        assert.equal(await scroller.evaluate(s => s.scrollLeft), 120, "a frozen control's focus leaves the scroll as it was");
+        const rooms = await page.evaluate(() => [...document.querySelectorAll(".sticky-table [data-sticky-scroll], .sticky-table > div")].map(s => `${s.scrollWidth - s.clientWidth}/${s.scrollLeft}`).join(" "));
+        assert.equal(await scroller.evaluate(s => s.scrollLeft), 120, `a frozen control's focus leaves the scroll as it was (room/left: ${rooms})`);
 
         // Down the list: the header stays under the bars, lined up with the columns.
         await page.evaluate(() => document.getElementById("main").scrollBy(0, 900));
