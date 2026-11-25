@@ -386,6 +386,13 @@
       "when": 1795558297971,
       "tag": "0054_gdpr_erase",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795608269724,
+      "tag": "0055_theme_appearance",
+      "breakpoints": true
     }
   ]
 }

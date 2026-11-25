@@ -897,6 +897,10 @@ export const settings = pgTable("settings", {
   dashboardLayout: text("dashboard_layout").notNull().default(""),
   /** Base colour the UI palette is derived from (src/lib/theme) */
   themeColor: text("theme_color").notNull().default("#B5562F"),
+  /** The palette's family (src/lib/theme): standard | soft (low glare) */
+  themeVariant: text("theme_variant").notNull().default("standard"),
+  /** Contrast level: normal | high | system (follows prefers-contrast) */
+  themeContrast: text("theme_contrast").notNull().default("system"),
   /** Ask about the away time after this many idle minutes. 0 = disabled */
   idleMinutes: integer("idle_minutes").notNull().default(10),
   /** JSON array of board status names kept collapsed */
@@ -935,6 +939,8 @@ export const settings = pgTable("settings", {
   check("settings_share_link_minutes", sql`${t.shareLinkMinutes} BETWEEN 5 AND 1440`),
   check("settings_agent_command", sql`length(${t.agentCommand}) BETWEEN 1 AND 200`),
   check("settings_mail_copies", sql`${t.mailCopies} IN ('off', 'body', 'full')`),
+  check("settings_theme_variant", sql`${t.themeVariant} IN ('standard', 'soft')`),
+  check("settings_theme_contrast", sql`${t.themeContrast} IN ('normal', 'high', 'system')`),
 ]);
 
 export type User = typeof users.$inferSelect;

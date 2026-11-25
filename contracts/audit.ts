@@ -76,6 +76,8 @@ export const AUDIT_ACTIONS = {
     "notifyEnabled",
     "idleMinutes",
     "themeColor",
+    "themeVariant",
+    "themeContrast",
     "allowedLinkDomains",
     "backdropVisibility",
     "overlapPolicy",

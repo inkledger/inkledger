@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { env } from "../lib/env";
 import { parseStringList } from "../lib/json";
 import { BACKDROP_VISIBILITY } from "@contracts/modules";
+import { THEME_CONTRASTS, THEME_VARIANTS } from "@contracts/theme";
 import { eq, sql } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
@@ -89,6 +90,8 @@ export const settingsRouter = createRouter({
           .regex(/^#[0-9a-fA-F]{6}$/, { error: () => t("server.settings.invalidColor") })
           .transform((c) => c.toUpperCase())
           .optional(),
+        themeVariant: z.enum(THEME_VARIANTS).optional(),
+        themeContrast: z.enum(THEME_CONTRASTS).optional(),
         dashboardLayout: z
           .array(z.object({ id: z.string().min(1), visible: z.boolean() }))
           .max(20)
