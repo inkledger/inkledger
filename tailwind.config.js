@@ -88,6 +88,8 @@ module.exports = {
           6: token("data-6"),
           7: token("data-7"),
           8: token("data-8"),
+          none: token("data-none"),
+          other: token("data-other"),
         },
         border: token("border"),
         input: token("input"),

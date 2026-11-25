@@ -29,8 +29,8 @@ const TEXTURES = ["", "data-texture-2", "data-texture-3", "data-texture-4", "dat
  * Neutrals, never a palette hue (a hue always means a real category): a ninth series is never a new
  * hue but summed as "Other"; what has no category ("No type", "No client") is the other neutral.
  */
-export const OTHER_COLOUR: DataColour = { slot: 0, fill: "bg-chart-break", texture: "" };
-export const NONE_COLOUR: DataColour = { slot: 0, fill: "bg-chart-other", texture: "" };
+export const OTHER_COLOUR: DataColour = { slot: 0, fill: "bg-data-other", texture: "" };
+export const NONE_COLOUR: DataColour = { slot: 0, fill: "bg-data-none", texture: "" };
 
 const STORE_KEY = "ikl-data-colours";
 type Saved = Record<DataDimension, (string | null)[]>;
