@@ -137,6 +137,9 @@ module.exports = {
         touch: "44px",
         // WCAG 2.2 target size (24 px), not 1.5rem: the root is 14 px.
         target: "24px",
+        // A control's height in a row, per density (--control-h in index.css): buttons, segmented
+        // controls and button groups share it, so a header's controls line up.
+        control: "var(--control-h)",
       },
       transitionTimingFunction: {
         DEFAULT: "cubic-bezier(.2,.8,.2,1)",

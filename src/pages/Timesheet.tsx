@@ -686,7 +686,6 @@ export default function Timesheet() {
                 <>
                 <Button
                   variant="ghost"
-                  size="sm"
                   disabled={busy}
                   onClick={() =>
                     selectedLogs.length === periodLogs.length ? selection.clear() : selection.setAll(periodLogs.map(w => w.id))
@@ -697,7 +696,6 @@ export default function Timesheet() {
                 {selectedLogs.length > 0 && (
                   <Button
                     variant="destructive"
-                    size="sm"
                     disabled={busy}
                     onClick={() => setConfirm({ type: "bulk" })}
                   >

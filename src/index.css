@@ -394,6 +394,16 @@
      never follows the sun, so nothing reflows. */
   :root {
     --surface-room: 12px;
+    /* The one height of a control standing in a row (a button, a segmented control, ‹ Today ›, an
+       icon button): 2.25rem, snapped to an even whole pixel (32 px compact, 36 px comfortable). On a
+       14 px root 2.25rem is 31.5 px, and a 14 px icon or an inner pill in a half-pixel box paints one
+       pixel off centre, so neighbours rounded to different pixels looked misaligned. */
+    --control-h: 2.25rem;
+  }
+  @supports (height: round(1rem, 1px)) {
+    :root {
+      --control-h: round(2.25rem, 2px);
+    }
   }
   /* Inside an overlay (a dialog, the palette, a popover) the room is the overlay's own tight padding. */
   :is([role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]) {

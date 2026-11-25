@@ -131,6 +131,7 @@ Every size is in rem, so density scales the root: compact is 14 px (the default)
   - Gap `2` by default; gap `1` only for dense chip groups.
   - Sections use `p-5 md:p-6` (`PanelSection`).
   - `touch` (44 px) and `target` (24 px) are named spacings for hit areas.
+  - `control` (`--control-h`) is the one height of a control in a row: 2.25rem snapped to an even pixel (32 px compact, 36 px comfortable). `Button` (`default`, `icon`), `SegmentedControl` and `PeriodNav` use it with their border inside, so a header's controls share top, bottom and centre in every look (`e2e/header-align.test.mjs`). A group of buttons fills its border with `h-full`; never an `h-9` or a padding that adds to it.
 - **Radius.** It comes from `--radius` (0.5 rem):
   - `rounded-sm`, `md`, `lg`, `xl` and `2xl` only;
   - `rounded-3xl` and arbitrary radii are refused.

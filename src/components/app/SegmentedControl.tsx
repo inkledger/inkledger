@@ -38,8 +38,10 @@ export function SegmentedControl<T extends string>({
       // Under a light the chosen option stands out of the group.
       {...surface("ground")}
       className={cn(
-        // Wraps on a narrow screen: every option stays on it, never cut off.
-        "inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-lg border bg-muted/70 p-0.5",
+        // Wraps on a narrow screen: every option stays on it, never cut off. The row's control height
+        // (h-control, border inside it) like the buttons beside it; whole-pixel border and padding, so
+        // the chosen option sits in the middle (3 px above and below).
+        "inline-flex min-h-control max-w-full flex-wrap items-center gap-0.5 rounded-lg border bg-muted/70 p-[2px]",
         className
       )}
       onKeyDown={e => {
@@ -63,9 +65,9 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasValue && i === 0) ? 0 : -1}
             onClick={() => onChange(v)}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-body-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "inline-flex h-[calc(var(--control-h)-6px)] items-center gap-1.5 rounded-md px-2.5 text-body-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               active
-                ? "bg-card text-foreground shadow-xs ring-1 ring-border"
+                ? "bg-card text-foreground shadow-xs ring-1 ring-inset ring-border"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >

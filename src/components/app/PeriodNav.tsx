@@ -22,11 +22,12 @@ export function PeriodNav({
   controls?: { prev: FlowControlAttributes; today: FlowControlAttributes; next: FlowControlAttributes };
 }) {
   return (
-    <div {...surface("card")} className="flex items-center rounded-lg border bg-background">
+    // The row's control height with its border inside (h-control); the buttons fill it border to border.
+    <div {...surface("card")} className="flex h-control items-stretch rounded-lg border bg-background">
       <Button
         variant="ghost"
         size="icon"
-        className="rounded-r-none"
+        className="h-full rounded-r-none"
         onClick={onPrev}
         aria-label={t("ui.period.prev")}
         {...controls?.prev}
@@ -35,7 +36,7 @@ export function PeriodNav({
       </Button>
       <Button
         variant="ghost"
-        className="rounded-none border-x px-3"
+        className="h-full rounded-none border-x px-3"
         onClick={onToday}
         disabled={isCurrent}
         {...controls?.today}
@@ -45,7 +46,7 @@ export function PeriodNav({
       <Button
         variant="ghost"
         size="icon"
-        className="rounded-l-none"
+        className="h-full rounded-l-none"
         onClick={onNext}
         aria-label={t("ui.period.next")}
         {...controls?.next}

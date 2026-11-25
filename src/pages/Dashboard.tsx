@@ -204,7 +204,6 @@ function HeaderTimer() {
       {running && toLog.length > 0 && (
         <Button
           variant="ghost"
-          size="sm"
           title={t("pages.dashboard.toLogTitle")}
           className="text-warning"
           {...flowControlProps("dashboard.timer.logStopped")}
