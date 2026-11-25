@@ -78,8 +78,23 @@ test("My issues are cut to their room before the first paint, not a frame later"
     await app.page.clock.install({ time: new Date() });
     await app.page.addInitScript(() => {
       window.__shifts = [];
+      window.__shiftDetail = [];
       new PerformanceObserver(list => {
-        for (const entry of list.getEntries()) if (!entry.hadRecentInput) window.__shifts.push(...entry.sources.map(source => source.node?.textContent ?? ""));
+        for (const entry of list.getEntries()) {
+          if (entry.hadRecentInput) continue;
+          for (const source of entry.sources) {
+            window.__shifts.push(source.node?.textContent ?? "");
+            // What moved and how, for the failure message.
+            const rect = r => r && [r.x, r.y, r.width, r.height].map(n => Math.round(n * 10) / 10).join(",");
+            window.__shiftDetail.push({
+              at: Math.round(entry.startTime),
+              node: source.node?.outerHTML?.slice(0, 160) ?? String(source.node),
+              from: rect(source.previousRect),
+              to: rect(source.currentRect),
+              fonts: document.fonts.status,
+            });
+          }
+        }
       }).observe({ type: "layout-shift", buffered: true });
     });
     await app.page.goto(`${app.base}/`);
@@ -87,7 +102,8 @@ test("My issues are cut to their room before the first paint, not a frame later"
       await app.page.reload();
       await app.page.getByRole("link", { name: /^Show all \(\d+\)/ }).waitFor();
       await app.page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      assert.deepEqual(await app.page.evaluate(() => window.__shifts), []);
+      const detail = await app.page.evaluate(() => JSON.stringify({ shifts: window.__shiftDetail, fonts: [...document.fonts].filter(f => f.status !== "unloaded").map(f => `${f.family} ${f.weight} ${f.status} ${f.unicodeRange.slice(0, 20)}`) }));
+      assert.deepEqual(await app.page.evaluate(() => window.__shifts), [], `load ${i + 1}: ${detail}`);
     }
     assert.deepEqual(app.errors, []);
   } finally {

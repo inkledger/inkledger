@@ -162,9 +162,14 @@ test("on a phone: nothing scrolls the page sideways, the names stay in view", ()
     // The map scrolls inside itself; the name column stays put.
     const name = page.getByRole("button", { name: /^Open Giulia Bianchi's period/ });
     const before = await name.boundingBox();
-    await page.getByRole("table").evaluate(t => t.parentElement.scrollBy(400, 0));
+    const scroller = await page.getByRole("table").evaluate(t => {
+      const box = t.parentElement;
+      const from = box.scrollLeft;
+      box.scrollBy(400, 0);
+      return { from, scrollLeft: box.scrollLeft, scrollWidth: box.scrollWidth, clientWidth: box.clientWidth };
+    });
     const after = await name.boundingBox();
-    assert.ok(Math.abs(after.x - before.x) <= 1, "the name column is sticky");
+    assert.ok(Math.abs(after.x - before.x) <= 1, `the name column is sticky: ${JSON.stringify({ before, after, scroller })}`);
   }));
 
 test("without the permission: no menu entry, and the page says so", () =>
