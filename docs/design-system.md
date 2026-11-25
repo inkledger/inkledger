@@ -30,7 +30,7 @@ A printable version with live colour swatches and the type scale is in `docs/des
 ## 2. Principles
 
 1. **Calm, warm, data first.** Warm neutrals with one terracotta accent (the user's colour, §3.2). Colour carries data and state, never decoration. The reference is a time-tracker dashboard: one white panel divided by hairlines, not a wall of boxed cards.
-2. **Pastel and tone on tone.** Every colour derives from one base hue. Saturated fills were rejected as "too loud", and hue jumps towards pink or lilac as "a costume party".
+2. **Pastel and tone on tone.** Every colour derives from one base hue. Saturated fills were rejected as "too loud", and hue jumps towards pink or lilac as "a costume party". The one exception is the data palette (§3.5): series in a chart must be told apart, so they spread around the wheel, in charts only.
 3. **Minimal is not anonymous.** Character comes from texture (the grain on covers and paper) and one accent, **never from motion**. Hover animations and "fun" movement were rejected; a flat, toneless version was called "anonymous".
 4. **Compact by default.** The root font is 14 px (§4.2). Density is a choice the user makes, not a page's.
 5. **Everything is the app.** No page, pane or screen with its own look. A separate server page was called "awful and inconsistent". The Outlook pane is a page of the app's build for this reason (§10).
@@ -85,16 +85,34 @@ The user picks one base colour (Settings → Appearance, stored as `settings.the
 | `ring` | Focus ring, always full strength | `focus-visible:ring-2 ring-ring` |
 | `success`, `warning`, `danger`, `info` (+ `-soft`) | State: text on its soft fill | `bg-success-soft text-success` |
 | `chart-*`, `project-1..6` | Data only: charts, project colours | `bg-chart-focus` |
+| `data-1..8` | Data only: one colour per series of a chart (issue type, project, client), §3.5 | via `colourFor` / `assignColours` |
 | `paper`, `tape-1..5`, `string` | The pinboard's notes, washi tape, the red string | pinboard only |
 | `cover-*`, `sunset-*` | Grainy covers: focus mode, avatars, illustrations, the sign-in page (never on a page's figures) | `cover-sunset` |
 
 ### 3.4 Rules that came from mistakes
 
 - **Project colours are stable per project.** A hash of the project key picks one of `--project-1..6`, never the project's rank in a period, which made colours jump around.
-- **Hatched stripes mean one thing only:** tracked but not yet logged (a live timer). Never use them for logged data.
+- **Hatched stripes mean one thing only:** tracked but not yet logged (a live timer). Never use them for logged data. The data palette's high-contrast textures (§3.5) are dots and level lines, never the 45° hatch.
 - **No decorative covers** on cards, figures or the issue page. A page's figures are a `StatStrip` (the stat card with a cover and tiles was retired on 3 Nov, as a favourite-card banner was before it: wasted space).
 - **No gradients** except the theme's own sunset band on covers and the brand mark. No purple, blue or "AI" gradients.
 - **Dark mode is not inverted light.** It has its own derived values. Check both themes, every time, and the soft and high-contrast looks when you touch colour (`e2e/themes.test.mjs`).
+
+### 3.5 The data palette (series colours)
+
+Charts that split one measure into categories (a day's hours by issue type, rows by project or client) give each category its own colour. Before it, every bar wore `chart-focus` and "what kind of work" could not be read at a glance.
+
+**Where it comes from.** `derive.ts` writes `--data-1..8` for every look, from the base colour:
+- Slot 1 is the base hue; the other seven are the hues 45° apart around the wheel, in the order whose touching neighbours stay furthest apart (found once per base, the same in light, dark and every look: a type never changes colour family).
+- One chroma per look: standard 0.10, soft 0.09 (calmer), high contrast 0.13 (firmer). One lightness for all, solved so every series reaches 3:1 (3.6:1 in high contrast) on the card, the canvas and the bars' muted track; every other slot is a lightness step further from the ground, because at one lightness a dichromat cannot tell eight hues apart.
+- `derive.test.ts` checks it for every preset, extreme and random base × look × scheme: the contrast, and the distance (OKLab ×100) between neighbouring series under simulated protanopia, deuteranopia and tritanopia (≥ 8) and for normal vision (≥ 15).
+
+**How to use it.**
+- Never by slot number in a component. `src/lib/dataColors.ts`: `assignColours(keys, dimension)` for a chart's series (busiest first), `colourFor(key, index, dimension)` for one. A category keeps its colour on every page and period: its first appearance takes the next free slot of its dimension (`type`, `project`, `client`) and the choice is saved on the device. A hash would give five types the same colour four times in five.
+- At most eight series: the ninth and the rest are summed as Other (`OTHER_COLOUR`, a neutral), never a new hue.
+- Stack segments in palette order (the legend's), not by size: touching series are then the ones checked apart.
+- Colour is never the only cue. Every chart with two or more series has a text legend (`DataLegend`: name, time, share); a bar's tooltip and its accessible name list its series; the sr-only table names them; a row says its category in words. In high contrast each slot also wears a texture (`data-texture-2..8`: dots, level lines, a grid; slot 1 solid).
+
+**Never** for UI chrome: not for buttons, chips, navigation, state, or decoration. State keeps `success`/`warning`/`danger`/`info`; one-series charts keep `chart-focus`.
 
 ---
 
