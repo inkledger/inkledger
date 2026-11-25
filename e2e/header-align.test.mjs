@@ -10,7 +10,9 @@ import { start } from "./harness.mjs";
 // contrast; light and dark). A user saw the segmented control shorter than its neighbours and the
 // settings icon off centre: borders and rem heights on a 14 px root (31.5 px) made each control
 // round to a different pixel.
-const PAGES = ["/", "/timesheet", "/board", "/issues/DEMO-101"];
+// Two servers: the issue page asks for a lot at once, and with the others in one run the per-user rate
+// limit answered 429.
+const RUNS = [["/", "/timesheet", "/board"], ["/issues/DEMO-101"]];
 const LOOKS = [
   ["standard", "normal"],
   ["soft", "normal"],
@@ -116,7 +118,7 @@ function problemsOf(m, where) {
   return problems;
 }
 
-test("header controls share one height and centre in every look and density", { timeout: 600_000 }, async () => {
+for (const PAGES of RUNS) test(`header controls share one height and centre in every look and density: ${PAGES.join(", ")}`, { timeout: 600_000 }, async () => {
   const app = await start({ viewport: { width: 1600, height: 900 } });
   try {
     const { page, base, db } = app;

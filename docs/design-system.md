@@ -325,6 +325,7 @@ These conventions are in `docs/dev/ux-patterns.md`, each with its e2e test. The 
   - Lists that pick one thing are buttons with `aria-pressed`.
   - Shortcuts are written per platform (`MOD_KEY`: ⌘ on Apple, Ctrl elsewhere).
 - **Focus.** Rings use the full `ring-ring` colour; faded rings (`ring-ring/40`) are refused.
+  - Fields (`Input`, `Textarea`, `SelectTrigger`, `IssuePicker`, the palette's search) draw their focus inside themselves: `data-focus="inset"` gives an inset ring following the radius (2 px, 3 px in high contrast) instead of the outline, so it never sticks out over a dialog's edge or a separator.
 - **Toasts.** Every toast and notification can be closed without opening it. Errors use `toastError`, which explains and offers Retry.
 
 ---
