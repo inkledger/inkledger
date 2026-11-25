@@ -55,9 +55,12 @@ export function TickingElapsed({
 export function TimerControls({
   issueKey,
   connectionId,
+  size = "icon-sm",
 }: {
   issueKey: string;
   connectionId?: number | null;
+  /** "icon" in a header's row of controls (the row's control height); "icon-sm" in a list row. */
+  size?: "icon" | "icon-sm";
 }) {
   const { timer, fetchedAt, running, paused, pending, heldElsewhere, ...act } =
     useTimerActions(issueKey, connectionId);
@@ -96,7 +99,7 @@ export function TimerControls({
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size={size}
               aria-label={t("ui.timer.takeOverFor", { key: issueKey })}
               disabled={pending}
               onClick={() => setConfirmingTakeOver(true)}
@@ -111,7 +114,7 @@ export function TimerControls({
       ) : !running ? (
         <Button
           variant="ghost"
-          size="icon-sm"
+          size={size}
           aria-label={
             paused
               ? t("ui.timer.resumeFor", { key: issueKey })
@@ -126,7 +129,7 @@ export function TimerControls({
       ) : (
         <Button
           variant="ghost"
-          size="icon-sm"
+          size={size}
           aria-label={t("ui.timer.pauseFor", { key: issueKey })}
           title={t("ui.timer.pause")}
           disabled={pending}
@@ -139,7 +142,7 @@ export function TimerControls({
         <>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size={size}
             aria-label={t("ui.timer.stopAndLogFor", { key: issueKey })}
             title={t("ui.timer.stopAndLog")}
             disabled={pending}
@@ -149,7 +152,7 @@ export function TimerControls({
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size={size}
             aria-label={t("ui.timer.moveToFor", { key: issueKey })}
             title={t("ui.timer.moveTo")}
             disabled={pending}
@@ -160,7 +163,7 @@ export function TimerControls({
           {/* Running or paused: a timer started by mistake goes without stopping it first. */}
           <Button
             variant="ghost"
-            size="icon-sm"
+            size={size}
             aria-label={t("ui.timer.discardFor", { key: issueKey })}
             title={t("ui.timer.discardTip")}
             disabled={pending}

@@ -452,6 +452,10 @@
       outline: 2px solid Highlight !important;
       outline-offset: 2px;
     }
+    /* A frame's own search field: the outline inside it, as its ring is (no box-shadow here). */
+    [data-focus="inset"]:focus-visible {
+      outline-offset: -2px;
+    }
     /* Fills become the system's Canvas: data bars, chips and controls keep an edge in system
        colours so they do not vanish (an outline: no layout moves). */
     [data-surface="bar"] {
@@ -1009,6 +1013,18 @@ html[data-keyboard] {
 html[data-contrast="high"] :focus-visible {
   outline: 3px solid hsl(var(--ring));
   outline-offset: 2px;
+}
+/* Fields (Input, Textarea, SelectTrigger, IssuePicker's trigger) and a frame's own search field (the
+   palette's: data-focus="inset"): the focus is a ring inside the field that follows its radius, in
+   every look; an outline or an outer ring stuck out over a palette's edge and its separator. 2 px,
+   3 px in high contrast, in the full ring colour (3:1 against the field). */
+[data-focus="inset"]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px hsl(var(--ring));
+}
+html[data-contrast="high"] [data-focus="inset"]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px hsl(var(--ring));
 }
 html[data-contrast="high"] [class*="text-foreground/"] {
   color: hsl(var(--foreground));

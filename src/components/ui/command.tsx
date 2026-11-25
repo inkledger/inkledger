@@ -27,13 +27,15 @@ function CommandInput({
   return (
     <div
       data-slot="command-input-wrapper"
-      className="flex h-9 items-center gap-2 border-b px-3"
+      className="flex h-9 items-center gap-1.5 border-b px-2 py-1"
     >
-      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <SearchIcon className="ml-1 size-4 shrink-0 opacity-50" />
       <CommandPrimitive.Input
         data-slot="command-input"
+        // Focus: an inset ring following its radius (index.css), never an outline over the frame's edge.
+        data-focus="inset"
         className={cn(
-          "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-field outline-none md:text-body-sm disabled:cursor-not-allowed disabled:opacity-50",
+          "placeholder:text-muted-foreground flex h-full w-full rounded-md bg-transparent px-2 text-field outline-none md:text-body-sm disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         {...props}

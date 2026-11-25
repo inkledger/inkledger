@@ -129,8 +129,9 @@ export function VirtualCommand({
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div data-slot="command-input-wrapper" className={cn("flex items-center gap-2 border-b px-3", dialog ? "h-12" : "h-9")}>
-        <SearchIcon className={cn("shrink-0 opacity-50", dialog ? "size-5" : "size-4")} aria-hidden />
+      {/* In a dialog its ✕ (top-3 right-3, 24 px) stands at the row's end: the field stops before it (pr-11). */}
+      <div data-slot="command-input-wrapper" className={cn("flex items-center gap-1.5 border-b px-2", dialog ? "h-12 py-1.5 pr-11" : "h-9 py-1")}>
+        <SearchIcon className={cn("ml-1 shrink-0 opacity-50", dialog ? "size-5" : "size-4")} aria-hidden />
         <input
           ref={inputRef}
           autoFocus={autoFocus}
@@ -143,14 +144,16 @@ export function VirtualCommand({
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
+          // Its focus is an inset ring that follows its radius (index.css): the generic outline stuck out
+          // over the palette's edge and its separator, and crowded the icon.
+          data-focus="inset"
           type="text"
           value={query}
           placeholder={placeholder}
           onChange={e => onQueryChange(e.target.value)}
           onKeyDown={onKeyDown}
           className={cn(
-            "flex w-full rounded-md bg-transparent py-3 text-field outline-none placeholder:text-muted-foreground md:text-body-sm disabled:cursor-not-allowed disabled:opacity-50",
-            dialog ? "h-12" : "h-10"
+            "flex h-full w-full rounded-md bg-transparent px-2 text-field outline-none placeholder:text-muted-foreground md:text-body-sm disabled:cursor-not-allowed disabled:opacity-50"
           )}
         />
       </div>

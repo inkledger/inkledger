@@ -10,7 +10,9 @@ import { start } from "./harness.mjs";
 // contrast; light and dark). A user saw the segmented control shorter than its neighbours and the
 // settings icon off centre: borders and rem heights on a 14 px root (31.5 px) made each control
 // round to a different pixel.
-const PAGES = ["/", "/timesheet", "/board"];
+// Two servers: the issue page asks for a lot at once, and with the others in one run the per-user rate
+// limit answered 429.
+const RUNS = [["/", "/timesheet", "/board"], ["/issues/DEMO-101"]];
 const LOOKS = [
   ["standard", "normal"],
   ["soft", "normal"],
@@ -58,7 +60,9 @@ async function measure(page) {
       if (!svg || !shown(button) || button.textContent.trim() !== "") continue;
       const b = box(button);
       const s = box(svg);
-      icons.push({ name: b.name, dx: s.cx - b.cx, dy: s.cy - b.cy, ...gaps(s, b) });
+      // A tilted icon (the pin) has a box bigger than its glyph: only its centre is compared.
+      const tilted = getComputedStyle(svg).transform !== "none";
+      icons.push({ name: b.name, dx: s.cx - b.cx, dy: s.cy - b.cy, tilted, ...gaps(s, b) });
     }
     const pills = [];
     for (const group of bar.querySelectorAll('[role="radiogroup"]')) {
@@ -103,7 +107,7 @@ function problemsOf(m, where) {
   if (m.units.length < 2) problems.push(`${where}: only ${m.units.length} control(s) found`);
   for (const i of m.icons) {
     if (Math.abs(i.dx) > TOLERANCE || Math.abs(i.dy) > TOLERANCE) problems.push(`${where}: icon of "${i.name}" off centre by ${i.dx.toFixed(2)}, ${i.dy.toFixed(2)}`);
-    if (i.above !== i.below || i.before !== i.after) problems.push(`${where}: icon of "${i.name}" paints ${i.above}/${i.below} px above/below, ${i.before}/${i.after} px before/after`);
+    if (!i.tilted && (i.above !== i.below || i.before !== i.after)) problems.push(`${where}: icon of "${i.name}" paints ${i.above}/${i.below} px above/below, ${i.before}/${i.after} px before/after`);
   }
   for (const p of m.pills) {
     if (Math.abs(p.exact.above - p.exact.below) > TOLERANCE) problems.push(`${where}: chosen option of "${p.name}" ${p.exact.above.toFixed(2)} above, ${p.exact.below.toFixed(2)} below`);
@@ -114,7 +118,7 @@ function problemsOf(m, where) {
   return problems;
 }
 
-test("header controls share one height and centre in every look and density", { timeout: 600_000 }, async () => {
+for (const PAGES of RUNS) test(`header controls share one height and centre in every look and density: ${PAGES.join(", ")}`, { timeout: 600_000 }, async () => {
   const app = await start({ viewport: { width: 1600, height: 900 } });
   try {
     const { page, base, db } = app;

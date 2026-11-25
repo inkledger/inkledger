@@ -34,7 +34,16 @@ async function dashboard(page, base, scheme) {
 test("style and contrast switch from Settings, persist, and stay accessible in every look", async () => {
   const app = await start({ viewport: { width: 1440, height: 900 } });
   try {
-    const { page, base } = app;
+    const { page, base, db } = app;
+    // The page shows a choice at once (optimistic); a reload is only fair once the server has it.
+    const saved = async (variant, contrast) => {
+      for (let i = 0; i < 100; i++) {
+        const [row] = await db.q("SELECT theme_variant, theme_contrast FROM settings WHERE user_id = 1");
+        if (row?.theme_variant === variant && row?.theme_contrast === contrast) return;
+        await new Promise(r => setTimeout(r, 100));
+      }
+      assert.fail(`the server never saved ${variant}/${contrast}`);
+    };
     await page.goto(base + "/settings/appearance");
     const style = page.getByRole("radiogroup", { name: /^(Style|Stile)$/ });
     const contrast = page.getByRole("radiogroup", { name: /^(Contrast|Contrasto)$/ });
@@ -54,6 +63,7 @@ test("style and contrast switch from Settings, persist, and stay accessible in e
       await style.getByRole("radio", { name: variant === "soft" ? /Soft|Morbido/ : /^Standard$/ }).click();
       await contrast.getByRole("radio", { name: level === "high" ? /High|Alto/ : /Normal|Normale/ }).click();
       await page.waitForFunction(([v, c]) => document.documentElement.dataset.variant === v && document.documentElement.dataset.contrast === c, [variant, level]);
+      await saved(variant, level);
       for (const scheme of ["light", "dark"]) {
         await dashboard(page, base, scheme);
         assert.deepEqual(await look(page), { variant, contrast: level }, "the look survives a reload");
@@ -91,6 +101,50 @@ test("System contrast follows prefers-contrast; an explicit choice wins over it"
     await page.reload();
     await page.waitForLoadState("load");
     assert.equal((await look(page)).contrast, "normal", "the explicit choice holds against the system's");
+  } finally {
+    await app.stop();
+  }
+});
+
+test("a slow answer to an earlier choice never takes back a later one (the focus stays on the chosen tile)", async () => {
+  const app = await start({ viewport: { width: 1440, height: 900 } });
+  try {
+    const { page, base } = app;
+    await page.goto(base + "/settings/appearance");
+    const style = page.getByRole("radiogroup", { name: /^(Style|Stile)$/ });
+    const contrast = page.getByRole("radiogroup", { name: /^(Contrast|Contrasto)$/ });
+    await contrast.getByRole("radio", { checked: true }).waitFor();
+    // The first save (the style) is done on the server (the contrast still "system") but its answer
+    // arrives after the contrast was chosen: CI's race, made certain.
+    let release = () => {};
+    const held = new Promise(r => (release = r));
+    let first = true;
+    let answered = () => {};
+    const firstAnswered = new Promise(r => (answered = r));
+    let sent = () => {};
+    const firstSent = new Promise(r => (sent = r));
+    await page.route(u => new URL(u).pathname.includes("settings.update"), async route => {
+      if (!first) return route.continue();
+      first = false;
+      sent();
+      const response = await route.fetch();
+      await held;
+      await route.fulfill({ response });
+      answered();
+    });
+    await style.getByRole("radio", { name: /Soft|Morbido/ }).click();
+    await firstSent;
+    await contrast.getByRole("radio", { checked: true }).focus();
+    await page.keyboard.press("Home");
+    await contrast.getByRole("radio", { name: /Normal|Normale/, checked: true }).waitFor();
+    await page.waitForTimeout(500);
+    // The contrast's own save waits too (its answer is the newest), so the stale one lands alone first.
+    release();
+    await firstAnswered;
+    await page.waitForTimeout(300);
+    assert.equal(await contrast.getByRole("radio", { name: /Normal|Normale/ }).getAttribute("aria-checked"), "true", "the later choice holds");
+    assert.equal(await style.getByRole("radio", { name: /Soft|Morbido/ }).getAttribute("aria-checked"), "true", "the earlier one too");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-checked")), "true", "the focus is on the chosen tile");
   } finally {
     await app.stop();
   }
