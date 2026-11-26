@@ -51,8 +51,9 @@ function useLayout(): [Layout, (l: Layout) => void] {
  */
 export function StoreSection() {
   const { acquire } = useStoreAccess();
-  // Without acquireModules: only the modules granted to this account (no catalogue).
-  return acquire ? <StoreCatalogSection /> : <GrantedModules />;
+  const offers = trpc.modules.list.useQuery().data?.offers ?? [];
+  // Without acquireModules: the modules offered to this account (to buy for itself) and the ones it holds; nothing else.
+  return acquire || offers.length > 0 ? <StoreCatalogSection /> : <GrantedModules />;
 }
 
 function StoreCatalogSection() {
@@ -129,7 +130,7 @@ function StoreCatalogSection() {
           <p className="text-body-sm text-muted-foreground">{t("settings.store.empty")}</p>
         ) : null}
         {(entries.length > 0 || others.length > 0) && (
-          <ul data-store-layout={layout} className={layout === "compact" ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" : "grid gap-4 sm:grid-cols-2"}>
+          <ul data-store-layout={layout} className={layout === "compact" ? "grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,12rem),1fr))]" : "grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,20rem),1fr))]"}>
             {entries.map(e =>
               layout === "compact" ? (
                 <StoreTile key={e.product} entry={e} locale={locale} onOpen={show(e.product)} />
@@ -143,7 +144,7 @@ function StoreCatalogSection() {
                 module={m}
                 locale={locale}
                 licensed={(local.data?.licenses ?? []).some(l => l.product === m.product)}
-                className={layout === "compact" ? "col-span-2" : undefined}
+                className={layout === "compact" ? "col-span-full" : undefined}
               />
             ))}
           </ul>

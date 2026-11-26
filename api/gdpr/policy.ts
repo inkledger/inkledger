@@ -34,6 +34,7 @@ export const USER_DATA: Record<string, TablePolicy> = {
   // The server's own
   roles: { kind: "global", reason: "the server's roles (the person's are in role_assignments)" },
   teams: { kind: "global", reason: "the server's teams (the person's places are in team_members)" },
+  module_licences: { kind: "global", reason: "the server's licences and who holds each (an erased holder's seat frees: holder set to none)" },
   server_settings: { kind: "global", reason: "server configuration" },
   server_hosts: { kind: "global", reason: "the server's own host names" },
   egress_hosts: { kind: "global", reason: "outbound call counts per host, no person" },
@@ -43,6 +44,7 @@ export const USER_DATA: Record<string, TablePolicy> = {
   // Access
   team_members: { kind: "user", export: all },
   role_assignments: { kind: "user", export: all },
+  module_offers: { kind: "user", export: all },
   invites: { kind: "user", export: skip("one-time invite links (hashed)") },
   sessions: { kind: "user", export: skip("sign-in sessions (hashed ids)") },
   remembered_devices: { kind: "user", export: skip("remembered-device tokens (hashed)") },

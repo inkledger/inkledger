@@ -33,6 +33,8 @@ import { surface } from "@/components/app/surface";
 import { Kbd } from "@/components/app/Kbd";
 import { APPLE } from "@/lib/dom";
 import { chordLabel } from "@contracts/moduleCommands";
+import { Distribution } from "./Distribution";
+import { useStoreAccess } from "./access";
 
 const ICONS: Record<StoreIcon, LucideIcon> = {
   carrot: Carrot,
@@ -103,6 +105,7 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
     ...(e.gallery ?? []).map(g => ({ src: g.src, caption: loc(g.caption, locale) })),
   ];
   const paragraphs = e.description ? loc(e.description, locale) : [];
+  const { manage } = useStoreAccess();
 
   return (
     <>
@@ -152,6 +155,8 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
             </ul>
           </section>
         )}
+
+        {manage && <Distribution entry={e} locale={locale} />}
 
         <section className="p-5">
           <SectionLabel as="h3" className="mb-3 px-0">{t("settings.store.info.title")}</SectionLabel>

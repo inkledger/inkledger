@@ -324,6 +324,9 @@ describe("module store", () => {
 
   // The Worker prefills the checkout with this email; the code, not the email, gets the licence.
   it("a checkout carries the account's email, and none when the account has only a login", async () => {
+    // Bought above, the licence is the admin's own: a second one for the same person is refused (one each).
+    await expect(caller.store.checkout({ product: "inkledger.hello", method: "card" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await caller.modules.removeLicense({ product: "inkledger.hello" });
     const { appRouter } = await import("../router");
     const { userFromRequest } = await import("../context");
     const ctx = await userFromRequest(new Request("http://localhost/", { headers: { cookie } }));

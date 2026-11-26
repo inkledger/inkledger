@@ -465,6 +465,16 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "store.assign": {
+    "kept": [
+      "count",
+      "kind",
+      "product",
+      "skipped",
+      "teamId",
+    ],
+    "redacted": 17,
+  },
   "store.checkout": {
     "kept": [
       "method",
@@ -487,6 +497,8 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   "store.grantAcquired": {
     "kept": [
       "moduleId",
+      "payerId",
+      "payerKind",
       "product",
       "userId",
     ],
@@ -495,6 +507,21 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   "store.install": {
     "kept": [
       "product",
+    ],
+    "redacted": 17,
+  },
+  "store.offer": {
+    "kept": [
+      "product",
+      "teamId",
+      "userId",
+    ],
+    "redacted": 17,
+  },
+  "store.reassign": {
+    "kept": [
+      "licence",
+      "userId",
     ],
     "redacted": 17,
   },
@@ -507,6 +534,14 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   },
   "store.restoreLicense": {
     "kept": [],
+    "redacted": 17,
+  },
+  "store.withdrawOffer": {
+    "kept": [
+      "product",
+      "teamId",
+      "userId",
+    ],
     "redacted": 17,
   },
   "team.day": {

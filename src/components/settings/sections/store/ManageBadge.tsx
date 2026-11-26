@@ -134,6 +134,16 @@ export function ManageBadge({
     }
   };
 
+  // One's own licence (bought by oneself): the buyer side manages a licence.
+  const exportMine = async () => {
+    try {
+      const file = await utils.store.myLicence.fetch({ product });
+      downloadBlob(`${moduleId}${LICENSE_FILE_EXTENSION}`, new Blob([JSON.stringify(file, null, 2) + "\n"], { type: "application/json" }));
+    } catch (e) {
+      toastError(e);
+    }
+  };
+
   const exportLicence = async (how: "file" | "copy") => {
     try {
       const file = await utils.modules.exportLicense.fetch({ product });
@@ -155,15 +165,18 @@ export function ManageBadge({
   return (
     <>
       <DropdownMenu>
+        {/* One width whatever it says (on, off, stopped…): switching swaps its text, nothing beside it moves. */}
         <DropdownMenuTrigger
           aria-label={t("settings.store.manage.open", { name, status: badge.label })}
+          title={badge.label || undefined}
+          data-store-badge
           className={cn(
-            "inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-sm px-2 text-caption font-medium outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring",
+            "inline-flex h-6 w-24 min-w-0 shrink-0 items-center justify-between gap-1 rounded-sm px-2 text-caption font-medium outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring",
             TONES[badge.tone]
           )}
         >
-          {badge.label}
-          <ChevronDown className="h-3 w-3" aria-hidden />
+          <span className="min-w-0 truncate">{badge.label}</span>
+          <ChevronDown className="h-3 w-3 shrink-0" aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="font-medium">{name}</DropdownMenuLabel>
@@ -200,6 +213,12 @@ export function ManageBadge({
                 {t("settings.store.manage.importProgress")}
               </DropdownMenuItem>
             </>
+          )}
+          {!manage && list?.mine?.includes(product) && (
+            <DropdownMenuItem onSelect={() => void exportMine()}>
+              <Download />
+              {t("settings.store.dist.myLicence")}
+            </DropdownMenuItem>
           )}
           {manage && installed && (
             <DropdownMenuItem onSelect={() => setConfirmUninstall(true)}>

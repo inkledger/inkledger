@@ -116,6 +116,10 @@ exports[`exporting a person's data > is a ZIP of every table of theirs, their ro
       "rows": 1,
     },
     {
+      "name": "data/module_offers.json",
+      "rows": 1,
+    },
+    {
       "name": "data/module_storage.json",
       "rows": 1,
     },

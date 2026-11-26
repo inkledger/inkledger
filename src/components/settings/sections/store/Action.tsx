@@ -6,6 +6,7 @@ import type { StoreEntry } from "@contracts/store";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
 import { Chip } from "@/components/app/Chip";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { missingRequirements } from "@/lib/browserSupport";
@@ -16,6 +17,9 @@ import { ModuleSwitch } from "./ModuleSwitch";
 import { useModuleOffers } from "@/modules/context";
 import { tellEnabled } from "@/modules/enabledSignals";
 import { useStoreAccess } from "./access";
+
+/** A call to action never wider than its card: its label truncates (the whole of it in its title). */
+const FIT = "min-w-0 max-w-full";
 
 export type StoreView = "details" | "request" | "paid" | "settings";
 
@@ -70,27 +74,31 @@ export function Action({
       onSettings={hasSettings ? () => onOpen("settings") : undefined}
     />
   );
+  // Two fixed lines, never overflowing their card: the switch and the badge, then what can be done or the status
+  // (its text wraps). Toggling swaps content inside them, nothing mounts or moves.
   const both = (cta: ReactNode) => (
-    <span className="flex flex-wrap items-center justify-end gap-2">
-      <ModuleSwitch moduleId={e.id} name={nameOf(e, locale)} installed={e.installed} />
-      {manage}
-      {cta}
+    <span data-store-action className="ml-auto flex min-w-0 max-w-full flex-col items-end gap-1.5">
+      <span className="flex min-w-0 max-w-full items-center justify-end gap-2">
+        <ModuleSwitch moduleId={e.id} name={nameOf(e, locale)} installed={e.installed} />
+        {manage}
+      </span>
+      {cta && <span className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">{cta}</span>}
     </span>
   );
 
   if (e.pending?.status === "pending") {
     const kind = e.pending.kind;
     return both(
-      <Button variant="outline" size={size} onClick={() => onOpen(kind === "paid" ? "paid" : "request")}>
+      <Button variant="outline" size={size} className={FIT} title={t(kind === "paid" ? "settings.store.waiting.paid" : "settings.store.waiting.request")} onClick={() => onOpen(kind === "paid" ? "paid" : "request")}>
         <Spinner />
-        {t(kind === "paid" ? "settings.store.waiting.paid" : "settings.store.waiting.request")}
+        <span className="truncate">{t(kind === "paid" ? "settings.store.waiting.paid" : "settings.store.waiting.request")}</span>
       </Button>
     );
   }
   if (e.pending) {
     return both(
       <>
-        <Chip tone="danger">
+        <Chip tone="danger" wrap>
           {e.pending.status === "declined" ? t("settings.store.declined") : t("settings.store.failed", { reason: e.pending.reason ?? "?" })}
         </Chip>
         <Button variant="ghost" size={size} onClick={() => dismiss.mutate({ product: e.product })}>
@@ -122,22 +130,23 @@ export function Action({
   if (e.licensed && (e.outdated || e.installed === null) && access.manage) {
     const update = e.outdated;
     return both(
-      <Button size={size} disabled={install.isPending} onClick={ev => {
+      <Button size={size} className={FIT} disabled={install.isPending} onClick={ev => {
           pressed.current = ev.currentTarget;
           install.mutate({ product: e.product });
         }}>
         {install.isPending ? <Spinner /> : update ? <RefreshCw /> : <Download />}
-        {update ? t("settings.store.update", { version: e.version }) : t("settings.store.install")}
+        <span className="truncate">{update ? t("settings.store.update", { version: e.version }) : t("settings.store.install")}</span>
       </Button>
     );
   }
   // The installed build is the newest this inkledger runs; a newer one waits for an inkledger update.
   if (e.licensed && e.installed?.state === "active" && e.needsNewerHost) {
-    return both(<Chip variant="dot" tone="neutral">{t("settings.store.newerNeedsHost")}</Chip>);
+    return both(<Chip variant="dot" tone="neutral" wrap>{t("settings.store.newerNeedsHost")}</Chip>);
   }
-  // Active, or licensed but refused: the badge says it and manages it.
-  if (e.installed?.state === "active" || e.licensed) return both(null);
-  if (!e.supported) return both(<Chip variant="dot" tone="warning">{t("settings.store.unsupported")}</Chip>);
+  // Active, or licensed but refused: the badge says it and manages it. Someone who doesn't manage the Store
+  // owns it only with a licence of their own (licensed is theirs): installed for others, it's still to get.
+  if ((access.manage && e.installed?.state === "active") || e.licensed) return both(null);
+  if (!e.supported) return both(<Chip variant="dot" tone="warning" wrap>{t("settings.store.unsupported")}</Chip>);
   return both(<ModeButton entry={e} locale={locale} size={size} priceOnButton={priceOnButton} onOpen={onOpen} />);
 }
 
@@ -157,23 +166,23 @@ function ModeButton({
 }) {
   if (e.mode === "soon") {
     return (
-      <Button variant="outline" size={size} disabled>
-        {t("settings.store.soon")}
+      <Button variant="outline" size={size} className={FIT} disabled>
+        <span className="truncate">{t("settings.store.soon")}</span>
       </Button>
     );
   }
   if (e.mode === "request") {
     return (
-      <Button size={size} onClick={() => onOpen("request")}>
+      <Button size={size} className={FIT} title={t("settings.store.request")} onClick={() => onOpen("request")}>
         <KeyRound />
-        {t("settings.store.request")}
+        <span className="truncate">{t("settings.store.request")}</span>
       </Button>
     );
   }
   return (
-    <Button size={size} className="tabular" onClick={() => onOpen("paid")}>
+    <Button size={size} className={cn(FIT, "tabular")} onClick={() => onOpen("paid")}>
       <ShoppingBag />
-      {priceOnButton ? formatPrice(e, locale) : t("settings.store.buy")}
+      <span className="truncate">{priceOnButton ? formatPrice(e, locale) : t("settings.store.buy")}</span>
     </Button>
   );
 }

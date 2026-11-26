@@ -88,6 +88,12 @@ const SKIPS: Record<string, string> = {
   "modules.licenceProofFile": "a licence is the server's, not a user's",
   "modules.removeLicense": "server-wide, manageStore (the permission tests below)",
   "modules.uninstall": "server-wide, manageStore (the permission tests below)",
+  "store.offer userId": "who a module is offered to: the server's people, manageStore (api/store/store-permissions.test.ts)",
+  "store.offer teamId": "who a module is offered to: the server's teams, manageStore (api/store/store-permissions.test.ts)",
+  "store.withdrawOffer": "an offer is the server's, manageStore (the permission tests below)",
+  "store.assign teamId": "who pays: the server's teams, manageStore (api/store/store-permissions.test.ts)",
+  "store.assign people[].userId": "who a licence is bought for: the server's people, manageStore (api/store/store-permissions.test.ts)",
+  "store.reassign userId": "who a licence moves to: the server's people, manageStore (api/store/store-permissions.test.ts)",
   "users.reinvite": "accounts, manageUsers (the permission tests below)",
   "users.setAccess": "accounts, manageUsers (the permission tests below)",
   "users.rename": "accounts, manageUsers (the permission tests below)",
@@ -795,14 +801,20 @@ const PERMISSION_OF: Record<string, Permission> = {
   "backup.offsiteRestore": "restoreBackups",
   "backup.drill": "runBackups",
   "backup.drillUpdate": "runBackups",
-  "store.catalog": "acquireModules",
-  "store.requestLicense": "acquireModules",
-  "store.checkout": "acquireModules",
-  "store.claimPaid": "acquireModules",
-  "store.pending": "acquireModules",
+  "store.catalog": "useModules",
+  "store.requestLicense": "useModules",
+  "store.checkout": "useModules",
+  "store.claimPaid": "useModules",
+  "store.pending": "useModules",
   "store.install": "manageStore",
   "store.restoreLicense": "manageStore",
-  "store.dismiss": "acquireModules",
+  "store.dismiss": "useModules",
+  "store.myLicence": "useModules",
+  "store.distribution": "manageStore",
+  "store.offer": "manageStore",
+  "store.withdrawOffer": "manageStore",
+  "store.assign": "manageStore",
+  "store.reassign": "manageStore",
   "modules.activation": "manageStore",
   "modules.activate": "manageStore",
   "modules.deactivate": "manageStore",
@@ -956,9 +968,9 @@ describe("server-wide powers need their permission", () => {
       const out = await run(() => callAt(none.caller, proc, NOT_AN_INPUT));
       expect.soft(out.ok ? "answered" : codeOf(out.error), proc + " with no permission").toBe("FORBIDDEN");
     }
-    const { IMPLIED_PERMISSIONS } = await import("@contracts/accounts");
-    // Without the permission and without any that implies it (manageStore buys modules too).
-    const implying = (perm: Permission) => PERMS.filter((p) => IMPLIED_PERMISSIONS[p]?.includes(perm));
+    const { withImplied } = await import("@contracts/accounts");
+    // Without the permission and without any that implies it (manageStore gets modules, acquireModules runs them).
+    const implying = (perm: Permission) => PERMS.filter((p) => p !== perm && withImplied([p]).has(perm));
     for (const perm of PERMS) {
       const allBut = await account("member", PERMS.filter((p) => p !== perm && !implying(perm).includes(p)));
       for (const proc of Object.keys(PERMISSION_OF).filter((p) => PERMISSION_OF[p] === perm)) {
@@ -981,8 +993,9 @@ describe("server-wide powers need their permission", () => {
   });
 
   it("a permission that implies another opens its procedures too (manageStore buys and requests modules)", async () => {
-    const { IMPLIED_PERMISSIONS } = await import("@contracts/accounts");
-    for (const [perm, implied] of Object.entries(IMPLIED_PERMISSIONS) as [Permission, readonly Permission[]][]) {
+    const { IMPLIED_PERMISSIONS, withImplied } = await import("@contracts/accounts");
+    for (const perm of Object.keys(IMPLIED_PERMISSIONS) as Permission[]) {
+      const implied = [...withImplied([perm])].filter((p) => p !== perm);
       const only = await account("member", [perm]);
       for (const proc of Object.keys(PERMISSION_OF).filter((p) => implied.includes(PERMISSION_OF[p]))) {
         if ((await procedureAt(proc))._def.inputs.length === 0) continue;

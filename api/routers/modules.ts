@@ -37,6 +37,7 @@ import {
 } from "../modules/registry";
 import { xactLockIn } from "../queries/locks";
 import { recordOnceEvery, type AuditRequest } from "../lib/audit";
+import { dropSeat, offeredTo, ownLicences } from "../store/seats";
 
 /** A licence held on this server, by its id (NOT_FOUND otherwise). */
 async function heldLicence(id: string): Promise<string> {
@@ -207,6 +208,10 @@ export const modulesRouter = createRouter({
     const seesAll = manager || can(me, "acquireModules") || can(me, "manageUsers");
     return {
       modules: seesAll ? modules : modules.filter((m) => mayRunModule(me, m.id)),
+      // Products a Store manager offered to this account or its team, to buy for itself.
+      offers: [...(await offeredTo(me.id))].sort(),
+      // Products whose licence this account bought for itself (it may download it).
+      mine: await ownLicences(me.id),
       licenses: manager ? licenses : [],
       extraKey: manager && extraKey() !== null,
       off: off.map((r) => r.moduleId),
@@ -271,6 +276,8 @@ export const modulesRouter = createRouter({
   removeLicense: store
     .input(z.union([z.object({ id: z.string().min(1) }), z.object({ product: z.string().min(1) })]))
     .mutation(async ({ input }) => {
+      // Their seats go too (and their holders' modules): a licence is one person's.
+      for (const l of await validLicenses()) if ("id" in input ? l.id === input.id : l.product === input.product) await dropSeat(l.id);
       await updateLicenses((texts) =>
         texts.filter((x) => {
           const v = verifyLicense(x);

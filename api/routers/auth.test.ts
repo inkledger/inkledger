@@ -241,8 +241,8 @@ describe("auth: sessions, cookies, login hardening", () => {
     it("an admin invites someone with permissions; the link sets their password once and signs them in", async () => {
       const a = await admin();
       const { link, user } = await appRouter.createCaller(a).users.invite({ username: "Giulia", displayName: "Giulia", role: "member", permissions: ["manageStore"] });
-      // What she may do: manageStore buys and requests modules too (acquireModules, implied).
-      expect(user).toMatchObject({ username: "giulia", role: "member", permissions: ["manageStore", "acquireModules"], pending: true });
+      // What she may do: manageStore gets modules too (acquireModules), and runs what she holds (useModules).
+      expect(user).toMatchObject({ username: "giulia", role: "member", permissions: ["manageStore", "acquireModules", "useModules"], pending: true });
       const token = link.split("/").pop()!;
       expect(await appRouter.createCaller(anon()).auth.invite({ token })).toEqual({ username: "giulia", displayName: "Giulia" });
       await expect(appRouter.createCaller(anon()).auth.acceptInvite({ token, password: "short" })).rejects.toMatchObject({ code: "BAD_REQUEST" });

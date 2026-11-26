@@ -16,3 +16,4 @@ For the people who deploy, review and operate an inkledger server.
 | [Runbook: incident](runbook-incident.md) | Containing an account, signing out, rotating, exporting the audit |
 
 Related: [self-hosting guide](../self-hosting.md), [HTTPS](../https.md), [security policy](../../SECURITY.md).
+- [Who pays for what (Chi paga cosa)](who-pays.md): offers, assigned modules, one licence per person, who manages it.

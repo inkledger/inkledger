@@ -27,11 +27,14 @@ export function Chip({
   tone = "neutral",
   variant = "soft",
   className,
+  wrap = false,
   children,
 }: {
   tone?: Tone;
   variant?: "soft" | "dot";
   className?: string;
+  /** Long text (a status sentence): wraps inside its box instead of running past it. */
+  wrap?: boolean;
   children: React.ReactNode;
 }) {
   const dot = variant === "dot";
@@ -39,12 +42,13 @@ export function Chip({
     <span
       {...surface("chip")}
       className={cn(
-        "inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-sm px-1.5 text-caption font-medium",
+        "inline-flex items-center gap-1.5 rounded-sm px-1.5 text-caption font-medium",
+        wrap ? "min-h-5 max-w-full py-0.5 [overflow-wrap:anywhere]" : "h-5 whitespace-nowrap",
         dot ? "bg-muted text-foreground/75" : TONES[tone],
         className
       )}
     >
-      {dot && <Dot tone={tone} className="h-1.5 w-1.5" />}
+      {dot && <Dot tone={tone} className="h-1.5 w-1.5 shrink-0" />}
       {children}
     </span>
   );

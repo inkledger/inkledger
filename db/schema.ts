@@ -151,6 +151,58 @@ export const roleAssignments = pgTable(
   (t) => [uniqueIndex("uq_role_assignments").on(t.userId, t.roleId, sql`coalesce(${t.teamId}, 0)`), index("idx_role_assignments_team").on(t.teamId)],
 );
 
+/**
+ * A module offered (Settings › Store, manageStore) to one person or one team: it shows in
+ * their Store and they buy or request it for themselves (the licence is theirs, they pay).
+ * A team's offer reaches its members as they are when they look. contracts/accounts.ts.
+ */
+export const moduleOffers = pgTable(
+  "module_offers",
+  {
+    id: serial("id").primaryKey(),
+    /** The Store product (inkledger.<id>) */
+    product: text("product").notNull(),
+    userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "cascade" }),
+    offeredBy: integer("offered_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    check("module_offers_one", sql`(${t.userId} IS NULL) <> (${t.teamId} IS NULL)`),
+    uniqueIndex("uq_module_offers").on(t.product, sql`coalesce(${t.userId}, 0)`, sql`coalesce(${t.teamId}, 0)`),
+  ],
+);
+
+/**
+ * Who each licence on this server belongs to: always one named person (holder), and who
+ * paid for it (that person, an admin, or a team) and who bought it. One purchase is one
+ * licence for one person; reassigning moves the holder, never copies. A holder gone (erased)
+ * frees the seat. Licences from before this table have no row: Settings › Users' grants.
+ */
+export const moduleLicences = pgTable(
+  "module_licences",
+  {
+    /** The licence id (inside its signed text, in server_settings modules.licenses) */
+    licenceId: text("licence_id").primaryKey(),
+    product: text("product").notNull(),
+    holderUserId: integer("holder_user_id").references(() => users.id, { onDelete: "set null" }),
+    /** Who pays: "user" (payer_id a user: the holder themselves, or an admin) or "team" (payer_id a team) */
+    payerKind: text("payer_kind").notNull(),
+    payerId: integer("payer_id"),
+    boughtBy: integer("bought_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    check("module_licences_payer", sql`${t.payerKind} IN ('user','team')`),
+    uniqueIndex("uq_module_licences_holder").on(t.product, t.holderUserId),
+    index("idx_module_licences_product").on(t.product),
+  ],
+);
+
 export type RoleRow = typeof roles.$inferSelect;
 export type Team = typeof teams.$inferSelect;
 

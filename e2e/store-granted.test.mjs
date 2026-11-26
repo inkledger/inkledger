@@ -140,12 +140,12 @@ test("a member who may acquire modules browses the catalogue and requests one, b
     const hello = page.locator('[data-store-item="hello"]');
     await hello.waitFor();
     await hello.getByRole("button", { name: "Request" }).waitFor();
-    // Tune is the server's, not his: no switch, no management, nothing to request.
+    // Tune is on the server but not his: no switch, no management; he may get a licence of his own (one per person).
     const tune = page.locator('[data-store-item="tune"]');
     await tune.waitFor();
     assert.equal(await tune.getByRole("switch").count(), 0);
     assert.equal(await tune.getByRole("button", { name: /manage Tune/ }).count(), 0);
-    assert.equal(await tune.getByRole("button", { name: "Request" }).count(), 0);
+    await tune.getByRole("button", { name: "Request" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Restore licence…" }).count(), 0);
     // The request form opens for a module not on the server.
     await hello.getByRole("button", { name: "Request" }).click();
@@ -158,6 +158,65 @@ test("a member who may acquire modules browses the catalogue and requests one, b
       await page.waitForTimeout(800);
       assert.deepEqual(await axeSerious(page), [], scheme);
     }
+    assert.deepEqual(refused, [], "nothing refused");
+    assert.deepEqual(app.errors, [], "no page errors");
+  } finally {
+    await app.stop();
+    store.close();
+    rmSync(join(modulesDir, ".."), { recursive: true, force: true });
+  }
+});
+
+test("Ugo, a member, sees only the module assigned to him and the one offered to his team", async () => {
+  const catalog = { v: 1, items: ["hello", "tune", "svg"].map(id => ({ id, product: `inkledger.${id}`, version: "1.0.0", hostApi: { min: 1, max: 1 }, name: { en: id === "tune" ? "Tune" : id === "hello" ? "Hello" : "Svg", it: id }, tagline: { en: "A module.", it: "Un modulo." }, mode: "request", price: { amount: 0, currency: "EUR" }, methods: { card: true, bitcoin: "soon" } })) };
+  const store = createServer((req, res) => {
+    res.writeHead(req.url === "/catalog" ? 200 : 404, { "content-type": "application/json" });
+    res.end(JSON.stringify(req.url === "/catalog" ? catalog : { error: "nope" }));
+  });
+  await new Promise(r => store.listen(0, "127.0.0.1", r));
+  const modulesDir = join(mkdtempSync(join(tmpdir(), "ikl-e2e-ugo-")), "modules");
+  install(modulesDir, "tune");
+  const app = await start({
+    viewport: { width: 1280, height: 900 },
+    seed: async db => {
+      await db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify([license("tune")]), Date.now());
+      // Ugo (the signed-in account, a member): Tune assigned to him (a licence his team paid), Hello offered to his team.
+      await db.q("UPDATE users SET username = 'ugo', display_name = 'Ugo', role = 'member', role_id = NULL, permissions = '[\"useModules\"]', module_grants = '[\"tune\"]' WHERE id = 1");
+      const [{ id: team }] = await db.q("INSERT INTO teams (name, created_at) VALUES ('Design', 1) RETURNING id");
+      await db.q("INSERT INTO team_members (team_id, user_id, role) VALUES (?, 1, 'member')", team);
+      await db.q("INSERT INTO module_licences (licence_id, product, holder_user_id, payer_kind, payer_id, created_at) VALUES ('L-tune', 'inkledger.tune', 1, 'team', ?, 1)", team);
+      await db.q("INSERT INTO module_offers (product, team_id, created_at) VALUES ('inkledger.hello', ?, 1)", team);
+    },
+    env: { STORE_URL: `http://127.0.0.1:${store.address().port}`, MODULES_DIR: modulesDir, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" },
+  });
+  try {
+    const { page, base } = app;
+    const refused = [];
+    page.on("response", r => {
+      if (r.status() === 403) refused.push(r.url());
+    });
+    await page.goto(base + "/settings/store");
+    const tune = page.locator('[data-store-item="tune"]');
+    const hello = page.locator('[data-store-item="hello"]');
+    await tune.waitFor();
+    await hello.waitFor();
+    assert.equal(await page.locator('[data-store-item="svg"]').count(), 0, "not offered, not held: not shown");
+    assert.deepEqual((await page.locator("[data-store-item]").evaluateAll(els => els.map(e => e.getAttribute("data-store-item")))).sort(), ["hello", "tune"]);
+    // Assigned: he switches it and sets it up; the licence is his team's (nothing to download, nothing to buy).
+    await tune.getByRole("switch", { name: /Tune/ }).waitFor();
+    assert.equal(await tune.getByRole("button", { name: "Request" }).count(), 0);
+    await tune.getByRole("button", { name: /manage Tune/ }).click();
+    const items = await page.getByRole("menu").getByRole("menuitem").allTextContents();
+    assert.ok(!items.some(i => /licence|Uninstall/i.test(i)), items.join(", "));
+    await page.keyboard.press("Escape");
+    // Offered to his team: he may request it for himself.
+    await hello.getByRole("button", { name: "Request" }).waitFor();
+    assert.equal(await hello.getByRole("switch").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Restore licence…" }).count(), 0);
+    // The pointer off the badge (its hover dims it).
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(500);
+    assert.deepEqual(await axeSerious(page), []);
     assert.deepEqual(refused, [], "nothing refused");
     assert.deepEqual(app.errors, [], "no page errors");
   } finally {

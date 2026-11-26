@@ -1216,6 +1216,10 @@
     "type": "query"
   },
   {
+    "path": "store.assign",
+    "type": "mutation"
+  },
+  {
     "path": "store.catalog",
     "type": "query"
   },
@@ -1232,7 +1236,19 @@
     "type": "mutation"
   },
   {
+    "path": "store.distribution",
+    "type": "query"
+  },
+  {
     "path": "store.install",
+    "type": "mutation"
+  },
+  {
+    "path": "store.myLicence",
+    "type": "query"
+  },
+  {
+    "path": "store.offer",
     "type": "mutation"
   },
   {
@@ -1240,11 +1256,19 @@
     "type": "query"
   },
   {
+    "path": "store.reassign",
+    "type": "mutation"
+  },
+  {
     "path": "store.requestLicense",
     "type": "mutation"
   },
   {
     "path": "store.restoreLicense",
+    "type": "mutation"
+  },
+  {
+    "path": "store.withdrawOffer",
     "type": "mutation"
   },
   {

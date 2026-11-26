@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { start } from "./harness.mjs";
 import { seedDense } from "./fixtures/dense.mjs";
+import { storeFixture } from "./fixtures/store.mjs";
 import { DENSITIES, LOOKS, WIDTHS, lookName, sweepLook } from "./visual-sweep.mjs";
 
 // Every page and the main dialogs with dense data (many people, 100+ h, long names and titles, Italian),
@@ -24,13 +25,16 @@ const MATRIX = full
 
 for (const { look, densities, widths } of MATRIX) {
   test(`visual sweep: ${lookName(look)}${full ? "" : ` (${densities.join(", ")}; ${widths.join(", ")})`}`, { timeout: 1_800_000 }, async () => {
-    const app = await start({ seed: seedDense, viewport: { width: 1440, height: 900 }, env: { RATE_LIMIT: "off" } });
+    // The Store on (a stub catalog, two modules installed): its cards are swept too, both layouts.
+    const store = await storeFixture();
+    const app = await start({ seed: async db => (await seedDense(db), await store.seed(db)), viewport: { width: 1440, height: 900 }, env: { RATE_LIMIT: "off", ...store.env } });
     try {
       const found = await sweepLook(app, look, { densities, widths });
       const lines = [...new Set(found.map(f => `${f.page} ${f.density} ${f.width}: ${f.kind} ${f.sel} "${f.text}" ${f.detail}`))];
       assert.deepEqual(lines, [], lines.join("\n"));
     } finally {
       await app.stop();
+      store.close();
     }
   });
 }

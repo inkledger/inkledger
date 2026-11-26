@@ -12,9 +12,11 @@
  * downloading a dump (whoever reaches the server's disk gets one anyway). manageAuth:
  * how people sign in; manageTeams: teams and who is in them; manageRetention: how long
  * the audit log is kept; exportUserData / eraseUserData: a person's data on request.
- * acquireModules browses the Store's whole catalogue and buys or requests a module not
- * on the server yet (granted then to whoever acquired it, only); without it, useModules
- * sees in the Store just the modules granted to the account, to turn on or off and set up.
+ * acquireModules browses the Store's whole catalogue and buys or requests modules for
+ * oneself (each licence is one person's: docs/it/who-pays.md); without it, useModules sees
+ * in the Store only the modules granted (a seat held) or offered to the account (by a Store
+ * manager, to it or its team), to buy for itself, turn on or off and set up. In-module
+ * purchases are always the person's own, never bought by an admin for someone else.
  */
 export const PERMISSIONS = [
   "manageUsers",
@@ -39,10 +41,30 @@ export const PERMISSIONS = [
 export const DEFAULT_PERMISSIONS: readonly (typeof PERMISSIONS)[number][] = [];
 export type Permission = (typeof PERMISSIONS)[number];
 
-/** Holding the key means holding these too: whoever manages the Store also buys and requests modules. */
+/**
+ * Holding the key means holding these too: whoever manages the Store also gets modules, and
+ * whoever gets modules for themselves runs them (those they hold a licence of). Transitive.
+ */
 export const IMPLIED_PERMISSIONS: Readonly<Partial<Record<Permission, readonly Permission[]>>> = {
   manageStore: ["acquireModules"],
+  acquireModules: ["useModules"],
 };
+
+/** The permissions given, with every one they imply (IMPLIED_PERMISSIONS, to a fixed point). */
+export function withImplied(given: Iterable<Permission>): Set<Permission> {
+  const held = new Set(given);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const p of [...held]) {
+      for (const q of IMPLIED_PERMISSIONS[p] ?? []) {
+        if (held.has(q)) continue;
+        held.add(q);
+        grew = true;
+      }
+    }
+  }
+  return held;
+}
 
 /** users.role, kept for older builds: "admin" is the owner role. */
 export type Role = "admin" | "member";

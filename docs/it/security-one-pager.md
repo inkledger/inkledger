@@ -23,14 +23,15 @@ One page for a security review. Details are in the linked documents.
 
 ## Permissions
 
-Accounts are `admin` or `member`. Members hold none of these unless granted: `manageUsers`, `manageStore`, `acquireModules`, `manageBackups`, `manageServer`, `viewTeamTime`, `useModules`, `viewAudit`, `exportAudit`. Admins hold all. A manager cannot grant more than they hold, cannot edit another manager, and the last admin cannot be removed or disabled. Restoring a backup is for admins only. Every user sees their own data only, except through `viewTeamTime`, which reads everyone's logged time on the server. Modules are enforced on the server too:
+Accounts are `admin` or `member`. Members hold none of these unless granted: `manageUsers`, `manageStore`, `acquireModules`, `manageBackups`, `manageServer`, `viewTeamTime`, `useModules`, `viewAudit`, `exportAudit`. Admins hold all. A manager cannot grant more than they hold, cannot edit another manager, and the last admin cannot be removed or disabled. Restoring a backup is for admins only. Every user sees their own data only, except through `viewTeamTime`, which reads everyone's logged time on the server. Modules are enforced on the server too.
 
-- With `useModules` and a module granted, the Store shows only that account's modules, to turn on or off and set up.
-- `acquireModules` (owners and IT admins; implied by `manageStore`) browses the catalogue and requests or buys a module not on the server yet. The module is then granted to whoever acquired it, and to nobody else.
+- A licence is always one person's.
+- A Store manager offers a module (the person buys it for themselves) or assigns it (the admin or a team buys one licence per person).
+- `acquireModules` (owners and IT admins) lets someone browse the whole catalogue and buy for themselves.
 - Licences, activations, installs and removal stay with `manageStore`.
-- Toggles, settings changes, acquisitions and the grants that follow are audited.
+- Each step is audited.
 
-Details are in docs/self-hosting.md under Modules and the Store.
+The full rules are in [who-pays.md](who-pays.md).
 
 ## Audit log
 

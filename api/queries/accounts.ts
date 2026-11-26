@@ -6,7 +6,7 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { invites, rememberedDevices, roleAssignments, roles, sessions, teamMembers, teams, users, type RoleRow, type User } from "@db/schema";
-import { DEFAULT_ADMIN, IMPLIED_PERMISSIONS, INVITE_DAYS, OWNER_ONLY_PERMISSIONS, PERMISSIONS, type Permission, type Role, type RoleScope, type TeamRole } from "@contracts/accounts";
+import { DEFAULT_ADMIN, INVITE_DAYS, withImplied, OWNER_ONLY_PERMISSIONS, PERMISSIONS, type Permission, type Role, type RoleScope, type TeamRole } from "@contracts/accounts";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { env } from "../lib/env";
 import { parseStringList } from "../lib/json";
@@ -90,8 +90,8 @@ export function permissionsOf(user: Account): Permission[] {
   for (const r of [user.access.role, ...user.access.extra]) {
     if (r && (r.scope === "server" || user.access.extra.includes(r))) for (const p of r.permissions) held.add(p);
   }
-  for (const p of [...held]) for (const implied of IMPLIED_PERMISSIONS[p] ?? []) held.add(implied);
-  return PERMISSIONS.filter((p) => held.has(p));
+  const all = withImplied(held);
+  return PERMISSIONS.filter((p) => all.has(p));
 }
 
 export const can = (user: Account, permission: Permission) => permissionsOf(user).includes(permission);

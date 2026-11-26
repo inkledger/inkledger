@@ -8,6 +8,7 @@ import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { connections, roleAssignments, settings, teamMembers, teams, users, type User } from "@db/schema";
 import { PERMISSIONS, type TeamRole } from "@contracts/accounts";
 import { moduleIdSchema } from "@contracts/modulesSchema";
+import { seatsFor, syncSeats } from "../store/seats";
 import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
@@ -256,6 +257,12 @@ function assertPasswordAllowed(user: User, enforced: boolean) {
 
 const inviteLink = (token: string) => `/invite/${token}`;
 
+/** Each module given needs a free licence of it: one licence is one person's (api/store/seats.ts). */
+async function assertSeats(userId: number, before: readonly string[], after: readonly string[]) {
+  const r = await seatsFor(userId, before, after);
+  if (!r.ok) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.store.noFreeSeat", { module: r.moduleId }) });
+}
+
 export const usersRouter = createRouter({
   /** Every account; of their trackers only how many (T6: never which, or what they hold). */
   list: manage.query(async () => {
@@ -282,6 +289,7 @@ export const usersRouter = createRouter({
       const me = await actingNow(ctx.user);
       const want = await wanted(input);
       assertWithin(me, want.granted);
+      if (!want.owner) await assertSeats(0, [], input.modules);
       const username = input.username.trim().toLowerCase();
       await assertFreeUsername(username);
       // Taken meanwhile (two invites of one name at once): refused as taken.
@@ -296,6 +304,7 @@ export const usersRouter = createRouter({
         }),
       );
       const user = await withAccess(made);
+      if (!want.owner) await syncSeats(user.id, [], grantsOf(user));
       const places = await placesOf(user.id);
       const { token, expiresAt } = await createInvite(user.id, me.id);
       ctx.audit.set({ target: userTarget(user), after: accessOf(user, places) });
@@ -320,6 +329,7 @@ export const usersRouter = createRouter({
     const user = await target(input.id, ctx.user);
     const want = await wanted(input, user);
     assertWithin(ctx.user, want.granted);
+    if (!want.owner) await assertSeats(user.id, grantsOf(user), input.modules);
     const before = await placesOf(user.id);
     const [updated] = await writeAccount(ctx.user, user, !want.owner, async (db, me) => {
       assertWithin(me, want.granted);
@@ -333,6 +343,8 @@ export const usersRouter = createRouter({
     });
     if (!updated) throw notAllowed();
     const now = await withAccess(updated);
+    // Each module given takes a free licence of it, each one taken frees it (one licence, one person).
+    await syncSeats(now.id, grantsOf(user), now.access.owner ? [] : grantsOf(now));
     const places = await placesOf(now.id);
     ctx.audit.set({ target: userTarget(now), before: accessOf(user, before), after: accessOf(now, places) });
     return row(now, places);

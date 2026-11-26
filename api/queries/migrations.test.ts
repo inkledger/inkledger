@@ -181,7 +181,7 @@ describe("legacy Jira connections (0047)", () => {
     await query('DROP FUNCTION "inkledger_audit_append_only" CASCADE');
     for (const t of ["sso_states", "scim_tokens", "user_identities", "identity_providers"]) await query(`DROP TABLE "${t}"`);
     for (const c of ["auth_source", "break_glass", "external_id", "scim_managed", "scim_user_name"]) await query(`ALTER TABLE "users" DROP COLUMN "${c}"`);
-    for (const t of ["role_assignments", "team_members", "teams"]) await query(`DROP TABLE "${t}"`);
+    for (const t of ["module_offers", "module_licences", "role_assignments", "team_members", "teams"]) await query(`DROP TABLE "${t}"`);
     await query('ALTER TABLE "users" DROP COLUMN "role_id"');
     await query('DROP TABLE "roles"');
     for (const c of ["theme_variant", "theme_contrast"]) await query(`ALTER TABLE "settings" DROP COLUMN "${c}"`);
@@ -235,7 +235,7 @@ describe("migrations over a draft of 0010", () => {
     await query('DROP FUNCTION "inkledger_audit_append_only" CASCADE');
     for (const t of ["sso_states", "scim_tokens", "user_identities", "identity_providers"]) await query(`DROP TABLE "${t}"`);
     for (const c of ["auth_source", "break_glass", "external_id", "scim_managed", "scim_user_name"]) await query(`ALTER TABLE "users" DROP COLUMN "${c}"`);
-    for (const t of ["role_assignments", "team_members", "teams"]) await query(`DROP TABLE "${t}"`);
+    for (const t of ["module_offers", "module_licences", "role_assignments", "team_members", "teams"]) await query(`DROP TABLE "${t}"`);
     await query('ALTER TABLE "users" DROP COLUMN "role_id"');
     await query('DROP TABLE "roles"');
     await query('DROP TABLE "write_leases"');

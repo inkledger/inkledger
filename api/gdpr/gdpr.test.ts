@@ -37,6 +37,7 @@ const OVERRIDES: Record<string, Row> = {
   mails: { source: "eml" },
   markdown_note_versions: { origin: "auto" },
   markdown_notes: { kind: "note" },
+  module_offers: { team_id: null },
   planned_entries: { kind: "travel", starts_at: 1, ends_at: 2 },
   team_members: { role: "member" },
   workspace_descriptors: desktop,
