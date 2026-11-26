@@ -75,4 +75,19 @@ export async function seedDense(db) {
   }
   for (let i = 0; i < 6; i++)
     await db.q("INSERT INTO ideas (user_id, title, body, position, created_at, updated_at) VALUES (1, ?, ?, ?, ?, ?)", TITLES[(i + 2) % TITLES.length], "Una descrizione lunga dell'idea, con il perché e i criteri di accettazione da discutere.", i, now, now);
+  // Feedback (Info › Feedback): long titles, every state, a thread with a change of state and a shared one.
+  const kinds = ["problem", "idea", "improvement"];
+  const states = ["new", "discussion", "accepted", "in_progress", "implemented", "rejected"];
+  for (let i = 0; i < 6; i++) {
+    const [{ id }] = await db.q(
+      "INSERT INTO feedback (user_id, type, title, body, page, app_version, look, density, status, status_reason, share_consent, share_state, shared_at, upstream_status, created_at, updated_at) VALUES (1, ?, ?, ?, ?, 'dev', 'light·standard·normal', 'compact', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+      kinds[i % 3], TITLES[i % TITLES.length] + " — la pagina si blocca quando trascino una voce lunga", "Succede ogni volta che apro il pannello laterale con molte voci: la lista salta e perdo il punto in cui ero. Allego i passi per riprodurlo.\n\n1. Apri la board\n2. Trascina una issue dal titolo molto lungo",
+      `/issues/LONG-${1000 + i}`, states[i], states[i] === "rejected" ? "Fuori dal perimetro di questa versione: la riprendiamo con il nuovo editor." : null, i % 2, i % 2 ? "sent" : null, i % 2 ? now : null, i % 2 ? "new" : null, now - i * 3600_000, now,
+    );
+    if (i === 0) {
+      await db.q("INSERT INTO feedback_comments (feedback_id, author_id, origin, body, created_at) VALUES (?, 1, 'admin', ?, ?)", id, "Grazie! Con quale browser e quale densità? Riesci ad allegare una schermata della board?", now);
+      await db.q("INSERT INTO feedback_comments (feedback_id, author_id, origin, body, status_from, status_to, created_at) VALUES (?, 1, 'status', '', 'new', 'discussion', ?)", id, now);
+      await db.q("INSERT INTO feedback_comments (feedback_id, author_id, origin, body, upstream_id, created_at) VALUES (?, NULL, 'upstream', ?, 'c1', ?)", id, "Lo stiamo guardando: sembra legato alla misura delle righe lunghe.", now);
+    }
+  }
 }

@@ -29,7 +29,7 @@ const ANY = "any";
 /** The list's filters, kept in the URL: Back and a reload find the same list. */
 function useFilters() {
   const [params, setParams] = useSearchParams();
-  const scope = params.get("scope") === "all" ? "all" : "mine";
+  const scope: "mine" | "all" = params.get("scope") === "all" ? "all" : "mine";
   const s = params.get("status") ?? "";
   const ty = params.get("type") ?? "";
   const user = Number(params.get("user") ?? "");
