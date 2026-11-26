@@ -18,6 +18,7 @@ export default function FeedbackPage() {
   return (
     <>
       <PageHeader
+        sticky
         title={t("ui.feedback.nav")}
         description={t("pages.feedback.description")}
         actions={

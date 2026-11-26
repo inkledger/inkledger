@@ -94,12 +94,12 @@ async function fullSidebar(db) {
   );
 }
 
-test("the sidebar at its fullest keeps every tile, Feedback included, without scrolling: 900 px in both densities and 700 px compact, open and closed", () =>
+test("the sidebar at its fullest keeps every tile, Feedback included, without scrolling: 700, 800 and 900 px, both densities, open and closed", () =>
   withApp({ viewport: { width: 1280, height: 900 }, seed: fullSidebar }, async ({ page, base }) => {
     const problems = [];
-    // 700 px comfortable open was 5 px short before this tile too (nine tiles are still three rows open).
-    for (const [height, density] of [[900, "compact"], [900, "comfortable"], [700, "compact"]])
-      for (const collapsed of ["0", "1"]) {
+    for (const height of [700, 800, 900])
+      for (const density of ["compact", "comfortable"])
+        for (const collapsed of ["0", "1"]) {
           await page.setViewportSize({ width: 1280, height });
           await page.goto(base + "/");
           await page.evaluate(([d, c]) => {
@@ -116,13 +116,14 @@ test("the sidebar at its fullest keeps every tile, Feedback included, without sc
             const toggle = [...aside.querySelectorAll("button")].find(b => /^(Collapse|Expand)/.test(b.getAttribute("aria-label") || b.textContent.trim()))?.getBoundingClientRect();
             const scrolls = [aside, ...aside.querySelectorAll("*")].filter(e => e.scrollHeight > e.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(e).overflowY) && !e.closest("[data-favorites], [data-overflow-ok]") && e.querySelector('a[href="/feedback"]'));
             const inside = rect => !!rect && rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1;
-            return { tile: inside(tile), toggle: inside(toggle), scrolls: scrolls.length };
+            return { tile: inside(tile), toggle: inside(toggle), scrolls: scrolls.length, overflow: aside.scrollHeight - aside.clientHeight };
           });
           const where = `${height}px ${density} ${collapsed === "1" ? "closed" : "open"}`;
           if (!r.tile) problems.push(`${where}: Feedback tile cut`);
           if (!r.toggle) problems.push(`${where}: the toggle cut`);
           if (r.scrolls) problems.push(`${where}: the sections scroll`);
-      }
+          if (r.overflow > 0) problems.push(`${where}: the sidebar overflows by ${r.overflow}px`);
+        }
     assert.deepEqual(problems, []);
   }));
 
@@ -163,5 +164,38 @@ test("Info's old Feedback tab lands on /feedback, the one and its filters kept; 
       await page.goto(base + "/info");
       await page.getByRole("heading", { level: 1, name: "Info" }).waitFor();
       assert.equal(await page.locator("main").getByRole("tab").count(), 0);
+    },
+  ));
+
+test("list and preview as Notifications: the preview starts at half the region, the Splitter resizes and keeps it; the filters stay on one row", () =>
+  withApp(
+    {
+      viewport: { width: 1440, height: 900 },
+      seed: async db => {
+        await db.q("INSERT INTO feedback (id, user_id, type, title, body, page, status, created_at, updated_at) VALUES (1, 1, 'idea', 'A weekly total', '', '/', 'new', 1, 1)");
+      },
+    },
+    async ({ page, base }) => {
+      await page.goto(base + "/feedback/1");
+      const preview = page.getByRole("complementary", { name: "Feedback preview" });
+      await preview.getByRole("heading", { name: "A weekly total" }).waitFor();
+      const half = await page.evaluate(() => {
+        const pane = document.getElementById("feedback-preview").getBoundingClientRect().width;
+        const region = document.getElementById("feedback-preview").parentElement.getBoundingClientRect().width;
+        return pane / region;
+      });
+      assert.ok(Math.abs(half - 0.5) < 0.02, `the preview is half the region (${half})`);
+      // One row of filters: every control on the same line.
+      const tops = await page.getByRole("toolbar", { name: "Filters" }).evaluate(bar => [...bar.querySelectorAll("button, [role=combobox]")].filter(e => e.offsetParent).map(e => { const r = e.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }));
+      assert.ok(Math.max(...tops) - Math.min(...tops) <= 4, `filters on one row (${tops})`);
+      const splitter = page.getByRole("separator", { name: /Resize the preview/ });
+      const before = Number(await splitter.getAttribute("aria-valuenow"));
+      await splitter.focus();
+      await page.keyboard.press("Shift+ArrowLeft");
+      await page.waitForFunction(b => Number(document.querySelector('[role="separator"]').getAttribute("aria-valuenow")) > b + 30, before);
+      const after = Number(await splitter.getAttribute("aria-valuenow"));
+      await page.reload();
+      await preview.getByRole("heading", { name: "A weekly total" }).waitFor();
+      await page.waitForFunction(a => Math.abs(Number(document.querySelector('[role="separator"]').getAttribute("aria-valuenow")) - a) <= 2, after);
     },
   ));

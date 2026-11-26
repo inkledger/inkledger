@@ -241,7 +241,8 @@ const NavTile = memo(function NavTile({ to, name, Icon, collapsed, count, countT
           "relative flex flex-col items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
           // Closed: a 28 px icon (WCAG's 24 px met as it is; a wider area would cover its neighbour).
-          collapsed ? "size-7" : "min-h-12 gap-1 px-1 py-1.5"
+          // Open on a short screen (as the rows, max-height 820px): tighter, so the sidebar still never scrolls.
+          collapsed ? "size-7" : "min-h-12 gap-1 px-1 py-1.5 [@media(max-height:820px)]:min-h-10 [@media(max-height:820px)]:gap-0.5 [@media(max-height:820px)]:py-1"
         )}
       >
         <Icon className={collapsed ? "h-4 w-4" : ICON} aria-hidden />
