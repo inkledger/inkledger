@@ -21,6 +21,7 @@ import { IDEA_FILE_MAX_BYTES } from "@contracts/ideaFiles";
 import { registerDownloadRoutes } from "./downloads";
 import { registerModuleRoutes } from "./modules/routes";
 import { ACTIVATION_DEFAULTS, renewActivations } from "./modules/activation";
+import { getServerSetting, setServerSetting } from "./lib/serverSettings";
 import { ACTIVATION_KEYS } from "./modules/keys";
 import { validLicenses } from "./modules/registry";
 import { purgeWebhookDeliveries, registerHookRoutes } from "./hooks";
@@ -267,9 +268,11 @@ if (env.isProduction || env.serveBuild) {
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;
   purging?.unref();
+  const RENEWED_KEY = "store.renewedAt";
   const renew = () =>
     void validLicenses()
       .then((l) => renewActivations(l))
+      .then(async (l) => (await setServerSetting(RENEWED_KEY, Date.now()), l))
       .then((done) => done.forEach((d) => !d.result.ok && console.warn(`[modules] licence ${d.id.slice(0, 6)}…: ${d.result.reason}`)))
       .catch((e: unknown) => console.warn(`[modules] renewal: ${String(e)}`));
   const renewing = env.isProduction ? setInterval(renew, ACTIVATION_DEFAULTS.renewEveryMs) : undefined;
@@ -280,7 +283,10 @@ if (env.isProduction || env.serveBuild) {
     purge();
     // Module licences active on this server: renewed before they end (WP-19).
     if (ACTIVATION_KEYS.length === 0) console.warn("[modules] no activation key in this build: licences are not tied to a server");
-    renew();
+    // A restart inside the cadence doesn't ask the store again (the interval keeps its own beat).
+    void getServerSetting<number>(RENEWED_KEY, 0).then((at) => {
+      if (Date.now() - at >= ACTIVATION_DEFAULTS.renewEveryMs) renew();
+    });
   }
 
   const server = serve({ fetch: app.fetch, port: env.port }, () => {

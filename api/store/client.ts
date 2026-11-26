@@ -52,6 +52,8 @@ async function call(path: string, init?: RequestInit): Promise<Response> {
   } catch {
     throw new StoreError("unreachable");
   }
+  // Only a conditional request (If-None-Match) gets a 304: "unchanged", no body.
+  if (res.status === 304) return new Response(null, { status: 304, headers: res.headers });
   let body: Uint8Array<ArrayBuffer>;
   try {
     body = await bounded(res);
@@ -79,7 +81,7 @@ const postJson = (path: string, data: unknown) =>
 /** A call to the store (activation, modules/activation.ts): POST with JSON, or GET without a body. */
 export const postStore = (path: string, data: unknown, method: "POST" | "GET" = "POST") => (method === "GET" ? call(path) : postJson(path, data));
 
-type Cached = { at: number; raw: unknown };
+type Cached = { at: number; raw: unknown; etag?: string };
 let cached: Cached | null = null;
 
 const itemsOf = (raw: unknown): StoreItem[] | null => {
@@ -93,10 +95,20 @@ export async function fetchCatalog(now = Date.now()): Promise<StoreItem[]> {
   const fresh = cached && now - cached.at < CATALOG_TTL_MS ? itemsOf(cached.raw) : null;
   if (fresh) return fresh;
   try {
-    const raw: unknown = await (await call("/catalog")).json();
+    // Expired but held: ask if it changed (If-None-Match), a 304 renews the copy without a body.
+    const known = cached ? itemsOf(cached.raw) : null;
+    const etag = known ? cached?.etag : undefined;
+    const res = await call("/catalog", etag ? { headers: { "if-none-match": etag } } : undefined);
+    if (res.status === 304 && known && cached) {
+      cached = { ...cached, at: now };
+      await setServerSetting(CATALOG_KEY, cached);
+      return known;
+    }
+    const raw: unknown = await res.json();
     const items = itemsOf(raw);
     if (!items) throw new StoreError("unreachable", 0, "catalog");
-    cached = { at: now, raw };
+    const tag = res.headers.get("etag");
+    cached = { at: now, raw, ...(tag ? { etag: tag } : {}) };
     await setServerSetting(CATALOG_KEY, cached);
     return items;
   } catch (e) {
