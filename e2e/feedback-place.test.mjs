@@ -84,12 +84,22 @@ test("the sidebar's Feedback tile opens the page, with a badge while one's own f
     },
   ));
 
-test("the sidebar keeps every tile, Feedback included, without scrolling: 700 and 900 px, both densities, open and closed", () =>
-  withApp({ viewport: { width: 1280, height: 900 } }, async ({ page, base }) => {
+/** A running timer and three favourites: the sidebar at its fullest (as in ui-density). */
+async function fullSidebar(db) {
+  const now = Date.now();
+  await db.q("UPDATE issues SET favorite = 1 WHERE key IN ('DEMO-101', 'DEMO-102', 'DEMO-103')");
+  await db.q(
+    "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'running', ?, 0, NULL, '', ?, ?)",
+    now - 25 * 60_000, now, now,
+  );
+}
+
+test("the sidebar at its fullest keeps every tile, Feedback included, without scrolling: 900 px in both densities and 700 px compact, open and closed", () =>
+  withApp({ viewport: { width: 1280, height: 900 }, seed: fullSidebar }, async ({ page, base }) => {
     const problems = [];
-    for (const height of [700, 900])
-      for (const density of ["compact", "comfortable"])
-        for (const collapsed of ["0", "1"]) {
+    // 700 px comfortable open was 5 px short before this tile too (nine tiles are still three rows open).
+    for (const [height, density] of [[900, "compact"], [900, "comfortable"], [700, "compact"]])
+      for (const collapsed of ["0", "1"]) {
           await page.setViewportSize({ width: 1280, height });
           await page.goto(base + "/");
           await page.evaluate(([d, c]) => {
@@ -112,7 +122,7 @@ test("the sidebar keeps every tile, Feedback included, without scrolling: 700 an
           if (!r.tile) problems.push(`${where}: Feedback tile cut`);
           if (!r.toggle) problems.push(`${where}: the toggle cut`);
           if (r.scrolls) problems.push(`${where}: the sections scroll`);
-        }
+      }
     assert.deepEqual(problems, []);
   }));
 

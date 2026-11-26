@@ -367,8 +367,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const unread = useUnreadCount();
   const inbox = useNotificationCount();
   const due = useTodoReminders().items.length;
-  // One's own feedback that moved or got an answer (the bell's alerts, the same query): cleared once opened.
-  const feedbackNews = useAlerts().data?.filter(a => a.alert === "feedback").length ?? 0;
+  // One's own feedback that moved or got an answer (the bell's alerts, the same query), each counted once: cleared once opened.
+  const feedbackNews = new Set(useAlerts().data?.filter(a => a.alert === "feedback").map(a => a.ref)).size;
   // The Desk's panes, only once the desk was read (it never adds a request to a page).
   const desk = trpc.desks.current.useQuery(undefined, { enabled: false }).data;
   const onDesk = desk ? desk.panes.filter(slot => !("empty" in slot)).length + desk.parked.length : 0;
