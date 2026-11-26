@@ -269,14 +269,16 @@ export async function saveWorkspaceDraft(userId: number, scope: Scope, draft: Dr
   if (previous?.draftId === draft.draftId && (draft.draftRevision < previous.draftRevision || (draft.draftRevision === previous.draftRevision && fingerprint("input", previous.patches).value !== fingerprint("input", draft.patches).value))) {
     throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
   }
-  if (previous && isOpenDraft(previous.status) && previous.draftId !== draft.draftId && draft.draftRevision <= previous.draftRevision) {
-    throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
-  }
   const active = await inputFor(userId, scope, null);
   if (draft.baseRevision !== active.activeRevision.revisionId) {
     // Made on an older layout: refused as before, saying how much of it the user could keep (reproposeWorkspaceDraft).
+    // Checked before another tab's open draft: the tab that just applied closes its draft only after the commit,
+    // and a change arriving in between must still be told what of it can be kept.
     const { operations } = await reproposalFor(userId, scope, draft, active);
     throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed"), cause: new StaleDraftError({ keepable: operations.length }) });
+  }
+  if (previous && isOpenDraft(previous.status) && previous.draftId !== draft.draftId && draft.draftRevision <= previous.draftRevision) {
+    throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
   }
   // resolvedFor throws on conflicts: what is saved always resolves.
   const result = await resolvedFor(userId, scope, draft);
