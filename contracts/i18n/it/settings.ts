@@ -827,6 +827,7 @@ export const settings: Shape<typeof en> = {
       manageAuth: "Come si accede",
       manageTeams: "Team",
       manageStore: "Store e licenze",
+      acquireModules: "Acquistare o richiedere mod",
       manageServer: "Server e dispositivi",
       runBackups: "Backup: eseguire e pianificare",
       restoreBackups: "Backup: ripristinare (solo proprietari)",
@@ -1035,6 +1036,7 @@ export const settings: Shape<typeof en> = {
         install: "Ha installato un modulo",
         restoreLicense: "Ha ripristinato una licenza",
         dismiss: "Ha scartato una richiesta in attesa",
+        grantAcquired: "Ha ricevuto un modulo che ha acquisito",
       },
       modules: {
         activate: "Ha attivato una licenza",
@@ -1044,6 +1046,7 @@ export const settings: Shape<typeof en> = {
         uninstall: "Ha disinstallato un modulo",
         setEnabled: "Ha spento o acceso un modulo",
         importProgress: "Ha importato i progressi di un modulo",
+        configure: "Ha cambiato le impostazioni di un modulo",
       },
       backup: {
         update: "Ha cambiato la pianificazione dei backup",
@@ -1618,6 +1621,12 @@ export const settings: Shape<typeof en> = {
     },
   },
   store: {
+    granted: {
+      title: "I tuoi moduli",
+      description: "I moduli assegnati a te: accendili o spegnili e cambiane le impostazioni. Ottenere altri moduli spetta a un amministratore.",
+      emptyTitle: "Ancora nessun modulo per te",
+      empty: "I moduli che un amministratore ti assegna compaiono qui, da accendere, spegnere e impostare.",
+    },
     proof: {
       pending: "In ancoraggio su Bitcoin",
       done: "Su Bitcoin dal {date} · blocco {block}",

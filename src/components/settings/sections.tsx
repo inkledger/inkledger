@@ -67,6 +67,7 @@ import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { TimersSection } from "@/components/settings/sections/Timers";
 import { StoreSection } from "@/components/settings/sections/Store";
+import { useStoreAccess } from "@/components/settings/sections/store/access";
 import { UsersSection } from "@/components/settings/sections/Users";
 import { TeamsSection } from "@/components/settings/sections/Teams";
 import { SsoSection } from "@/components/settings/sections/Sso";
@@ -91,6 +92,8 @@ export type SettingsCategory = {
   desktopOnly?: boolean;
   /** Only for an account that may manage this (the server checks it too). */
   permission?: Permission;
+  /** Only for an account holding any of these (each sees its own part; the server checks it too). */
+  anyPermission?: readonly Permission[];
   Content: () => ReactNode;
   /** One line of current state, under the name in the menu. */
   Summary: () => ReactNode;
@@ -406,13 +409,17 @@ export const CATEGORIES: SettingsCategory[] = [
     get label() { return t("settings.categories.store.label"); },
     get description() { return t("settings.categories.store.description"); },
     icon: Store,
-    permission: "manageStore",
+    // Managing it, getting modules, or just the modules granted to the account.
+    anyPermission: ["manageStore", "acquireModules", "useModules"],
     get keywords() { return t("settings.categories.store.keywords"); },
     Content: StoreSection,
     Summary: function StoreSummary() {
       // No catalog fetch just for the summary: only what this server already knows.
-      const waiting = trpc.store.pending.useQuery(undefined, { staleTime: 60_000 }).data?.pending.some(p => p.status === "pending");
-      const active = trpc.modules.list.useQuery().data?.modules.filter(m => m.status.state === "active").length ?? 0;
+      const { acquire } = useStoreAccess();
+      const waiting = trpc.store.pending.useQuery(undefined, { staleTime: 60_000, enabled: acquire }).data?.pending.some(p => p.status === "pending");
+      const list = trpc.modules.list.useQuery().data;
+      // Someone who doesn't get modules counts the ones granted to them.
+      const active = list?.modules.filter(m => m.status.state === "active" && (acquire || list.granted.includes(m.id))).length ?? 0;
       if (waiting) return t("settings.categories.store.pending");
       return active ? t("settings.categories.store.active", { count: active }) : null;
     },
@@ -444,6 +451,6 @@ export function visibleCategories(permissions: readonly Permission[]): SettingsC
   const native = isNative();
   const desktop = detectPlatform(navigator.userAgent, navigator.maxTouchPoints) === "desktop";
   return CATEGORIES.filter(
-    c => (!c.nativeOnly || native) && (!c.desktopOnly || desktop) && (!c.permission || permissions.includes(c.permission)),
+    c => (!c.nativeOnly || native) && (!c.desktopOnly || desktop) && (!c.permission || permissions.includes(c.permission)) && (!c.anyPermission || c.anyPermission.some(p => permissions.includes(p))),
   );
 }

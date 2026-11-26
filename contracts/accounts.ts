@@ -12,12 +12,16 @@
  * downloading a dump (whoever reaches the server's disk gets one anyway). manageAuth:
  * how people sign in; manageTeams: teams and who is in them; manageRetention: how long
  * the audit log is kept; exportUserData / eraseUserData: a person's data on request.
+ * acquireModules browses the Store's whole catalogue and buys or requests a module not
+ * on the server yet (granted then to whoever acquired it, only); without it, useModules
+ * sees in the Store just the modules granted to the account, to turn on or off and set up.
  */
 export const PERMISSIONS = [
   "manageUsers",
   "manageAuth",
   "manageTeams",
   "manageStore",
+  "acquireModules",
   "manageServer",
   "runBackups",
   "restoreBackups",
@@ -34,6 +38,11 @@ export const PERMISSIONS = [
 /** What a new account may do unless the admin says otherwise: nothing beyond its own work, no modules. */
 export const DEFAULT_PERMISSIONS: readonly (typeof PERMISSIONS)[number][] = [];
 export type Permission = (typeof PERMISSIONS)[number];
+
+/** Holding the key means holding these too: whoever manages the Store also buys and requests modules. */
+export const IMPLIED_PERMISSIONS: Readonly<Partial<Record<Permission, readonly Permission[]>>> = {
+  manageStore: ["acquireModules"],
+};
 
 /** users.role, kept for older builds: "admin" is the owner role. */
 export type Role = "admin" | "member";

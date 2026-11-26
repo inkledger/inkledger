@@ -256,8 +256,10 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     account: (): number | null => utils.auth.me.getData()?.id ?? null,
 
     /** The API one module gets in one slot. */
-    apiFor(moduleId: string, slot: SlotId) {
+    apiFor(moduleId: string, slot: SlotId, opts: { settings?: boolean } = {}) {
       const owned = new Set<() => void>();
+      // Writes from the module's settings panel are its user changing a setting: the server audits them.
+      const from = (opts.settings ?? slot === "settings") ? { from: "settings" as const } : {};
       let disposed = false;
       // A module stopped meanwhile (licence removed, switched off): its last
       // reads and writes settle quietly instead of failing in the page.
@@ -427,10 +429,10 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
               return r.value as T | null;
             }, null),
           set: async (key, value) => {
-            await quiet(() => utils.client.modules.storageSet.mutate({ moduleId, key, value }), undefined);
+            await quiet(() => utils.client.modules.storageSet.mutate({ moduleId, key, value, ...from }), undefined);
           },
           delete: async key => {
-            await quiet(() => utils.client.modules.storageDelete.mutate({ moduleId, key }), undefined);
+            await quiet(() => utils.client.modules.storageDelete.mutate({ moduleId, key, ...from }), undefined);
           },
           update: async <T,>(key: string, change: (current: T | null) => T): Promise<T> => {
             if (disposed) return never<T>();
@@ -440,7 +442,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
             // An update already started finishes even if the module stops meanwhile (its final flush): later writes in its chain wait on it.
             for (let tries = 0; tries < UPDATE_TRIES; tries++) {
               const next = change(read.value as T | null);
-              const r = await utils.client.modules.storageSetIf.mutate({ moduleId, key, value: next, ifRevision: read.revision });
+              const r = await utils.client.modules.storageSetIf.mutate({ moduleId, key, value: next, ifRevision: read.revision, ...from });
               if (!("conflict" in r)) return next;
               read = r;
             }
@@ -459,7 +461,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
               return r;
             }),
           setIf: (key: string, value: unknown, ifRevision: number) =>
-            read(() => utils.client.modules.storageSetIf.mutate({ moduleId, key, value, ifRevision })),
+            read(() => utils.client.modules.storageSetIf.mutate({ moduleId, key, value, ifRevision, ...from })),
         },
         dispose: () => {
           disposed = true;

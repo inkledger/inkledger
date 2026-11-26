@@ -26,6 +26,7 @@ import { PriceTag } from "./store/PriceTag";
 import { ManageBadge } from "./store/ManageBadge";
 import { StoreImage } from "./store/StoreImage";
 import { surface, surfaceFace } from "@/components/app/surface";
+import { useStoreAccess } from "./store/access";
 
 const POLL_MS = 10_000;
 const LAYOUT_KEY = "ikl-store-layout";
@@ -49,8 +50,15 @@ function useLayout(): [Layout, (l: Layout) => void] {
  * list, and the switch that turns them all off.
  */
 export function StoreSection() {
+  const { acquire } = useStoreAccess();
+  // Without acquireModules: only the modules granted to this account (no catalogue).
+  return acquire ? <StoreCatalogSection /> : <GrantedModules />;
+}
+
+function StoreCatalogSection() {
   const locale = useLocale();
   const utils = trpc.useUtils();
+  const { manage } = useStoreAccess();
   const catalog = trpc.store.catalog.useQuery(undefined, { retry: false });
   const local = trpc.modules.list.useQuery();
   const [open, setOpen] = useState<{ product: string; view: StoreView } | null>(null);
@@ -109,7 +117,7 @@ export function StoreSection() {
                 { value: "compact", label: t("settings.store.layout.compact"), icon: Grid3x3 },
               ]}
             />
-            <RestoreLicence />
+            {manage && <RestoreLicence />}
           </>
         }
       >
@@ -269,6 +277,32 @@ function LocalCard({
         </SheetContent>
       </Sheet>
     </li>
+  );
+}
+
+/**
+ * The Store of someone who may use modules but not get them: the ones granted to them,
+ * each to turn on or off and set up. Nothing of the catalogue, licences or installs.
+ */
+function GrantedModules() {
+  const locale = useLocale();
+  const local = trpc.modules.list.useQuery();
+  if (local.isLoading) return <Skeleton className="m-6 h-40" />;
+  const mine = (local.data?.modules ?? []).filter(m => local.data?.granted.includes(m.id));
+  return (
+    <SettingsGroup id="store-modules" title={t("settings.store.granted.title")} description={t("settings.store.granted.description")} keywords={t("settings.store.keywords")}>
+      {local.error ? (
+        <ErrorState message={errorText(local.error)} onRetry={() => void local.refetch()} />
+      ) : mine.length === 0 ? (
+        <EmptyState icon={Store} title={t("settings.store.granted.emptyTitle")} message={t("settings.store.granted.empty")} />
+      ) : (
+        <ul data-store-granted className="grid gap-4 sm:grid-cols-2">
+          {mine.map(m => (
+            <LocalCard key={m.id} module={m} locale={locale} licensed={false} />
+          ))}
+        </ul>
+      )}
+    </SettingsGroup>
   );
 }
 

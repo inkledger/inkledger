@@ -827,6 +827,7 @@ export const settings = {
       manageAuth: "How people sign in",
       manageTeams: "Teams",
       manageStore: "Store and licences",
+      acquireModules: "Buy or request modules",
       manageServer: "Server and devices",
       runBackups: "Backups: run and schedule",
       restoreBackups: "Backups: restore (owners only)",
@@ -1035,6 +1036,7 @@ export const settings = {
         install: "Installed a module",
         restoreLicense: "Restored a licence",
         dismiss: "Dismissed a pending request",
+        grantAcquired: "Got a module they acquired",
       },
       modules: {
         activate: "Activated a licence",
@@ -1044,6 +1046,7 @@ export const settings = {
         uninstall: "Uninstalled a module",
         setEnabled: "Turned a module off or on",
         importProgress: "Imported module progress",
+        configure: "Changed a module's settings",
       },
       backup: {
         update: "Changed the backup schedule",
@@ -1492,6 +1495,12 @@ export const settings = {
     },
   },
   store: {
+    granted: {
+      title: "Your modules",
+      description: "The modules granted to you: turn each on or off and change its settings. Getting other modules is up to an administrator.",
+      emptyTitle: "No modules for you yet",
+      empty: "Modules an administrator grants you show up here, to turn on or off and set up.",
+    },
     proof: {
       pending: "Being anchored on Bitcoin",
       done: "On Bitcoin since {date} · block {block}",

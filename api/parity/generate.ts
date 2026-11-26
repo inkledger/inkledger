@@ -359,6 +359,12 @@ export function routes(): RouteEntry[] {
 
 export type SectionEntry = { id: string; nativeOnly: boolean; desktopOnly: boolean; permission: string | null };
 
+/** A category shown to who holds any of several permissions, as "a | b | c". */
+const anyOf = (chunk: string): string | null => {
+  const list = /^\s*anyPermission: \[([^\]]*)\]/m.exec(chunk)?.[1];
+  return list ? [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1]).join(" | ") : null;
+};
+
 /** The Settings categories in menu order (the order is part of what users see), and the old ids that still land. */
 function settingsSections(): { categories: SectionEntry[]; legacy: [string, string][] } {
   const src = read("src/components/settings/sections.tsx");
@@ -374,7 +380,7 @@ function settingsSections(): { categories: SectionEntry[]; legacy: [string, stri
       id,
       nativeOnly: /^\s*nativeOnly: true/m.test(chunk),
       desktopOnly: /^\s*desktopOnly: true/m.test(chunk),
-      permission: /^\s*permission: "([^"]+)"/m.exec(chunk)?.[1] ?? null,
+      permission: /^\s*permission: "([^"]+)"/m.exec(chunk)?.[1] ?? anyOf(chunk),
     };
   });
   const page = read("src/pages/Settings.tsx");

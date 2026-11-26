@@ -63,7 +63,8 @@ function sourceOf(item: StoreItem, slot: string): string | undefined {
 
 export function registerStoreRoutes(app: Hono<{ Bindings: HttpBindings }>) {
   app.get(`${STORE_PATH}/media/:id/:slot`, async (c) => {
-    const who = await restUser(c.req.raw);
+    // The catalogue's pictures, for who may browse it (acquireModules; a granted module's user sees none).
+    const who = await restUser(c.req.raw, "acquireModules");
     if (!("user" in who)) return c.json({ error: who.error }, who.status);
     try {
       const item = (await fetchCatalog()).find((i) => i.id === c.req.param("id"));

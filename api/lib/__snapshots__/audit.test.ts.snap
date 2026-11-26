@@ -233,6 +233,13 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "modules.configure": {
+    "kept": [
+      "id",
+      "key",
+    ],
+    "redacted": 17,
+  },
   "modules.deactivate": {
     "kept": [
       "product",
@@ -474,6 +481,14 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   "store.dismiss": {
     "kept": [
       "product",
+    ],
+    "redacted": 17,
+  },
+  "store.grantAcquired": {
+    "kept": [
+      "moduleId",
+      "product",
+      "userId",
     ],
     "redacted": 17,
   },

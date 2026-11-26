@@ -125,6 +125,10 @@ export const AUDIT_ACTIONS = {
   "modules.uninstall": ["id"],
   "modules.setEnabled": ["id", "enabled"],
   "modules.importProgress": [],
+  // A module's own settings changed by its user (from its settings panel; one event per key a minute)
+  "modules.configure": ["id", "key"],
+  // A module acquired by someone who doesn't manage the Store: granted to them only
+  "store.grantAcquired": ["product", "moduleId", "userId"],
   // Backups
   "backup.update": ["schedule", "time", "weekday", "keep"],
   "backup.run": ["name", "scheduled"],

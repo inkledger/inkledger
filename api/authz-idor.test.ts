@@ -795,14 +795,14 @@ const PERMISSION_OF: Record<string, Permission> = {
   "backup.offsiteRestore": "restoreBackups",
   "backup.drill": "runBackups",
   "backup.drillUpdate": "runBackups",
-  "store.catalog": "manageStore",
-  "store.requestLicense": "manageStore",
-  "store.checkout": "manageStore",
-  "store.claimPaid": "manageStore",
-  "store.pending": "manageStore",
+  "store.catalog": "acquireModules",
+  "store.requestLicense": "acquireModules",
+  "store.checkout": "acquireModules",
+  "store.claimPaid": "acquireModules",
+  "store.pending": "acquireModules",
   "store.install": "manageStore",
   "store.restoreLicense": "manageStore",
-  "store.dismiss": "manageStore",
+  "store.dismiss": "acquireModules",
   "modules.activation": "manageStore",
   "modules.activate": "manageStore",
   "modules.deactivate": "manageStore",
@@ -956,8 +956,11 @@ describe("server-wide powers need their permission", () => {
       const out = await run(() => callAt(none.caller, proc, NOT_AN_INPUT));
       expect.soft(out.ok ? "answered" : codeOf(out.error), proc + " with no permission").toBe("FORBIDDEN");
     }
+    const { IMPLIED_PERMISSIONS } = await import("@contracts/accounts");
+    // Without the permission and without any that implies it (manageStore buys modules too).
+    const implying = (perm: Permission) => PERMS.filter((p) => IMPLIED_PERMISSIONS[p]?.includes(perm));
     for (const perm of PERMS) {
-      const allBut = await account("member", PERMS.filter((p) => p !== perm));
+      const allBut = await account("member", PERMS.filter((p) => p !== perm && !implying(perm).includes(p)));
       for (const proc of Object.keys(PERMISSION_OF).filter((p) => PERMISSION_OF[p] === perm)) {
         const out = await run(() => callAt(allBut.caller, proc, NOT_AN_INPUT));
         expect.soft(out.ok ? "answered" : codeOf(out.error), proc + " with all but " + perm).toBe("FORBIDDEN");
@@ -970,6 +973,18 @@ describe("server-wide powers need their permission", () => {
       const only = await account("member", [perm]);
       for (const proc of Object.keys(PERMISSION_OF).filter((p) => PERMISSION_OF[p] === perm)) {
         // Without an input there is nothing to stop the handler: never run with the power.
+        if ((await procedureAt(proc))._def.inputs.length === 0) continue;
+        const out = await run(() => callAt(only.caller, proc, NOT_AN_INPUT));
+        expect.soft(out.ok ? "answered" : codeOf(out.error), proc + " with " + perm).toBe("BAD_REQUEST");
+      }
+    }
+  });
+
+  it("a permission that implies another opens its procedures too (manageStore buys and requests modules)", async () => {
+    const { IMPLIED_PERMISSIONS } = await import("@contracts/accounts");
+    for (const [perm, implied] of Object.entries(IMPLIED_PERMISSIONS) as [Permission, readonly Permission[]][]) {
+      const only = await account("member", [perm]);
+      for (const proc of Object.keys(PERMISSION_OF).filter((p) => implied.includes(PERMISSION_OF[p]))) {
         if ((await procedureAt(proc))._def.inputs.length === 0) continue;
         const out = await run(() => callAt(only.caller, proc, NOT_AN_INPUT));
         expect.soft(out.ok ? "answered" : codeOf(out.error), proc + " with " + perm).toBe("BAD_REQUEST");

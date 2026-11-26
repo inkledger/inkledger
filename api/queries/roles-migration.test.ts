@@ -70,6 +70,11 @@ describe("0052 keeps every server's access as it was", () => {
       { key: "auditor", scope: "server", system: 1 },
       { key: "member", scope: "server", system: 1 },
     ]);
+    // 0056: buying or requesting modules goes to owners and IT admins, never to members.
+    const acquire = (await client.query<{ key: string; permissions: string }>("SELECT key, permissions FROM roles ORDER BY id")).rows
+      .filter((r) => (JSON.parse(r.permissions) as string[]).includes("acquireModules"))
+      .map((r) => r.key);
+    expect(acquire).toEqual(["owner", "it-admin"]);
     await client.close();
   });
 });

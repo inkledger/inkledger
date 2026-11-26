@@ -5,6 +5,8 @@ import { HOST_API, SLOT_IDS, runsHere } from "@contracts/modules";
 import { LICENSE_FILE_FORMAT, mediaUrl, pickBuild, type StoreCatalog, type StoreEntry, type StorePending } from "@contracts/store";
 import { t, type MessageKey } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
+import { can, grantModule, userById, withAccess, type Account } from "../queries/accounts";
+import { record, type AuditRequest } from "../lib/audit";
 import { env } from "../lib/env";
 import { getServerSetting, updateServerSetting } from "../lib/serverSettings";
 import {
@@ -27,8 +29,17 @@ import {
   tokenStatus,
 } from "../store/client";
 
-/** Server-wide: for whoever may manage the Store and licences. */
+/** Server-wide: for whoever may manage the Store and licences (install, restore). */
 const store = permProcedure("manageStore");
+/**
+ * The catalogue and getting a module not on the server yet (request, buy, claim, wait):
+ * acquireModules (manageStore implies it). Someone who doesn't manage the Store only
+ * acquires what the server holds no licence for, sees and dismisses only their own
+ * pending entries, and gets the module granted to them alone once it lands.
+ */
+const acquire = permProcedure("acquireModules");
+
+const manages = (user: Account) => can(user, "manageStore");
 
 /**
  * Settings → Store. Requests and checkouts are kept in server_settings with
@@ -39,7 +50,8 @@ const store = permProcedure("manageStore");
 const PENDING_KEY = "store.pending";
 const PAID_MAX_AGE_MS = 30 * 86_400_000;
 
-type Stored = StorePending & { token: string; created: number };
+/** by: who asked or paid (older entries have none: a Store manager's, granted to nobody). */
+type Stored = StorePending & { token: string; created: number; by?: number };
 
 const readPending = () => getServerSetting<Stored[]>(PENDING_KEY, []);
 /** The pending list changed from what it is now, in one step: a poll and a click at once keep each other's change. */
@@ -77,7 +89,7 @@ const product = z.string().regex(/^inkledger\.[a-z0-9-]+$/);
 const isUpdate = (installed: { version: string; build: string | null }, b: { version: string; build: string }) =>
   older(installed.version, b.version) || (installed.version === b.version && !!b.build && !!installed.build && b.build !== installed.build);
 
-type Settled = { next: Stored | null; installed: boolean };
+type Settled = { next: Stored | null; installed: boolean; id?: string };
 
 /** One pending entry against the Worker: installed (gone), kept, updated or dropped. */
 async function settle(p: Stored): Promise<Settled> {
@@ -97,8 +109,38 @@ async function settle(p: Stored): Promise<Settled> {
   const installed = installBundle(await downloadBundle(p.product, p.token));
   // An older version than the installed one is fine: the licence is what was missing.
   if (!installed.ok && installed.reason !== "older-version") return keep({ ...p, status: "failed", reason: installed.reason });
-  return { next: null, installed: true };
+  return { next: null, installed: true, id: installed.ok ? installed.id : undefined };
 }
+
+/**
+ * A module acquired by someone who doesn't manage the Store is granted to them, and only
+ * them (a manager grants modules in Settings › Users, so theirs grants nobody). Without
+ * useModules the grant waits: it runs once they are given it.
+ */
+async function grantToAcquirer(who: AuditRequest, product: string, by: number | undefined, id: string | undefined) {
+  if (by === undefined) return;
+  const found = await userById(by);
+  if (!found || found.disabledAt) return;
+  if (manages(await withAccess(found))) return;
+  const moduleId = id ?? (await listModules()).find((m) => m.product === product)?.id;
+  if (!moduleId || !(await grantModule(by, moduleId))) return;
+  await record(who, "store.grantAcquired", { target: { type: "users", id: by, ownerUserId: by }, after: { product, moduleId, userId: by } });
+}
+
+/**
+ * Whether this account may start getting the product: a Store manager always; anyone
+ * else only for a module the server holds no licence for (else acquiring would grant
+ * them one already here, which is Settings › Users' to give), nobody else is getting.
+ */
+async function assertMayAcquire(user: Account, product: string) {
+  if (manages(user)) return;
+  const [{ licensed }, pending] = await Promise.all([licenseStates(), readPending()]);
+  if (licensed.has(product)) throw new TRPCError({ code: "FORBIDDEN", message: t("server.store.alreadyHere") });
+  if (pending.some((p) => p.product === product && p.status === "pending" && p.by !== user.id)) throw new TRPCError({ code: "FORBIDDEN", message: t("server.store.pendingOther") });
+}
+
+/** The pending entries an account sees: all of them for a Store manager, else its own. */
+const visibleTo = (user: Account) => (p: Stored) => manages(user) || p.by === user.id;
 
 /**
  * A build the Store hands this inkledger: it is told the host API range this one
@@ -110,13 +152,13 @@ const needsNewerHost = (b: { hostApi: { min: number; max: number }; slots: reado
   b.hostApi.min > HOST_API.max || !b.slots.every((s) => (SLOT_IDS as readonly string[]).includes(s));
 
 export const storeRouter = createRouter({
-  catalog: store.query(async (): Promise<StoreCatalog> => {
+  catalog: acquire.query(async ({ ctx }): Promise<StoreCatalog> => {
     if (!env.storeUrl) return { enabled: false, entries: [] };
     const items = await fetchCatalog().catch(storeFailure);
     const [modules, { licensed: products }, pending] = await Promise.all([listModules(), licenseStates(), readPending()]);
     const entries = items.map((item): StoreEntry => {
       const installed = modules.find((m) => m.product === item.product);
-      const p = pending.find((x) => x.product === item.product);
+      const p = pending.filter(visibleTo(ctx.user)).find((x) => x.product === item.product);
       const { build, newerElsewhere } = pickBuild(item, servable, older, needsNewerHost);
       return {
         ...item,
@@ -136,7 +178,7 @@ export const storeRouter = createRouter({
     return { enabled: true, entries };
   }),
 
-  requestLicense: store
+  requestLicense: acquire
     .input(
       z.object({
         product,
@@ -145,27 +187,33 @@ export const storeRouter = createRouter({
         locale: z.enum(["en", "it"]).default("en"),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertMayAcquire(ctx.user, input.product);
       const token = await requestLicense(input).catch(storeFailure);
-      await updatePending((list) => [...list.filter((p) => p.product !== input.product), { token, product: input.product, kind: "request", status: "pending", created: Date.now() }]);
+      await updatePending((list) => [...list.filter((p) => p.product !== input.product), { token, product: input.product, kind: "request", status: "pending", created: Date.now(), by: ctx.user.id }]);
       return { ok: true as const };
     }),
 
-  checkout: store
+  checkout: acquire
     .input(z.object({ product, method: z.enum(["card", "bitcoin"]), email: z.email().max(254).optional() }))
     .mutation(async ({ input, ctx }) => {
+      await assertMayAcquire(ctx.user, input.product);
       // Prefills the checkout; a tracker login is no email.
       const email = input.email ?? (z.email().safeParse(ctx.user.email).success ? ctx.user.email : undefined);
       const { token, url } = await startCheckout(email ? { ...input, email } : input).catch(async (e: unknown) => {
         await forgetCatalog();
         return storeFailure(e);
       });
-      await updatePending((list) => [...list.filter((p) => p.product !== input.product), { token, product: input.product, kind: "paid", status: "pending", created: Date.now() }]);
+      await updatePending((list) => [...list.filter((p) => p.product !== input.product), { token, product: input.product, kind: "paid", status: "pending", created: Date.now(), by: ctx.user.id }]);
       return { url };
     }),
 
   /** A paid order's licence, for the code its payer was shown after paying: stored, activated, installed. */
-  claimPaid: store.input(z.object({ product, code: z.string().trim().min(1).max(64) })).mutation(async ({ input }) => {
+  claimPaid: acquire.input(z.object({ product, code: z.string().trim().min(1).max(64) })).mutation(async ({ input, ctx }) => {
+    // Someone who doesn't manage the Store claims only the purchase they started here.
+    if (!manages(ctx.user) && !(await readPending()).some((p) => p.product === input.product && p.kind === "paid" && p.by === ctx.user.id)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: t("server.store.notYours") });
+    }
     const { license, product: bought } = await claimPaid(input.code).catch(storeFailure);
     if (bought !== input.product) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.store.codeProduct") });
     const l = await addLicense(license);
@@ -175,20 +223,26 @@ export const storeRouter = createRouter({
     // An older version than the installed one is fine: the licence is what was missing.
     if (!installed.ok && installed.reason !== "older-version") throw new TRPCError({ code: "BAD_REQUEST", message: t("server.store.installFailed", { reason: installed.reason }) });
     await updatePending((list) => list.filter((p) => p.product !== input.product));
+    await grantToAcquirer(ctx, input.product, ctx.user.id, installed.ok ? installed.id : undefined);
     return { ok: true as const };
   }),
 
   /** Polled by the page while something is pending; installs what has arrived. */
-  pending: store.query(async () => {
+  pending: acquire.query(async ({ ctx }) => {
     const before = await readPending();
     if (before.length === 0) return { pending: [], installed: [] as string[] };
     const after: Stored[] = [];
     const installed: string[] = [];
+    const mine = visibleTo(ctx.user);
     for (const p of before) {
       // Unreachable or a failed download: try again next time.
       const r = await settle(p).catch((): Settled => ({ next: p, installed: false }));
       if (r.next) after.push(r.next);
-      if (r.installed) installed.push(p.product);
+      if (r.installed) {
+        // Whoever polls, the module goes to whoever acquired it.
+        await grantToAcquirer(ctx, p.product, p.by, r.id);
+        if (mine(p)) installed.push(p.product);
+      }
     }
     // Only what this poll changed; a request saved meanwhile is kept.
     const merged = await updatePending((current) =>
@@ -199,7 +253,7 @@ export const storeRouter = createRouter({
         return now ? [now] : [];
       }),
     );
-    return { pending: merged.map(publicPending), installed };
+    return { pending: merged.filter(mine).map(publicPending), installed };
   }),
 
   /** Installs or updates a module this server already holds a licence for. */
@@ -234,7 +288,9 @@ export const storeRouter = createRouter({
   }),
 
   /** Forgets a declined or failed entry (the page's "OK"), or cancels waiting. */
-  dismiss: store.input(z.object({ product })).mutation(async ({ input }) => {
-    await updatePending((list) => list.filter((p) => p.product !== input.product));
+  dismiss: acquire.input(z.object({ product })).mutation(async ({ input, ctx }) => {
+    const mine = visibleTo(ctx.user);
+    if ((await readPending()).some((p) => p.product === input.product && !mine(p))) throw new TRPCError({ code: "FORBIDDEN", message: t("server.store.notYours") });
+    await updatePending((list) => list.filter((p) => p.product !== input.product || !mine(p)));
   }),
 });

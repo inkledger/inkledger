@@ -6,12 +6,17 @@ import { t } from "@/i18n";
 import { Switch } from "@/components/ui/switch";
 import { useRef } from "react";
 import { tellEnabled } from "@/modules/enabledSignals";
+import { useStoreAccess } from "./access";
 
 /** Turns one installed, working module off or on for this user (on every device). */
 export function ModuleSwitch({ moduleId, name, installed }: { moduleId: string; name: string; installed: ModuleStatus | null }) {
   const utils = trpc.useUtils();
   const self = useRef<HTMLButtonElement>(null);
-  const off = trpc.modules.list.useQuery().data?.off ?? [];
+  const list = trpc.modules.list.useQuery().data;
+  const off = list?.off ?? [];
+  // One's own switch for a module granted to them (a Store manager has one for each).
+  const { manage } = useStoreAccess();
+  const mine = manage || (list?.granted.includes(moduleId) ?? false);
   const set = trpc.modules.setEnabled.useMutation({
     onSuccess: r => {
       toast.success(t(r.enabled ? "settings.store.switch.on" : "settings.store.switch.off", { name }));
@@ -21,7 +26,7 @@ export function ModuleSwitch({ moduleId, name, installed }: { moduleId: string; 
     },
     onError: e => toastError(e),
   });
-  if (installed?.state !== "active") return null;
+  if (installed?.state !== "active" || !mine) return null;
   const on = !off.includes(moduleId);
   return (
     <Switch

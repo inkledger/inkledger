@@ -13,6 +13,7 @@ import { LicenceProof } from "@/components/settings/sections/store/LicenceProof"
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { stoppedModules } from "@/modules/sandbox/watchdog";
+import { useStoreAccess } from "./access";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,7 +81,11 @@ export function ManageBadge({
   onSettings?: () => void;
 }) {
   const utils = trpc.useUtils();
+  // Licences, uninstalling and servers are the Store manager's; anyone else sets up and moves their own progress.
+  const { manage } = useStoreAccess();
   const list = trpc.modules.list.useQuery().data;
+  // Someone else's module (not granted to this account): nothing here is theirs to do.
+  const mine = manage || (list?.granted.includes(moduleId) ?? false);
   const licences = (list?.licenses ?? []).filter(l => l.product === product);
   const off = list?.off.includes(moduleId) ?? false;
   const stopped = useSyncExternalStore(stoppedModules.subscribe, stoppedModules.get, stoppedModules.get).get(moduleId);
@@ -144,7 +149,7 @@ export function ManageBadge({
     }
   };
 
-  if (!installed && !licensed) return null;
+  if ((!installed && !licensed) || !mine) return null;
   const badge = badgeOf(installed, licensed, off, stopped);
 
   return (
@@ -162,7 +167,7 @@ export function ManageBadge({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="font-medium">{name}</DropdownMenuLabel>
-          {licences.length > 0 ? (
+          {!manage ? null : licences.length > 0 ? (
             licences.map(l => (
               <div key={l.id} className="flex items-start gap-2 px-2 pb-1.5 text-caption text-muted-foreground">
                 <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -177,7 +182,7 @@ export function ManageBadge({
           ) : (
             <p className="px-2 pb-1.5 text-caption text-muted-foreground">{t("settings.store.manage.noLicence")}</p>
           )}
-          <DropdownMenuSeparator />
+          {manage && <DropdownMenuSeparator />}
           {active && onSettings && (
             <DropdownMenuItem onSelect={onSettings}>
               <Settings2 />
@@ -196,19 +201,19 @@ export function ManageBadge({
               </DropdownMenuItem>
             </>
           )}
-          {installed && (
+          {manage && installed && (
             <DropdownMenuItem onSelect={() => setConfirmUninstall(true)}>
               <Trash2 />
               {t("settings.store.manage.uninstall")}
             </DropdownMenuItem>
           )}
-          {licences.length > 0 && (
+          {manage && licences.length > 0 && (
             <DropdownMenuItem onSelect={() => setServers(true)}>
               <Server />
               {t("settings.store.activation.menu")}
             </DropdownMenuItem>
           )}
-          {licences.length > 0 && (
+          {manage && licences.length > 0 && (
             <>
               <DropdownMenuItem onSelect={() => void exportLicence("file")}>
                 <Download />
@@ -220,7 +225,7 @@ export function ManageBadge({
               </DropdownMenuItem>
             </>
           )}
-          {licences.length > 0 && (
+          {manage && licences.length > 0 && (
             <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
               <KeyRound />
               {t("settings.store.manage.removeLicence")}

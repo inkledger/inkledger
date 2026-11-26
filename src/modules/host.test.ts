@@ -351,3 +351,24 @@ describe("host hub: theme", () => {
     vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: () => "0 0% 0%" }));
   });
 });
+
+describe("host hub: settings writes are told apart", () => {
+  it("a module's settings panel writes as \"settings\" (the server audits them); its other slots, and a sheet borrowing the slot, don't", async () => {
+    const { createHub } = await import("./host");
+    const sent: Record<string, unknown>[] = [];
+    const mutate = async (input: Record<string, unknown>) => (sent.push(input), { revision: 1 });
+    const utils = { ...fakeUtils(() => []), client: { modules: { storageSet: { mutate }, storageDelete: { mutate }, storageSetIf: { mutate } } } };
+    const hub = createHub(new QueryClient(), utils as never);
+    const write = async (slot: "settings" | "dashboard-widget", opts?: { settings?: boolean }) => {
+      const { api, dispose } = hub.apiFor("test", slot, opts);
+      await api.storage.set("k", 1);
+      await api.storage.delete("k");
+      dispose();
+    };
+    await write("settings");
+    await write("dashboard-widget");
+    await write("settings", { settings: false });
+    expect(sent.map((s) => s.from ?? null)).toEqual(["settings", "settings", null, null, null, null]);
+    hub.dispose();
+  });
+});

@@ -317,7 +317,8 @@ function openFrame(
     });
   };
   // The sheet and the page overlay are no manifest slots: their API is the module's as in its first slot.
-  const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" || slot === "page-overlay" ? (entry.slots[0] ?? "settings") : slot);
+  // Only its settings panel's writes count as settings changes (audited), not a sheet's that borrows the slot.
+  const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" || slot === "page-overlay" ? (entry.slots[0] ?? "settings") : slot, { settings: slot === "settings" });
   const gestures = pageGestures();
   // The person's gesture, as this frame's own: in its view (its frame, its host box); a runtime has none.
   const gesture = role === "view" ? (ms?: number) => gestures.has(iframe, parent, document.activeElement === iframe, ms) : () => false;

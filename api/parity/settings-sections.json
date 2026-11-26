@@ -142,7 +142,7 @@
       "id": "store",
       "nativeOnly": false,
       "desktopOnly": false,
-      "permission": "manageStore"
+      "permission": "manageStore | acquireModules | useModules"
     },
     {
       "id": "permissions",

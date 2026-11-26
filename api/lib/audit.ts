@@ -118,9 +118,9 @@ const userLabel = (u: Pick<User, "username" | "displayName">) => u.username || u
  * from modules.setEnabled and the account's access).
  */
 export const UNAUDITED_PROCEDURES: Record<string, string> = {
-  "modules.storageSet": "a module's own per-user storage, written as it runs",
-  "modules.storageSetIf": "a module's own per-user storage, written as it runs",
-  "modules.storageDelete": "a module's own per-user storage, written as it runs",
+  "modules.storageSet": "a module's own per-user storage, written as it runs (from its settings panel: modules.configure, throttled)",
+  "modules.storageSetIf": "a module's own per-user storage, written as it runs (from its settings panel: modules.configure, throttled)",
+  "modules.storageDelete": "a module's own per-user storage, written as it runs (from its settings panel: modules.configure, throttled)",
   "modules.filePut": "a module's own per-user files, written as it runs",
   "modules.fileDelete": "a module's own per-user files, written as it runs",
   "modules.claimClosures": "a module marking closures it has shown, per user",
@@ -184,15 +184,18 @@ export function record(who: AuditRequest, action: AuditAction, details: AuditDet
 const reads = new Map<string, number>();
 const READ_EVERY_MS = 10 * 60_000;
 
-/** A read of someone else's data (team time): once per reader, report and range every ten minutes. */
-export async function recordRead(who: AuditRequest, action: AuditAction, details: AuditDetails): Promise<void> {
+/** An event at most once per actor, action and what it kept (`after`) every `everyMs`: a burst of the same act writes one. */
+export async function recordOnceEvery(who: AuditRequest, action: AuditAction, details: AuditDetails, everyMs: number): Promise<void> {
   const key = `${who.user?.id ?? 0}|${action}|${JSON.stringify(details.after ?? {})}`;
   const now = Date.now();
-  if ((reads.get(key) ?? 0) > now - READ_EVERY_MS) return;
+  if ((reads.get(key) ?? 0) > now - everyMs) return;
   if (reads.size > 5000) for (const [k, at] of reads) if (at <= now - READ_EVERY_MS) reads.delete(k);
   reads.set(key, now);
   await record(who, action, details);
 }
+
+/** A read of someone else's data (team time): once per reader, report and range every ten minutes. */
+export const recordRead = (who: AuditRequest, action: AuditAction, details: AuditDetails): Promise<void> => recordOnceEvery(who, action, details, READ_EVERY_MS);
 
 /** An event with no request behind it: a schedule, a sync pass, the command line. */
 export function recordSystem(actor: AuditActor, action: AuditAction, details: AuditDetails = {}): Promise<AuditEvent | null> {

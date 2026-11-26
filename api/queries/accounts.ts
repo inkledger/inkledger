@@ -6,7 +6,7 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { invites, rememberedDevices, roleAssignments, roles, sessions, teamMembers, teams, users, type RoleRow, type User } from "@db/schema";
-import { DEFAULT_ADMIN, INVITE_DAYS, OWNER_ONLY_PERMISSIONS, PERMISSIONS, type Permission, type Role, type RoleScope, type TeamRole } from "@contracts/accounts";
+import { DEFAULT_ADMIN, IMPLIED_PERMISSIONS, INVITE_DAYS, OWNER_ONLY_PERMISSIONS, PERMISSIONS, type Permission, type Role, type RoleScope, type TeamRole } from "@contracts/accounts";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { env } from "../lib/env";
 import { parseStringList } from "../lib/json";
@@ -90,6 +90,7 @@ export function permissionsOf(user: Account): Permission[] {
   for (const r of [user.access.role, ...user.access.extra]) {
     if (r && (r.scope === "server" || user.access.extra.includes(r))) for (const p of r.permissions) held.add(p);
   }
+  for (const p of [...held]) for (const implied of IMPLIED_PERMISSIONS[p] ?? []) held.add(implied);
   return PERMISSIONS.filter((p) => held.has(p));
 }
 
@@ -117,6 +118,23 @@ export function grantsOf(user: Pick<User, "moduleGrants">): string[] {
 
 /** Whether the account runs this module: an owner runs every one; anyone else needs useModules and the module granted. */
 export const mayRunModule = (user: Account, id: string) => user.access.owner || (can(user, "useModules") && grantsOf(user).includes(id));
+
+/**
+ * Grants one module to one account (what a successful acquisition by someone who doesn't
+ * manage the Store does: theirs only). The row is locked so a grant made meanwhile in
+ * Settings › Users is kept. Returns whether it was new.
+ */
+export async function grantModule(userId: number, moduleId: string): Promise<boolean> {
+  if (!moduleIdSchema.safeParse(moduleId).success) return false;
+  return getDb().transaction(async (tx) => {
+    const [row] = await tx.select({ moduleGrants: users.moduleGrants }).from(users).where(eq(users.id, userId)).for("update");
+    if (!row) return false;
+    const held = grantsOf(row);
+    if (held.includes(moduleId)) return false;
+    await tx.update(users).set({ moduleGrants: storedGrants([...held, moduleId]) }).where(eq(users.id, userId));
+    return true;
+  });
+}
 
 /** Access as the escalation guard compares it: owner or not, the effective sets, per team too. */
 export type Granted = {

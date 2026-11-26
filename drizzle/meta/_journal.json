@@ -393,6 +393,13 @@
       "when": 1795608269724,
       "tag": "0055_theme_appearance",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795682366712,
+      "tag": "0056_acquire_modules",
+      "breakpoints": true
     }
   ]
 }

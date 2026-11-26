@@ -220,12 +220,14 @@ describe("add-on modules", () => {
     await upload(bundle());
     await (await import("./registry")).addLicense(license("inkledger.hello"));
     try {
-      // Allowed to run modules, none granted: nothing runs, its code isn't served.
+      // Where its code is served (read as someone it is granted to).
+      const entryUrl = (await (await as(["useModules"], ["hello"])).modules.list()).modules.find((m) => m.id === "hello")?.entryUrl;
+      expect(entryUrl).toBeTruthy();
+      // Allowed to run modules, none granted: nothing runs, nor is listed, its code isn't served.
       const none = await as(["useModules"], []);
       const listed = await none.modules.list();
       expect(listed.granted).toEqual([]);
-      const entryUrl = listed.modules.find((m) => m.id === "hello")?.entryUrl;
-      expect(entryUrl).toBeTruthy();
+      expect(listed.modules).toEqual([]);
       await expect(none.modules.storageGet({ moduleId: "hello", key: "k" })).rejects.toMatchObject({ code: "FORBIDDEN" });
       expect((await app.request(entryUrl!, { headers: { cookie } })).status).toBe(403);
 

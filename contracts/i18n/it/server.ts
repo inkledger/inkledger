@@ -496,6 +496,9 @@ export const server: Shape<typeof en> = {
     codeProduct: "Questo codice è per un altro modulo: incollalo nella pagina di quel modulo.",
     badLicence: "Questo file non è una licenza inkledger valida.",
     noLicense: "Su questo server non c'è una licenza per questo modulo.",
+    alreadyHere: "Questo modulo è già su questo server: chiedi a un amministratore di assegnartelo.",
+    pendingOther: "Qualcun altro sta già ottenendo questo modulo: chiedi a un amministratore.",
+    notYours: "Questo acquisto è stato avviato da qualcun altro.",
     installFailed: "Il modulo non è stato installato ({reason}).",
   },
 };

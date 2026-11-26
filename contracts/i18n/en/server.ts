@@ -462,6 +462,9 @@ export const server = {
     codeProduct: "This code is for another module: paste it on that module’s page.",
     badLicence: "This file is not a valid inkledger licence.",
     noLicense: "No licence for this module on this server.",
+    alreadyHere: "This module is already on this server: ask an administrator to grant it to you.",
+    pendingOther: "Someone else is already getting this module: ask an administrator.",
+    notYours: "This purchase was started by someone else.",
     installFailed: "The module was not installed ({reason}).",
   },
 } satisfies Tree;

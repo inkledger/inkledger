@@ -36,6 +36,7 @@ import {
   verifyLicense,
 } from "../modules/registry";
 import { xactLockIn } from "../queries/locks";
+import { recordOnceEvery, type AuditRequest } from "../lib/audit";
 
 /** A licence held on this server, by its id (NOT_FOUND otherwise). */
 async function heldLicence(id: string): Promise<string> {
@@ -58,7 +59,15 @@ const SINCE = "__since";
 // Present (any value) when this user turned the module off.
 const OFF = "__off";
 const moduleKeys = like(moduleStorage.key, "\\_\\_%");
-const storageRef = z.object({ moduleId: moduleIdSchema, key: storageKey });
+/** from "settings": written by the module's settings panel (its user changing how it works), audited. */
+const storageRef = z.object({ moduleId: moduleIdSchema, key: storageKey, from: z.literal("settings").optional() });
+const CONFIGURE_EVERY_MS = 60_000;
+
+/** A module's setting changed by its user: one event per module and key a minute (a slider dragged writes one). */
+const recordConfigure = (who: AuditRequest, input: { moduleId: string; key: string; from?: "settings" }) =>
+  input.from === "settings"
+    ? recordOnceEvery(who, "modules.configure", { target: { type: "modules", id: input.moduleId, ownerUserId: who.user?.id }, after: { id: input.moduleId, key: input.key } }, CONFIGURE_EVERY_MS)
+    : Promise.resolve();
 // Closures per claim: told to the module at once, as soon as they come (the page holds none).
 const CLAIM_BATCH = 50;
 const fileRef = z.object({ moduleId: moduleIdSchema, key: z.string().regex(/^[\w.|,:-]{1,120}$/) });
@@ -191,11 +200,15 @@ export const modulesRouter = createRouter({
       .where(and(eq(moduleStorage.userId, ctx.user.id), eq(moduleStorage.key, OFF)));
     // Who may not use modules runs none (a store manager still sees them, to manage).
     const me = await withAccess(ctx.user);
+    // Licences are the Store's to manage: anyone else sees only the modules (and runs the ones granted).
+    const manager = can(me, "manageStore");
     const modules = await listModules((id, hash) => (can(me, "useModules") && mayRunModule(me, id) ? runToken(me.id, id, hash) : null));
+    // Every installed module for who manages or gets them, or grants them (Settings › Users); anyone else only theirs.
+    const seesAll = manager || can(me, "acquireModules") || can(me, "manageUsers");
     return {
-      modules,
-      licenses,
-      extraKey: extraKey() !== null,
+      modules: seesAll ? modules : modules.filter((m) => mayRunModule(me, m.id)),
+      licenses: manager ? licenses : [],
+      extraKey: manager && extraKey() !== null,
       off: off.map((r) => r.moduleId),
       canUse: can(me, "useModules"),
       // The ones this account runs (the Store still lists them all, to manage).
@@ -278,10 +291,13 @@ export const modulesRouter = createRouter({
       return { removed };
     }),
 
-  /** Turns one module off (or back on) for this user, on every device. */
+  /** Turns one module off (or back on) for this user, on every device: one granted to them (a Store manager, any). */
   setEnabled: use
     .input(z.object({ id: moduleIdSchema, enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
+      if (!mayRunModule(ctx.user, input.id) && !can(ctx.user, "manageStore")) {
+        throw new TRPCError({ code: "FORBIDDEN", message: t("server.modules.inactive") });
+      }
       const db = getDb();
       const row = and(eq(moduleStorage.userId, ctx.user.id), eq(moduleStorage.moduleId, input.id), eq(moduleStorage.key, OFF));
       if (input.enabled) await db.delete(moduleStorage).where(row);
@@ -373,6 +389,7 @@ export const modulesRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       await requireActive(ctx.user, input.moduleId);
       await writeStorage(ctx.user.id, input.moduleId, input.key, input.value);
+      await recordConfigure(ctx, input);
     }),
 
   /** Newer hosts' storage.update: written only over `ifRevision`, else the latest comes back to merge. */
@@ -380,7 +397,9 @@ export const modulesRouter = createRouter({
     .input(storageRef.extend({ value: z.unknown(), ifRevision: z.number().int().min(0) }))
     .mutation(async ({ ctx, input }) => {
       await requireActive(ctx.user, input.moduleId);
-      return writeStorage(ctx.user.id, input.moduleId, input.key, input.value, input.ifRevision);
+      const written = await writeStorage(ctx.user.id, input.moduleId, input.key, input.value, input.ifRevision);
+      if (!("conflict" in written)) await recordConfigure(ctx, input);
+      return written;
     }),
 
   storageDelete: use.input(storageRef).mutation(async ({ ctx, input }) => {
@@ -394,6 +413,7 @@ export const modulesRouter = createRouter({
           eq(moduleStorage.key, input.key),
         ),
       );
+    await recordConfigure(ctx, input);
   }),
 
   /** For the host API: a cached file of this module (base64), null when missing. */

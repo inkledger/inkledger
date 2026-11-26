@@ -15,6 +15,7 @@ import { ManageBadge } from "./ManageBadge";
 import { ModuleSwitch } from "./ModuleSwitch";
 import { useModuleOffers } from "@/modules/context";
 import { tellEnabled } from "@/modules/enabledSignals";
+import { useStoreAccess } from "./access";
 
 export type StoreView = "details" | "request" | "paid" | "settings";
 
@@ -58,6 +59,7 @@ export function Action({
   const dismiss = trpc.store.dismiss.useMutation({ onSuccess: refresh, onError: err => toastError(err) });
 
   const hasSettings = useModuleOffers(e.id, "settings");
+  const access = useStoreAccess();
   const manage = (
     <ManageBadge
       product={e.product}
@@ -116,7 +118,8 @@ export function Action({
       </span>
     );
   }
-  if (e.licensed && (e.outdated || e.installed === null)) {
+  // Installing or updating what the server holds a licence for is the Store manager's.
+  if (e.licensed && (e.outdated || e.installed === null) && access.manage) {
     const update = e.outdated;
     return both(
       <Button size={size} disabled={install.isPending} onClick={ev => {
