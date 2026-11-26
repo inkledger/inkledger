@@ -1,4 +1,4 @@
-// Feedback as files to read elsewhere (Info > Feedback > Export): Markdown for people, JSON
+// Feedback as files to read elsewhere (Feedback > Export): Markdown for people, JSON
 // for tools. A data format, the same in every language: its labels are field names.
 import type { CommentView, FeedbackView } from "./store";
 

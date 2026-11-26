@@ -3214,6 +3214,28 @@
         ]
       },
       {
+        "id": "shell.nav.feedback",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.feedback.nav",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.feedback.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
         "id": "shell.nav.home",
         "anchorId": "shell.navigation",
         "kind": "navigation",

@@ -1,6 +1,6 @@
 import { errorText } from "@/lib/errorText";
 import type { ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { Laptop, Smartphone } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { formatDate } from "@contracts/time";
@@ -14,42 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
-import { TabPanel, Tabs } from "@/components/ui/tabs";
-import { lazyPart } from "@/components/app/lazyPart";
-
-const FeedbackPanel = lazyPart(() => import("@/components/feedback/FeedbackPanel").then(m => m.FeedbackPanel));
-type InfoTab = "server" | "feedback";
+import { OldFeedbackLink } from "@/pages/FeedbackPage";
 
 /**
- * Info: this server (its addresses, the apps it offers, how to reach it) and the feedback
- * its people sent about the app (/info/feedback, each one at /info/feedback/:id). The tab
- * is the URL's, so Back returns to it.
+ * Info: this server (its addresses, the apps it offers, how to reach it). Feedback has its own
+ * page (/feedback): an old link to Info's former Feedback tab lands there.
  */
 export default function Info() {
   const params = useParams();
-  const navigate = useNavigate();
-  const tab: InfoTab = params.tab === "feedback" ? "feedback" : "server";
-  const selected = tab === "feedback" && params.id && /^\d+$/.test(params.id) ? Number(params.id) : null;
+  const [search] = useSearchParams();
+  if (params.tab === "feedback" || search.get("tab") === "feedback") return <OldFeedbackLink />;
   return (
     <>
-      <PageHeader title={t("pages.info.title")} description={tab === "feedback" ? t("pages.feedback.description") : t("pages.info.description")} />
-      <Tabs
-        idBase="info"
-        label={t("pages.feedback.tabsLabel")}
-        value={tab}
-        onChange={v => void navigate(v === "feedback" ? "/info/feedback" : "/info")}
-        items={[
-          { value: "server", label: t("pages.feedback.tabServer") },
-          { value: "feedback", label: t("ui.feedback.nav") },
-        ]}
-        className="px-5 md:px-6"
-      />
-      <TabPanel idBase="info" value="server" current={tab}>
-        <ServerInfo />
-      </TabPanel>
-      <TabPanel idBase="info" value="feedback" current={tab}>
-        <FeedbackPanel selected={selected} />
-      </TabPanel>
+      <PageHeader title={t("pages.info.title")} description={t("pages.info.description")} />
+      <ServerInfo />
     </>
   );
 }

@@ -75,7 +75,7 @@ export async function seedDense(db) {
   }
   for (let i = 0; i < 6; i++)
     await db.q("INSERT INTO ideas (user_id, title, body, position, created_at, updated_at) VALUES (1, ?, ?, ?, ?, ?)", TITLES[(i + 2) % TITLES.length], "Una descrizione lunga dell'idea, con il perché e i criteri di accettazione da discutere.", i, now, now);
-  // Feedback (Info › Feedback): long titles, every state, a thread with a change of state and a shared one.
+  // Feedback (the Feedback page): long titles, every state, a thread with a change of state and a shared one.
   const kinds = ["problem", "idea", "improvement"];
   const states = ["new", "discussion", "accepted", "in_progress", "implemented", "rejected"];
   for (let i = 0; i < 6; i++) {

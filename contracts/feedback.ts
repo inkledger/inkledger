@@ -1,4 +1,4 @@
-// User feedback about the app (Info > Feedback): what a person sends, the states an admin
+// User feedback about the app (the Feedback page): what a person sends, the states an admin
 // moves it through, and what of it may leave this server. Shared by the page and the API.
 
 /** What a feedback is about. */

@@ -37,6 +37,7 @@ const load = {
   settings: () => withEnglish(import("@/pages/Settings")),
   notFound: () => withEnglish(import("@/pages/NotFound")),
   info: () => withEnglish(import("@/pages/Info")),
+  feedback: () => withEnglish(import("@/pages/FeedbackPage")),
   install: () => withEnglish(import("@/pages/Install")),
 };
 
@@ -61,6 +62,7 @@ const FIRST: [RegExp, keyof typeof load][] = [
   [/^\/team/, "team"],
   [/^\/settings/, "settings"],
   [/^\/info/, "info"],
+  [/^\/feedback/, "feedback"],
 ];
 
 /**
@@ -120,6 +122,7 @@ const Team = page(() => load.team().then(m => m.default));
 const Settings = page(() => load.settings().then(m => m.default));
 const NotFound = page(() => load.notFound().then(m => m.default));
 const Info = page(() => load.info().then(m => m.default));
+const FeedbackPage = page(() => load.feedback().then(m => m.default));
 const Install = page(() => load.install().then(m => m.default));
 
 const PAGES: Record<keyof typeof load, { load: () => Promise<unknown> }[]> = {
@@ -142,6 +145,7 @@ const PAGES: Record<keyof typeof load, { load: () => Promise<unknown> }[]> = {
   settings: [Settings],
   notFound: [NotFound],
   info: [Info],
+  feedback: [FeedbackPage],
   install: [Install],
 };
 
@@ -252,6 +256,8 @@ export default function App() {
               <Route path="/info" element={<Info />} />
               <Route path="/info/:tab" element={<Info />} />
               <Route path="/info/:tab/:id" element={<Info />} />
+              <Route path="/feedback" element={<FeedbackPage />} />
+              <Route path="/feedback/:id" element={<FeedbackPage />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

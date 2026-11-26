@@ -36,7 +36,7 @@ export function alertMessage(a: Pick<AlertRow, "alert" | "name" | "count"> & { w
 export function alertPath(a: Pick<AlertRow, "alert" | "ref">): string {
   switch (a.alert) {
     case "feedback":
-      return a.ref ? `/info/feedback/${a.ref}` : "/info/feedback";
+      return a.ref ? `/feedback/${a.ref}` : "/feedback";
     case "backup":
     case "offsite":
     case "drill":

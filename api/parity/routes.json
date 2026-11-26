@@ -12,6 +12,14 @@
     "guard": "RequireAuth"
   },
   {
+    "path": "/feedback",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/feedback/:id",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/ideas",
     "guard": "RequireAuth"
   },

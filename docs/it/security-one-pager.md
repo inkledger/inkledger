@@ -28,7 +28,7 @@ Accounts are `admin` or `member`. Members hold none of these unless granted: `ma
 - A licence is always one person's.
 - A Store manager offers a module (the person buys it for themselves) or assigns it (the admin or a team buys one licence per person).
 - `acquireModules` (owners and IT admins) lets someone browse the whole catalogue and buy for themselves.
-- Feedback about the app (Info › Feedback): everyone sees only their own; `readFeedback` reads everyone's, `manageFeedback` changes their state, answers and turns sharing with inkledger's developers on or off (both owners and IT admins). Sharing is off by default and needs each author's consent.
+- Feedback about the app (the Feedback page): everyone sees only their own; `readFeedback` reads everyone's, `manageFeedback` changes their state, answers and turns sharing with inkledger's developers on or off (both owners and IT admins). Sharing is off by default and needs each author's consent.
 - Licences, activations, installs and removal stay with `manageStore`.
 - Each step is audited.
 

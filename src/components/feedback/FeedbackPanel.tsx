@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { ArrowLeft, Download, MessageSquarePlus, Send } from "lucide-react";
@@ -23,6 +23,7 @@ import { errorText, toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { useAlerts } from "@/components/notifications/alerts";
 import { statusLabel, statusTone, typeLabel } from "./labels";
 
 const ANY = "any";
@@ -60,7 +61,7 @@ function useFilters() {
 }
 
 /**
- * Info › Feedback: everyone's own feedback with its state and thread; with readFeedback,
+ * The Feedback page: everyone's own feedback with its state and thread; with readFeedback,
  * everyone's, filtered; with manageFeedback, the state changed and answered. List and
  * detail side by side on a wide panel, one at a time on a narrow one (Back returns).
  */
@@ -138,7 +139,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
             action={
               <Button size="sm" onClick={() => openFeedback()}>
                 <MessageSquarePlus className="mr-1.5 h-4 w-4" aria-hidden />
-                {t("ui.feedback.send")}
+                {t("pages.feedback.new")}
               </Button>
             }
           />
@@ -148,7 +149,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
           {list.data.map(f => (
             <li key={f.id}>
               <Link
-                to={`/info/feedback/${f.id}${suffix}`}
+                to={`/feedback/${f.id}${suffix}`}
                 aria-current={f.id === selected ? "true" : undefined}
                 className={cn("block rounded-md px-2 outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring", f.id === selected && "bg-accent")}
               >
@@ -173,7 +174,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
           {selected === null ? (
             <p className="p-6 text-body-sm text-muted-foreground">{t("pages.feedback.list.pick")}</p>
           ) : (
-            <FeedbackDetail id={selected} back={`/info/feedback${suffix}`} />
+            <FeedbackDetail id={selected} back={`/feedback${suffix}`} />
           )}
         </div>
       </div>
@@ -264,9 +265,22 @@ function ShareMine({ id, hasScreenshot }: { id: number; hasScreenshot: boolean }
   );
 }
 
+/** Opening one's own feedback reads its news: the alerts about it leave the bell and the Feedback tile's badge. */
+function useReadNews(id: number) {
+  const alerts = useAlerts();
+  const utils = trpc.useUtils();
+  const { mutate } = trpc.notifications.dismissMany.useMutation({ onSuccess: () => void utils.notifications.alerts.invalidate() });
+  // As text: a new array on every poll would ask again for the same ones.
+  const news = (alerts.data ?? []).filter(a => a.alert === "feedback" && a.ref === id).map(a => a.id).join(",");
+  useEffect(() => {
+    if (news) mutate({ ids: news.split(",").map(Number) });
+  }, [news, mutate]);
+}
+
 function FeedbackDetail({ id, back }: { id: number; back: string }) {
   const q = trpc.feedback.get.useQuery({ id });
   const navigate = useNavigate();
+  useReadNews(id);
   if (q.error) return <ErrorState title={t("pages.feedback.detail.notFound")} message={errorText(q.error)} onRetry={() => void q.refetch()} />;
   if (q.isPending) return <Skeleton className="m-6 h-64" aria-hidden />;
   const f = q.data;

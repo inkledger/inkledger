@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dayKey, start } from "./harness.mjs";
 
-const ROUTES = ["/", "/issues", "/issues/desk", "/issues/DEMO-101", "/timesheet", "/timesheet?view=month", "/board", "/reports", "/settings", "/settings/store", "/info", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
+const ROUTES = ["/", "/issues", "/issues/desk", "/issues/DEMO-101", "/timesheet", "/timesheet?view=month", "/board", "/reports", "/settings", "/settings/store", "/info", "/feedback", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
 const VIEWPORTS = [320, 390, 768, 1024, 1400];
 const TOKEN = "MAGA-398-ThisIsAVeryLongUnbrokenTokenThatMustNotPushActionsOutsideTheRow-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
