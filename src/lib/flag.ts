@@ -36,5 +36,7 @@ export const ideaCapture = createFlag();
 export type FeedbackDraft = { type?: FeedbackType; body?: string };
 /** "Send feedback" (the account menu, ⌘K, "Report" on an error): null while closed. */
 export const feedbackSheet = createStore<FeedbackDraft | null>(null);
+/** The signed-in shell is drawn (AppLayout): only then can "Send feedback" open, so only then is "Report" offered. */
+export const feedbackHost = createStore(false);
 /** Opens "Send feedback" from anywhere. */
 export const openFeedback = (draft: FeedbackDraft = {}) => feedbackSheet.set(draft);

@@ -40,7 +40,7 @@ export default function Info() {
         onChange={v => void navigate(v === "feedback" ? "/info/feedback" : "/info")}
         items={[
           { value: "server", label: t("pages.feedback.tabServer") },
-          { value: "feedback", label: t("pages.feedback.tab") },
+          { value: "feedback", label: t("ui.feedback.nav") },
         ]}
         className="px-5 md:px-6"
       />

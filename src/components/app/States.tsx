@@ -7,7 +7,7 @@ import {
 } from "@/components/app/Illustration";
 import { t } from "@/i18n";
 import { Spinner } from "@/components/ui/spinner";
-import { openFeedback } from "@/lib/flag";
+import { feedbackHost, openFeedback } from "@/lib/flag";
 
 /** A page on its way (its code or its first data): a spinner where the page goes. */
 export function PageSpinner() {
@@ -31,6 +31,7 @@ export function ErrorState({
   onRetry?: () => void;
   className?: string;
 }) {
+  const canReport = feedbackHost.use();
   return (
     <div
       role="alert"
@@ -50,10 +51,12 @@ export function ErrorState({
             {t("common.retry")}
           </Button>
         )}
-        {/* Telling someone: a problem, with what failed already written. */}
-        <Button variant="ghost" size="sm" onClick={() => openFeedback({ type: "problem", body: [title, message].filter(Boolean).join("\n") })}>
-          {t("pages.feedback.report")}
-        </Button>
+        {/* Telling someone: a problem, with what failed already written (signed in, in the app's shell). */}
+        {canReport && (
+          <Button variant="ghost" size="sm" onClick={() => openFeedback({ type: "problem", body: [title, message].filter(Boolean).join("\n") })}>
+            {t("ui.feedback.report")}
+          </Button>
+        )}
       </div>
     </div>
   );

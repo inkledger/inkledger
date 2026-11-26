@@ -104,6 +104,8 @@ async function sendOne(row: Feedback, locale: "it" | "en", now: number): Promise
     // The Store said no to this one (its input, its size): never again. Anything else (rate,
     // not there yet, unreachable, a signature off by a clock) is tried on the next cycle.
     if (e instanceof StoreError && e.code === "rejected" && (e.status === 400 || e.status === 413)) return "refused";
+    // Said in the server's log: a Store that keeps refusing (a signature, a clock) must not hide behind "queued".
+    console.warn(`[feedback] not sent, tried again later: ${e instanceof Error ? e.message : String(e)}`);
     return "later";
   }
   return "sent";
@@ -193,8 +195,10 @@ export async function syncStatuses(now = Date.now()): Promise<number> {
     let raw: unknown;
     try {
       raw = await (await callStore(path, { method: "GET", headers: signedHeaders("GET", path, "", now) })).json();
-    } catch {
-      return updated; // the Store not there (yet): the next cycle asks again
+    } catch (e) {
+      // The Store not there (yet), or refusing: the next cycle asks again, said in the log.
+      console.warn(`[feedback] states not read back: ${e instanceof Error ? e.message : String(e)}`);
+      return updated;
     }
     const byUid = new Map(batch.map((r) => [r.uid, r]));
     for (const item of readStatusAnswer(raw)) {

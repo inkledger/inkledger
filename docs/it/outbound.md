@@ -61,6 +61,8 @@ Off by default. With `MS_CLIENT_ID` (your own Entra app, see [Outlook](../outloo
 
 `STORE_URL` (default: the inkledger store) is called when someone opens Settings → Store (the catalog, at most every 12 hours, the last copy kept), while a licence request or payment is pending, to download a module package, and to renew licence activations (every 90 days, 30 days of grace). Redirects to other hosts are refused. `STORE_URL=off` turns all of it off; a server that never reaches the internet activates licences with an offline code.
 
+**Feedback shared with inkledger's developers** goes to the same host, and only when an administrator turns sharing on in Info › Feedback (off by default) and the feedback's author ticks the consent on that feedback (the screenshot needs a second tick). What leaves: the kind, title and text as written, the shape of the page's path (`/issues/:id`, never keys or queries), the app build, look and density, and a pseudonym per person (an HMAC with a secret that never leaves the server); never a name, username or email. Calls are signed with the server's instance key. The developers' state and public replies are read back on the server's 6-hour maintenance cycle. `STORE_URL=off` hides sharing.
+
 ## Weather
 
 Modules that ask for real weather get it through the server from Open-Meteo. Requests carry only coordinates rounded to 0.1° (or a place name for the search), and answers are cached for 30 minutes. `WEATHER=off` turns it off.

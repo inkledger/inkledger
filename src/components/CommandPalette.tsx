@@ -300,7 +300,7 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
         nav("nav:reports", "/reports", <BarChart3 className="mr-2 h-4 w-4" />, t("ui.nav.reports")),
         nav("nav:settings", "/settings", <SettingsIcon className="mr-2 h-4 w-4" />, t("ui.nav.settings")),
         nav("nav:info", "/info", <InfoIcon className="mr-2 h-4 w-4" />, t("ui.nav.info")),
-        nav("nav:feedback", "/info/feedback", <MessagesSquare className="mr-2 h-4 w-4" />, t("pages.feedback.tab")),
+        nav("nav:feedback", "/info/feedback", <MessagesSquare className="mr-2 h-4 w-4" />, t("ui.feedback.nav")),
       ],
     },
     {
@@ -324,7 +324,7 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
         ...timerEntries,
         action("act:startTimer", <Play className="mr-2 h-4 w-4" />, t("ui.palette.startTimer"), () => quickStart.set(true), "T"),
         action("act:sync", <RefreshCw className="mr-2 h-4 w-4" />, t("ui.palette.syncJira", { provider }), () => sync.mutate()),
-        action("act:feedback", <MessageSquarePlus className="mr-2 h-4 w-4" />, t("pages.feedback.send"), () => openFeedback()),
+        action("act:feedback", <MessageSquarePlus className="mr-2 h-4 w-4" />, t("ui.feedback.send"), () => openFeedback()),
         action("act:shortcuts", <Keyboard className="mr-2 h-4 w-4" />, t("ui.palette.shortcuts"), () => shortcutsHelp.set(true)),
         ...moduleCommands,
         entry(

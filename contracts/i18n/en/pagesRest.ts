@@ -615,12 +615,9 @@ export const pagesRest = {
       "Tailscale is only needed to reach this server from another device.",
   },
   feedback: {
-    tab: "Feedback",
     tabServer: "Server",
     tabsLabel: "Info sections",
     description: "What you've told this server's administrators about the app, and where each one stands.",
-    send: "Send feedback",
-    report: "Report",
     sheet: {
       title: "Send feedback",
       description: "A problem, an idea or an improvement: it reaches this server's administrators, and you follow it in Info › Feedback.",

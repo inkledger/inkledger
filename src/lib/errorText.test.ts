@@ -64,16 +64,23 @@ describe("errorText", () => {
     }
   });
 
-  it("toastError: one toast per text at a time (a local and a shared handler both reporting it)", () => {
+  it("toastError: one toast per text at a time (a local and a shared handler both reporting it)", async () => {
+    const { feedbackHost } = await import("@/lib/flag");
+    // Outside the signed-in shell (the sign-in page) there is nowhere to report from.
+    toastError(fromServer("Fuori", "CONFLICT"));
+    expect(toastSpy).toHaveBeenLastCalledWith("Fuori", { id: "error:Fuori" });
+    toastSpy.mockClear();
+    feedbackHost.set(true);
     toastError(fromServer("Già fatto", "CONFLICT"));
     toastError(fromServer("Già fatto", "CONFLICT"), { duration: 10_000 });
     // Every error offers "Report" (Send feedback with its words): as its action, or beside a Retry.
-    const report = expect.objectContaining({ label: "<pages.feedback.report>", onClick: expect.any(Function) });
+    const report = expect.objectContaining({ label: "<ui.feedback.report>", onClick: expect.any(Function) });
     expect(toastSpy).toHaveBeenNthCalledWith(1, "Già fatto", { id: "error:Già fatto", action: report });
     expect(toastSpy).toHaveBeenNthCalledWith(2, "Già fatto", { id: "error:Già fatto", action: report, duration: 10_000 });
     const retry = { label: "Retry", onClick: () => {} };
     toastError(fromServer("Di nuovo", "CONFLICT"), { action: retry });
     expect(toastSpy).toHaveBeenNthCalledWith(3, "Di nuovo", { id: "error:Di nuovo", cancel: report, action: retry });
+    feedbackHost.set(false);
   });
 
   it("failureText: the same words, a fault's details to the console", () => {

@@ -104,7 +104,7 @@ export function AccountMenu({
         {/* Saying something about the app: where the account's own things are, on every layout. */}
         <DropdownMenuItem onClick={() => openFeedback()}>
           <MessageSquarePlus className="mr-2 h-4 w-4" />
-          {t("pages.feedback.send")}
+          {t("ui.feedback.send")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => logout.mutate()} {...controls?.logout}>
           <LogOut className="mr-2 h-4 w-4" />

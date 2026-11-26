@@ -137,7 +137,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
             action={
               <Button size="sm" onClick={() => openFeedback()}>
                 <MessageSquarePlus className="mr-1.5 h-4 w-4" aria-hidden />
-                {t("pages.feedback.send")}
+                {t("ui.feedback.send")}
               </Button>
             }
           />

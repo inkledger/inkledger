@@ -40,6 +40,12 @@ export const ui = {
   toolbar: {
     more: "More",
   },
+  /** Feedback's ways in from the shell (the account menu, ⌘K, "Report" on an error): first load. */
+  feedback: {
+    send: "Send feedback",
+    report: "Report",
+    nav: "Feedback",
+  },
   layout: {
     openPinboard: "Open the pinboard",
     openPinboardTitle: "Open the pinboard (P)",

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, randomBytes, verify } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -282,5 +282,67 @@ describe("feedback", () => {
     expect(js.items.map(i => i.title)).toEqual(["Bob's own"]);
     const logged = await events("feedback.export");
     expect(logged.map(e => JSON.parse(e.after ?? "{}") as { scope: string })).toEqual(expect.arrayContaining([expect.objectContaining({ scope: "mine" }), expect.objectContaining({ scope: "all" })]));
+  });
+
+  describe("screenshots", () => {
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7, 7, 7]);
+    async function cookieOf(id: number): Promise<string> {
+      const token = randomBytes(32).toString("base64url");
+      await q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)", createHash("sha256").update(token).digest("hex"), id, Date.now() + 3_600_000, Date.now());
+      const { sessionCookie } = await import("../lib/session");
+      return sessionCookie(new Request("http://localhost/"), token, 3600).split(";")[0];
+    }
+    const app = async () => (await import("../boot")).default;
+    const upload = async (id: number, cookie: string, bytes: Uint8Array<ArrayBuffer>, type = "image/png") => {
+      const form = new FormData();
+      form.append("file", new File([bytes], "shot", { type }));
+      return (await app()).request(`/api/feedback/${id}/screenshot`, { method: "POST", body: form, headers: { cookie } });
+    };
+    const fetchShot = async (id: number, cookie: string) => (await app()).request(`/api/feedback/${id}/screenshot`, { headers: { cookie } });
+
+    it("is its author's to add once, read by whoever may read the feedback, an image only", async () => {
+      const a = await as(ann);
+      const [annC, bobC, readerC] = [await cookieOf(ann), await cookieOf(bob), await cookieOf(reader)];
+      const { id } = await a.feedback.create({ ...base, title: "With a picture", screenshot: true });
+      expect((await upload(id, bobC, PNG)).status).toBe(404);
+      expect((await upload(id, annC, new Uint8Array(Buffer.from("<svg/>")), "image/svg+xml")).status).toBe(415);
+      expect((await upload(id, annC, PNG)).status).toBe(200);
+      expect((await upload(id, annC, PNG)).status).toBe(409);
+      expect((await a.feedback.get({ id })).hasScreenshot).toBe(true);
+      // Sealed at rest, never the bytes as sent.
+      const [row] = await q<{ screenshot: Buffer }>("SELECT screenshot FROM feedback WHERE id = ?", id);
+      expect(Buffer.from(row.screenshot).includes(Buffer.from(PNG))).toBe(false);
+
+      expect((await fetchShot(id, bobC)).status).toBe(404);
+      for (const cookie of [annC, readerC]) {
+        const got = await fetchShot(id, cookie);
+        expect(got.status).toBe(200);
+        expect(got.headers.get("content-type")).toBe("image/png");
+        expect(got.headers.get("x-content-type-options")).toBe("nosniff");
+        expect(new Uint8Array(await got.arrayBuffer())).toEqual(PNG);
+      }
+    });
+
+    it("goes to the developers only with its own consent, and waits for the picture before sending", async () => {
+      await (await as(manager)).feedback.setSharing({ enabled: true });
+      const a = await as(ann);
+      const annC = await cookieOf(ann);
+      const sentBody = async (title: string) => JSON.parse(store.calls.find(c => c.method === "POST" && c.body.includes(title))?.body ?? "{}") as { screenshot?: { type: string; data: string } };
+
+      // Shared, the picture not: the text leaves, the picture stays here.
+      const without = await a.feedback.create({ ...base, title: "Shared, picture kept", share: true, shareScreenshot: false, screenshot: true });
+      expect(store.calls.filter(c => c.method === "POST")).toHaveLength(0);
+      expect((await upload(without.id, annC, PNG)).status).toBe(200);
+      await vi.waitFor(async () => expect((await a.feedback.get({ id: without.id })).shareState).toBe("sent"));
+      expect(await sentBody("Shared, picture kept")).not.toHaveProperty("screenshot");
+
+      // Both agreed: the picture goes with it, as it was.
+      const both = await a.feedback.create({ ...base, title: "Shared with its picture", share: true, shareScreenshot: true, screenshot: true });
+      expect((await upload(both.id, annC, PNG)).status).toBe(200);
+      await vi.waitFor(async () => expect((await a.feedback.get({ id: both.id })).shareState).toBe("sent"));
+      const shot = (await sentBody("Shared with its picture")).screenshot;
+      expect(shot?.type).toBe("image/png");
+      expect(new Uint8Array(Buffer.from(shot?.data ?? "", "base64"))).toEqual(PNG);
+    });
   });
 });

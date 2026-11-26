@@ -8,7 +8,9 @@ import { getServerSetting, setServerSetting } from "../lib/serverSettings";
 /**
  * The store Worker, seen from this server. Besides Jira, the only outbound
  * calls inkledger makes, and only when someone opens Settings → Store, asks for a
- * licence or pays (STORE_URL=off removes them). The page never talks to the
+ * licence or pays, or (once an admin turns sharing on, and per feedback with its
+ * author's consent) when feedback is shared with inkledger's developers
+ * (feedback/upstream.ts). STORE_URL=off removes them all. The page never talks to the
  * Worker: tokens stay server-side.
  */
 

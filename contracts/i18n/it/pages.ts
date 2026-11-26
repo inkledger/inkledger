@@ -1257,12 +1257,9 @@ export const pages: Shape<(typeof en)["pages"]> = {
     details: "Dettagli issue",
     keys: { move: "scorri", done: "fatto", unread: "da leggere", open: "apri issue", back: "lista", esc: "Esc" },
   feedback: {
-    tab: "Feedback",
     tabServer: "Server",
     tabsLabel: "Sezioni di Info",
     description: "Quello che hai detto agli amministratori di questo server sull'app, e a che punto è ognuno.",
-    send: "Invia feedback",
-    report: "Segnala",
     sheet: {
       title: "Invia feedback",
       description: "Un problema, un'idea o una miglioria: arriva agli amministratori di questo server e lo segui in Info › Feedback.",

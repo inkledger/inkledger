@@ -41,6 +41,11 @@ export const ui: Shape<(typeof en)["ui"]> = {
   toolbar: {
     more: "Altro",
   },
+  feedback: {
+    send: "Invia feedback",
+    report: "Segnala",
+    nav: "Feedback",
+  },
   layout: {
     openPinboard: "Apri la lavagna",
     openPinboardTitle: "Apri la lavagna (P)",

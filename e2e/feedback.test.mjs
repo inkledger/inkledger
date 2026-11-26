@@ -81,3 +81,27 @@ test("sent from the account menu, listed as mine, moved by an admin, seen by its
     },
   );
 });
+
+test("on a phone: More, the account, Send feedback; it lands in Info › Feedback", () =>
+  withApp(
+    { viewport: { width: 390, height: 844 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/");
+      await page.getByRole("button", { name: "More" }).first().click();
+      await page.getByRole("button", { name: "Account menu" }).last().click();
+      await page.getByRole("menuitem", { name: "Send feedback" }).click();
+      const sheet = page.getByRole("dialog", { name: "Send feedback" });
+      await sheet.waitFor();
+      await sheet.getByLabel("Title").fill("Hard to reach on the phone");
+      await sheet.getByRole("button", { name: "Send" }).click();
+      await sheet.waitFor({ state: "detached" });
+      await page.goto(base + "/info/feedback");
+      await page.getByRole("list", { name: "Feedback" }).getByRole("link", { name: /Hard to reach on the phone/ }).click();
+      // One pane at a time: the detail, with its way back to the list.
+      await page.getByRole("article").getByRole("heading", { name: "Hard to reach on the phone" }).waitFor();
+      await page.getByRole("button", { name: "All feedback" }).click();
+      await page.getByRole("list", { name: "Feedback" }).waitFor();
+      const [row] = await db.q("SELECT user_id, page FROM feedback");
+      assert.deepEqual(row, { user_id: 1, page: "/" });
+    },
+  ));

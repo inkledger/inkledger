@@ -2,7 +2,7 @@ import { useFocusClearOfBars, usePublishChromeHeight } from "@/lib/layout/chrome
 import { lazyPart } from "@/components/app/lazyPart";
 import { PinMailHost } from "@/components/mail/PinMailHost";
 import { FirstTrackerBanner } from "@/components/FirstTrackerBanner";
-import { memo, Suspense, useRef } from "react";
+import { memo, Suspense, useEffect, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
@@ -46,7 +46,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { commandPalette, useCommandPaletteShortcut } from "@/lib/commandPalette";
-import { notificationCenter, screensaver } from "@/lib/flag";
+import { feedbackHost, notificationCenter, screensaver } from "@/lib/flag";
 import { openTodosSheet, useTodoSurfacesNow, useTodoWiring } from "@/hooks/useTodoPanel";
 import { useTodoReminders, useTodoReminderToast } from "@/hooks/useTodoReminders";
 import { TodoWidget } from "@/components/todo/TodoWidget";
@@ -712,6 +712,11 @@ export function AppLayout() {
   useMouseHistoryButtons(isNative());
   useThemeSync();
   useSoftKeyboard();
+  // "Report" on errors opens "Send feedback", which only this shell draws.
+  useEffect(() => {
+    feedbackHost.set(true);
+    return () => feedbackHost.set(false);
+  }, []);
   const collapsed = useSidebarCollapsed();
   const location = useLocation();
   // One page, one key: the settings' categories are frames of one page (only the frame changes).
