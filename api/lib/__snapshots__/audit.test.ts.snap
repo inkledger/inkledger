@@ -207,6 +207,49 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "feedback.comment": {
+    "kept": [
+      "origin",
+    ],
+    "redacted": 17,
+  },
+  "feedback.create": {
+    "kept": [
+      "shared",
+      "type",
+    ],
+    "redacted": 17,
+  },
+  "feedback.export": {
+    "kept": [
+      "format",
+      "rows",
+      "scope",
+    ],
+    "redacted": 17,
+  },
+  "feedback.forward": {
+    "kept": [
+      "failed",
+      "refused",
+      "sent",
+      "updated",
+    ],
+    "redacted": 17,
+  },
+  "feedback.setSharing": {
+    "kept": [
+      "enabled",
+    ],
+    "redacted": 17,
+  },
+  "feedback.setStatus": {
+    "kept": [
+      "from",
+      "to",
+    ],
+    "redacted": 17,
+  },
   "info.addHosts": {
     "kept": [
       "hosts",

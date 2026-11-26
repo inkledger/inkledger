@@ -17,6 +17,9 @@
  * in the Store only the modules granted (a seat held) or offered to the account (by a Store
  * manager, to it or its team), to buy for itself, turn on or off and set up. In-module
  * purchases are always the person's own, never bought by an admin for someone else.
+ * Feedback (Info > Feedback): everyone sends and follows their own; readFeedback reads
+ * everyone's and exports them; manageFeedback moves them through their states, answers in
+ * their threads and decides whether they may be shared with inkledger's developers.
  */
 export const PERMISSIONS = [
   "manageUsers",
@@ -35,6 +38,8 @@ export const PERMISSIONS = [
   "exportAudit",
   "exportUserData",
   "eraseUserData",
+  "readFeedback",
+  "manageFeedback",
 ] as const;
 
 /** What a new account may do unless the admin says otherwise: nothing beyond its own work, no modules. */
@@ -48,6 +53,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 export const IMPLIED_PERMISSIONS: Readonly<Partial<Record<Permission, readonly Permission[]>>> = {
   manageStore: ["acquireModules"],
   acquireModules: ["useModules"],
+  manageFeedback: ["readFeedback"],
 };
 
 /** The permissions given, with every one they imply (IMPLIED_PERMISSIONS, to a fixed point). */

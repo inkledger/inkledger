@@ -7,6 +7,7 @@ import {
 } from "@/components/app/Illustration";
 import { t } from "@/i18n";
 import { Spinner } from "@/components/ui/spinner";
+import { openFeedback } from "@/lib/flag";
 
 /** A page on its way (its code or its first data): a spinner where the page goes. */
 export function PageSpinner() {
@@ -43,11 +44,17 @@ export function ErrorState({
       {message && (
         <p className="max-w-md text-body-sm text-muted-foreground">{message}</p>
       )}
-      {onRetry && (
-        <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
-          {t("common.retry")}
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+        {onRetry && (
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            {t("common.retry")}
+          </Button>
+        )}
+        {/* Telling someone: a problem, with what failed already written. */}
+        <Button variant="ghost" size="sm" onClick={() => openFeedback({ type: "problem", body: [title, message].filter(Boolean).join("\n") })}>
+          {t("pages.feedback.report")}
         </Button>
-      )}
+      </div>
     </div>
   );
 }

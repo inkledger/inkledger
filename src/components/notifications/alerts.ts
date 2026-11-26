@@ -6,7 +6,7 @@ import { relativeFormat, t } from "@/i18n";
 export type AlertRow = inferRouterOutputs<AppRouter>["notifications"]["alerts"][number];
 
 /** What an alert says, in the reader's language. */
-export function alertMessage(a: Pick<AlertRow, "alert" | "name" | "count">): string {
+export function alertMessage(a: Pick<AlertRow, "alert" | "name" | "count"> & { what?: string | null }): string {
   const count = a.count ?? 0;
   switch (a.alert) {
     case "auth_failed":
@@ -27,12 +27,16 @@ export function alertMessage(a: Pick<AlertRow, "alert" | "name" | "count">): str
       return t("settings.notifications.alert.licence", { name: a.name });
     case "certificate":
       return count <= 0 ? t("settings.notifications.alert.certificateExpired") : t("settings.notifications.alert.certificate", { count });
+    case "feedback":
+      return a.what === "comment" ? t("settings.notifications.alert.feedbackComment", { name: a.name }) : t("settings.notifications.alert.feedbackStatus", { name: a.name });
   }
 }
 
 /** Where an alert is dealt with. */
-export function alertPath(a: Pick<AlertRow, "alert">): string {
+export function alertPath(a: Pick<AlertRow, "alert" | "ref">): string {
   switch (a.alert) {
+    case "feedback":
+      return a.ref ? `/info/feedback/${a.ref}` : "/info/feedback";
     case "backup":
     case "offsite":
     case "drill":

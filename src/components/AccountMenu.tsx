@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, LogOut, Settings } from "lucide-react";
+import { ChevronsUpDown, LogOut, MessageSquarePlus, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +21,7 @@ import { BucketMenu } from "@/components/BucketMenu";
 import { surface, surfaceFace } from "@/components/app/surface";
 import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
 import { forgetAccountData } from "@/lib/accountData";
+import { openFeedback } from "@/lib/flag";
 
 /** The signed-in user: avatar, name and email, opening server, Settings (in the sidebar) and sign-out. */
 export function AccountMenu({
@@ -100,6 +101,11 @@ export function AccountMenu({
             {t("ui.nav.settings")}
           </DropdownMenuItem>
         )}
+        {/* Saying something about the app: where the account's own things are, on every layout. */}
+        <DropdownMenuItem onClick={() => openFeedback()}>
+          <MessageSquarePlus className="mr-2 h-4 w-4" />
+          {t("pages.feedback.send")}
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => logout.mutate()} {...controls?.logout}>
           <LogOut className="mr-2 h-4 w-4" />
           {t("ui.layout.logout")}

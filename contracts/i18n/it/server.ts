@@ -10,6 +10,15 @@ export const server: Shape<typeof en> = {
   internal: {
     error: "Errore interno del server",
   },
+  feedback: {
+    notFound: "Questo feedback non c'è più, o non è tuo.",
+    sharingOff: "Su questo server la condivisione con gli sviluppatori di inkledger è spenta: invialo senza spuntare la casella.",
+    storeOff: "Questo server non raggiunge lo Store di inkledger (STORE_URL=off): la condivisione non si può accendere.",
+    reasonRequired: "Scrivi perché lo rifiuti: l'autore lo leggerà.",
+    screenshotTaken: "Questo feedback ha già una schermata.",
+    screenshotTooLarge: "La schermata supera {mb} MB.",
+    screenshotNotImage: "La schermata deve essere un'immagine PNG, JPEG o WebP.",
+  },
   sinks: {
     notASink: "Quella connessione non è un registro del tempo.",
   },

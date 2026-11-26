@@ -157,6 +157,13 @@ export const AUDIT_ACTIONS = {
   "worklog.resolveConflict": ["issueKey", "keep"],
   "worklog.sync": ["connectionId", "imported", "deleted", "upserted", "removed", "initial"],
   "worklog.replay": ["connectionId", "synced", "failed", "remaining"],
+  // Feedback (Info > Feedback): ids, types, states and counts, never what was written
+  "feedback.create": ["type", "shared"],
+  "feedback.comment": ["origin"],
+  "feedback.setStatus": ["from", "to"],
+  "feedback.export": ["format", "rows", "scope"],
+  "feedback.setSharing": ["enabled"],
+  "feedback.forward": ["sent", "refused", "failed", "updated"],
   // The log itself
   "audit.export": ["format", "rows", "filters"],
   "audit.purge": ["deleted", "before", "retentionDays", "lastPurgedHash"],

@@ -32,6 +32,9 @@ import { registerStoreRoutes } from "./store/routes";
 import { registerAuditRoutes } from "./auditExport";
 import { registerBackupRoutes } from "./backupDownload";
 import { registerUserDataRoutes } from "./gdpr/routes";
+import { registerFeedbackRoutes } from "./feedback/routes";
+import { runFeedbackSync } from "./feedback/upstream";
+import { FEEDBACK_SCREENSHOT_MAX_BYTES } from "@contracts/feedback";
 import { flushAudit, purgeAudit } from "./lib/audit";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
@@ -108,6 +111,11 @@ const ideaFileBody = bodyLimit({
   maxSize: IDEA_FILE_MAX_BYTES + 64 * 1024,
   onError: (c) => c.json({ error: t("server.ideas.fileTooLarge", { mb: IDEA_FILE_MAX_BYTES / 1024 / 1024 }) }, 413),
 });
+// A feedback's screenshot (contracts/feedback.ts), with room for the multipart around it.
+const feedbackShotBody = bodyLimit({
+  maxSize: FEEDBACK_SCREENSHOT_MAX_BYTES + 64 * 1024,
+  onError: (c) => c.json({ error: t("server.feedback.screenshotTooLarge", { mb: 1 }) }, 413),
+});
 const uploadBody = bodyLimit({
   maxSize: UPLOAD_MAX_BYTES,
   onError: (c) => c.json({ error: t("server.attachments.tooLarge") }, 413),
@@ -126,6 +134,8 @@ app.use((c, next) =>
     ? uploadBody(c, next)
     : c.req.method === "POST" && /^\/api\/ideas\/\d+\/files$/.test(c.req.path)
     ? ideaFileBody(c, next)
+    : c.req.method === "POST" && /^\/api\/feedback\/\d+\/screenshot$/.test(c.req.path)
+    ? feedbackShotBody(c, next)
     : c.req.method === "POST" && c.req.path === `${MODULES_PATH}/upload`
       ? moduleBody(c, next)
       : smallBody(c, next),
@@ -213,6 +223,7 @@ registerSsoRoutes(app);
 // SCIM sits outside /api (its clients expect /scim/v2): its own 404s, maintenance and token check.
 registerScimRoutes(app);
 registerUserDataRoutes(app);
+registerFeedbackRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   if (procedurePath(c.req.path) === null) return c.json({ error: "Bad Request" }, 400);
   return fetchRequestHandler({
@@ -251,7 +262,7 @@ if (env.isProduction || env.serveBuild) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit(), purgeSsoStates()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit(), purgeSsoStates(), runFeedbackSync()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;

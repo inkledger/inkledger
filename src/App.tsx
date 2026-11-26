@@ -250,6 +250,8 @@ export default function App() {
               <Route path="/team" element={<ObservedPage surfaceId="team"><Team /></ObservedPage>} />
               <Route path="/settings/:section?" element={<Settings />} />
               <Route path="/info" element={<Info />} />
+              <Route path="/info/:tab" element={<Info />} />
+              <Route path="/info/:tab/:id" element={<Info />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

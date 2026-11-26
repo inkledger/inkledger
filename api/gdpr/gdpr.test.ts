@@ -30,6 +30,8 @@ const sentinel = (uid: number, t: string, c: string) => {
 const desktop = { device_class: "desktop" };
 const OVERRIDES: Record<string, Row> = {
   decisions: { state: "open" },
+  feedback: { type: "idea", status: "new", share_state: null },
+  feedback_comments: { origin: "user" },
   ideas: { state: "raw" },
   issue_history_reads: { state: "pending" },
   mail_copies: { mode: "body", source: "eml" },

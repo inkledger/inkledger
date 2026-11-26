@@ -43,6 +43,8 @@ export const notifications = {
     licence: "The licence for {name} could not be renewed.",
     certificate: "The HTTPS certificate ends in {count} days.",
     certificateExpired: "The HTTPS certificate has ended.",
+    feedbackStatus: "Your feedback “{name}” changed state.",
+    feedbackComment: "New reply to your feedback “{name}”.",
   },
   alertOpen: "Open the settings for this alert",
   alertArchive: "Archive this alert",

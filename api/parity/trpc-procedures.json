@@ -292,6 +292,42 @@
     "type": "query"
   },
   {
+    "path": "feedback.access",
+    "type": "query"
+  },
+  {
+    "path": "feedback.all",
+    "type": "query"
+  },
+  {
+    "path": "feedback.comment",
+    "type": "mutation"
+  },
+  {
+    "path": "feedback.create",
+    "type": "mutation"
+  },
+  {
+    "path": "feedback.export",
+    "type": "mutation"
+  },
+  {
+    "path": "feedback.get",
+    "type": "query"
+  },
+  {
+    "path": "feedback.mine",
+    "type": "query"
+  },
+  {
+    "path": "feedback.setSharing",
+    "type": "mutation"
+  },
+  {
+    "path": "feedback.setStatus",
+    "type": "mutation"
+  },
+  {
     "path": "flowMap.aggregate",
     "type": "mutation"
   },

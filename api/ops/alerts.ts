@@ -24,6 +24,14 @@ import { opsConfig } from "./config";
 export const ALERT_KINDS = ["auth_failed", "unreadable", "unreachable", "failures", "backup", "offsite", "drill", "licence", "certificate"] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
+/**
+ * What the alerts list (notifications of kind "alert", about no tracker) may hold besides
+ * alerts: a feedback of one's own that moved or got an answer (feedback/store.ts). Never
+ * raised, cooled down or sent to the webhook: written straight for its one reader.
+ */
+export const NOTICE_KINDS = [...ALERT_KINDS, "feedback"] as const;
+export type NoticeKind = (typeof NOTICE_KINDS)[number];
+
 /** One alert: its subject (`key`, the unit of deduplication) and what it says. */
 export type Alert = {
   key: string;

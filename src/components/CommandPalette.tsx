@@ -29,6 +29,8 @@ import {
   Square,
   Sparkles,
   MailPlus,
+  MessageSquarePlus,
+  MessagesSquare,
 } from "lucide-react";
 import { CalendarDays } from "@/components/app/icons";
 import { useTheme } from "next-themes";
@@ -48,7 +50,7 @@ import { APPLE } from "@/lib/dom";
 import { quickStart } from "@/lib/quickStart";
 import { useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
-import { createIssueDialog, dayReview, focusMode, ideaCapture, screensaver } from "@/lib/flag";
+import { createIssueDialog, dayReview, focusMode, ideaCapture, openFeedback, screensaver } from "@/lib/flag";
 import { openPinMail } from "@/components/mail/pinMail";
 import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
 import { toggleTodos, useTodoTarget } from "@/hooks/useTodoPanel";
@@ -298,6 +300,7 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
         nav("nav:reports", "/reports", <BarChart3 className="mr-2 h-4 w-4" />, t("ui.nav.reports")),
         nav("nav:settings", "/settings", <SettingsIcon className="mr-2 h-4 w-4" />, t("ui.nav.settings")),
         nav("nav:info", "/info", <InfoIcon className="mr-2 h-4 w-4" />, t("ui.nav.info")),
+        nav("nav:feedback", "/info/feedback", <MessagesSquare className="mr-2 h-4 w-4" />, t("pages.feedback.tab")),
       ],
     },
     {
@@ -321,6 +324,7 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
         ...timerEntries,
         action("act:startTimer", <Play className="mr-2 h-4 w-4" />, t("ui.palette.startTimer"), () => quickStart.set(true), "T"),
         action("act:sync", <RefreshCw className="mr-2 h-4 w-4" />, t("ui.palette.syncJira", { provider }), () => sync.mutate()),
+        action("act:feedback", <MessageSquarePlus className="mr-2 h-4 w-4" />, t("pages.feedback.send"), () => openFeedback()),
         action("act:shortcuts", <Keyboard className="mr-2 h-4 w-4" />, t("ui.palette.shortcuts"), () => shortcutsHelp.set(true)),
         ...moduleCommands,
         entry(

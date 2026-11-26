@@ -129,6 +129,9 @@ const SKIPS: Record<string, string> = {
   "decisions.askTimerLog issueKey": "the caller's own connection (issueConnection) and timer (user_id filter)",
   "decisions.askTimerLog connectionId": "the caller's own connection (issueConnection) and timer (user_id filter)",
   "worklogs.create decision.id": "claimed under (id, user_id, revision) in decisions/store.ts answer",
+  "feedback.all userId": "a filter over everyone's feedback, readFeedback (the permission tests below)",
+  "feedback.setStatus": "everyone's feedback, manageFeedback (the permission tests below)",
+  "feedback.export filter.userId": "a filter: scope mine keeps to the caller's own whatever it names, scope all takes readFeedback (api/routers/feedback.test.ts)",
 };
 /** Whole routers whose ids are keys under the caller's own (user, surface, device) scope. */
 const SKIPPED_ROUTERS: Record<string, string> = {
@@ -282,7 +285,9 @@ async function seedFor(userId: number, who: "ann" | "bob") {
   await q("INSERT INTO sink_mappings (sink_connection_id, container_id, target_remote_id, target_name) VALUES (?, ?, 't1', ?)", sink, container, mark);
   await q("INSERT INTO module_storage (user_id, module_id, key, value, updated_at) VALUES (?, 'm1', ?, ?, 1)", userId, "k" + n, JSON.stringify(mark));
   await q("INSERT INTO module_files (user_id, module_id, key, content_type, data, size, updated_at, used_at) VALUES (?, 'm1', ?, 'application/json', ?, 10, 1, 1)", userId, "f" + n, Buffer.from(mark));
-  return { n, conn, sink, tempo, container, key, project: P, issue, remoteId, worklog, worklogRemote, trash, bucket, folder, note, version, batch: deleted.batch, todo, issueNote, mail, messageId, exchangeId, idea, deletedIdea, board, pin, client, query, outbox, notification, planned, moduleKey: "k" + n, moduleFile: "f" + n };
+  const feedback = (await one<{ id: number }>("INSERT INTO feedback (user_id, type, title, body, created_at, updated_at) VALUES (?, 'idea', ?, ?, 1, 1) RETURNING id", userId, mark, mark)).id;
+  await q("INSERT INTO feedback_comments (feedback_id, author_id, origin, body, created_at) VALUES (?, ?, 'user', ?, 1)", feedback, userId, mark);
+  return { feedback, n, conn, sink, tempo, container, key, project: P, issue, remoteId, worklog, worklogRemote, trash, bucket, folder, note, version, batch: deleted.batch, todo, issueNote, mail, messageId, exchangeId, idea, deletedIdea, board, pin, client, query, outbox, notification, planned, moduleKey: "k" + n, moduleFile: "f" + n };
 }
 type Ann = Awaited<ReturnType<typeof seedFor>>;
 
@@ -496,6 +501,9 @@ const CASES: Case[] = [
   // Ideas
   { proc: "ideas.list", fields: ["containerId"], call: (c, a) => c.ideas.list({ containerId: a.container }), expect: "noLeak" },
   { proc: "ideas.get", fields: ["id"], call: (c, a) => c.ideas.get({ id: a.idea }) },
+  { proc: "feedback.get", fields: ["id"], call: (c, a) => c.feedback.get({ id: a.feedback }) },
+  { proc: "feedback.comment", fields: ["id"], call: (c, a) => c.feedback.comment({ id: a.feedback, body: "mine" }) },
+  { proc: "feedback.export", fields: ["ids"], call: (c, a) => c.feedback.export({ scope: "mine", format: "json", ids: [a.feedback] }), expect: "noLeak" },
   { proc: "ideas.capture", fields: ["containerId"], call: (c, a) => c.ideas.capture({ text: "x", containerId: a.container }) },
   { proc: "ideas.update", fields: ["id"], call: (c, a) => c.ideas.update({ id: a.idea, title: "mine" }) },
   { proc: "ideas.update", fields: ["containerId"], call: (c, a, b) => c.ideas.update({ id: b.idea, containerId: a.container }) },
@@ -878,6 +886,9 @@ const PERMISSION_OF: Record<string, Permission> = {
   "teams.remove": "manageTeams",
   "teams.setMember": "manageTeams",
   "teams.removeMember": "manageTeams",
+  "feedback.all": "readFeedback",
+  "feedback.setStatus": "manageFeedback",
+  "feedback.setSharing": "manageFeedback",
 };
 /** Open to anyone (signing in, the session itself). */
 const PUBLIC = ["ping", "auth.login", "auth.activate", "auth.invite", "auth.acceptInvite", "auth.remembered", "auth.resume", "auth.forget", "auth.me", "auth.logout", "sso.loginOptions"];

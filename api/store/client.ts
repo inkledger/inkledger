@@ -76,6 +76,9 @@ async function call(path: string, init?: RequestInit): Promise<Response> {
 const postJson = (path: string, data: unknown) =>
   call(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
 
+/** A call to the store with headers of its own (feedback, signed by this server's key: feedback/upstream.ts). */
+export const callStore = (path: string, init: RequestInit) => call(path, init);
+
 /** A call to the store (activation, modules/activation.ts): POST with JSON, or GET without a body. */
 export const postStore = (path: string, data: unknown, method: "POST" | "GET" = "POST") => (method === "GET" ? call(path) : postJson(path, data));
 

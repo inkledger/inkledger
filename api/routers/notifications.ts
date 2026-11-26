@@ -18,14 +18,21 @@ import { addDays, dayKey } from "@contracts/time";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import type { IssueActivity } from "../jira/client";
-import { ALERT_KINDS, type AlertKind } from "../ops/alerts";
+import { NOTICE_KINDS, type NoticeKind } from "../ops/alerts";
 
 /** An alert notification's detail (JSON), or null when unreadable. */
-function alertDetail(raw: string): { alert: AlertKind; name: string; count: number | null } | null {
+function alertDetail(raw: string): { alert: NoticeKind; name: string; count: number | null; ref: number | null; what: string | null } | null {
   try {
-    const d = JSON.parse(raw) as { kind?: unknown; name?: unknown; count?: unknown };
-    if (typeof d.kind !== "string" || !(ALERT_KINDS as readonly string[]).includes(d.kind)) return null;
-    return { alert: d.kind as AlertKind, name: typeof d.name === "string" ? d.name : "", count: typeof d.count === "number" ? d.count : null };
+    const d = JSON.parse(raw) as { kind?: unknown; name?: unknown; count?: unknown; ref?: unknown; what?: unknown };
+    if (typeof d.kind !== "string" || !(NOTICE_KINDS as readonly string[]).includes(d.kind)) return null;
+    return {
+      alert: d.kind as NoticeKind,
+      name: typeof d.name === "string" ? d.name : "",
+      count: typeof d.count === "number" ? d.count : null,
+      // What it is about, for a notice that opens one thing (a feedback's id)
+      ref: typeof d.ref === "number" && Number.isSafeInteger(d.ref) ? d.ref : null,
+      what: typeof d.what === "string" ? d.what : null,
+    };
   } catch {
     return null;
   }

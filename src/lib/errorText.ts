@@ -2,6 +2,7 @@ import { TRPCClientError } from "@trpc/client";
 import { toast } from "sonner";
 import { t } from "@/i18n";
 import { APP_BUILD_CHANGED } from "@contracts/appBuild";
+import { openFeedback } from "@/lib/flag";
 
 /**
  * An error written for the person using the app (already in their words): shown as it is.
@@ -80,5 +81,7 @@ export function failureText(e: unknown): string {
 export function toastError(e: unknown, opts?: { duration?: number; action?: { label: string; onClick: () => void } }): void {
   logFault(e);
   const text = errorText(e);
-  toast.error(text, { id: `error:${text}`, ...opts });
+  // Besides its own action (Retry), an error can be reported: a problem with its words already written.
+  const report = { label: t("pages.feedback.report"), onClick: () => openFeedback({ type: "problem", body: text }) };
+  toast.error(text, { id: `error:${text}`, ...(opts?.action ? { cancel: report } : { action: report }), ...opts });
 }

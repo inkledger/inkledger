@@ -1,4 +1,5 @@
 import { createStore } from "@/lib/store";
+import type { FeedbackType } from "@contracts/feedback";
 
 /** A global open/closed flag (dialogs opened from anywhere: keys, palette, toasts). */
 export function createFlag() {
@@ -30,3 +31,10 @@ export const todoFloatFocus = createFlag();
 export const pinboardSheet = createFlag();
 /** "New idea" (the palette): a small capture of ideas from anywhere. */
 export const ideaCapture = createFlag();
+
+/** What "Send feedback" opens with: its kind and words already there ("Report" on an error). */
+export type FeedbackDraft = { type?: FeedbackType; body?: string };
+/** "Send feedback" (the account menu, ⌘K, "Report" on an error): null while closed. */
+export const feedbackSheet = createStore<FeedbackDraft | null>(null);
+/** Opens "Send feedback" from anywhere. */
+export const openFeedback = (draft: FeedbackDraft = {}) => feedbackSheet.set(draft);
