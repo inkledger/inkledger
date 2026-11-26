@@ -825,9 +825,13 @@ export function AppLayout() {
                   stays until the next one's code is there (the router navigates in a transition). */}
               <ErrorBoundary resetKey={pageKey} onRetry={() => pageQueriesOf(queryClient).dropInactive(location.pathname)}>
                 <Suspense fallback={<PageSpinner />}>
+                  {/* The page is one layer (isolate): its sticky header and in-page module overlays stack
+                      inside it, all under what is drawn over the whole window (a page overlay, z-15), with
+                      or without the fade-in's transform (data-page-layer: hit.ts reads it). */}
                   <div
                     key={pageKey}
-                    className="motion-safe:animate-page-in lg:has-[[data-fill-page]]:flex lg:has-[[data-fill-page]]:min-h-0 lg:has-[[data-fill-page]]:flex-1 lg:has-[[data-fill-page]]:flex-col"
+                    data-page-layer
+                    className="isolate motion-safe:animate-page-in lg:has-[[data-fill-page]]:flex lg:has-[[data-fill-page]]:min-h-0 lg:has-[[data-fill-page]]:flex-1 lg:has-[[data-fill-page]]:flex-col"
                   >
                     <Outlet />
                   </div>

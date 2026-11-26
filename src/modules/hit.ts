@@ -53,6 +53,14 @@ const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="l
  */
 const ABOVE_MODULES = "[data-above-modules]";
 
+/**
+ * The page's own layer (AppLayout, `isolate`): what is marked above modules inside it is above the modules
+ * drawn in the page only. A module drawn over the whole window (a page overlay) or on the panel's edge is
+ * drawn over it (the sticky header too): where its shape is, the point is its (a page overlay still leaves
+ * every control its points, below).
+ */
+const PAGE_LAYER = "[data-page-layer]";
+
 /** Over the whole window (a page overlay's box), every control of the app keeps its points: a creature there never takes a click meant for one. */
 const PAGE_OVERLAY = "[data-page-overlay]";
 const CONTROLS = "a,button,input,select,textarea,label,summary,[role=button],[role=link],[role=tab],[role=menuitem],[contenteditable]:not([contenteditable=false])";
@@ -90,7 +98,7 @@ export function createHitAreas(win: Window = window, o: { layer?: DragLayer; fra
       const region = a.el.closest("main");
       if (region && top && !region.contains(top)) continue;
       // A control of the page is here, over the shape: it gets the gesture (the module's own buttons stay its).
-      if (top && !a.el.contains(top) && top.closest(ABOVE_MODULES)) continue;
+      if (top && !a.el.contains(top) && top.closest(ABOVE_MODULES) && (!top.closest(PAGE_LAYER) || a.el.closest(PAGE_LAYER))) continue;
       if (top && !a.el.contains(top) && a.el.closest(PAGE_OVERLAY) && top.closest(CONTROLS)) continue;
       if (a.test(x - r.left, y - r.top, r.width, r.height)) return a;
     }
