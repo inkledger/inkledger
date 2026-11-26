@@ -195,6 +195,8 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       AUDIT_DIR: join(dir, "audit"),
       // Never the real store Worker; store tests pass their own stub.
       STORE_URL: "off",
+      // Nor the real feedback inbox.
+      FEEDBACK_URL: "",
       WEATHER: "off",
       // A bare server's admin signs in with this (production otherwise makes a random one).
       INKLEDGER_ADMIN_PASSWORD: "admin",

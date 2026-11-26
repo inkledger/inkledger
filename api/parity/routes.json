@@ -20,6 +20,14 @@
     "guard": "RequireAuth"
   },
   {
+    "path": "/info/:tab",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/info/:tab/:id",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/install",
     "guard": null
   },

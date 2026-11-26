@@ -105,6 +105,8 @@ export const USER_DATA: Record<string, TablePolicy> = {
   mail_addin_keys: { kind: "user", export: skip("Outlook add-in keys (hashed)") },
   notifications: { kind: "user", export: all },
   decisions: { kind: "user", export: all },
+  feedback: { kind: "user", export: { omit: ["screenshot"] } },
+  feedback_comments: { kind: "child", parent: "feedback", via: "feedback_id", export: all },
 
   // Views and layout
   buckets: { kind: "user", export: all },

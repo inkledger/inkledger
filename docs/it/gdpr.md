@@ -4,7 +4,7 @@ Not legal advice. It describes what the software holds and does, so an operator 
 
 ## Roles
 
-inkledger is self-hosted: the organisation that runs the server is the **controller** and decides purposes and retention. The project ships no processor: it receives no data and has no telemetry. Services the server may call are optional and listed in [outbound.md](outbound.md); each one you enable (tracker vendors, Microsoft, a hosting or backup provider, the module store) belongs in your own processor and sub-processor list, with its own agreement.
+inkledger is self-hosted: the organisation that runs the server is the **controller** and decides purposes and retention. The project ships no processor: it receives no data and has no telemetry, unless an administrator turns on sharing feedback with inkledger's developers, and then only the feedback whose author consented, anonymised ([outbound.md](outbound.md)). Services the server may call are optional and listed in [outbound.md](outbound.md); each one you enable (tracker vendors, Microsoft, a hosting or backup provider, the module store) belongs in your own processor and sub-processor list, with its own agreement.
 
 Choose and record your own lawful basis (for work time tracking, typically the employment contract or a legitimate interest, with works-council or local-law rules where they apply).
 

@@ -2138,6 +2138,94 @@ export const ideaFiles = pgTable(
   (t) => [index("idx_idea_files_idea").on(t.ideaId), index("idx_idea_files_user").on(t.userId), check("idea_files_name", sql`length(${t.name}) BETWEEN 1 AND 200`)],
 );
 
+/**
+ * Feedback about the app (contracts/feedback.ts), kept on this server: what its author sent
+ * and where it stands. Shared with inkledger's developers only when the server allows it
+ * and its author ticked the consent (api/feedback/upstream.ts).
+ */
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: serial("id").primaryKey(),
+    /** Its id outside this table: the one sent upstream, and the screenshot's sealing scope */
+    uid: uuid("uid").notNull().defaultRandom(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** contracts/feedback.ts FEEDBACK_TYPES */
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
+    /** The page it was sent from (path, as seen here; only its shape ever leaves) */
+    page: text("page").notNull().default(""),
+    appVersion: text("app_version").notNull().default(""),
+    /** Theme, variant and contrast it was seen in, e.g. "dark·soft·normal" */
+    look: text("look").notNull().default(""),
+    density: text("density").notNull().default(""),
+    /** contracts/feedback.ts FEEDBACK_STATUSES */
+    status: text("status").notNull().default("new"),
+    /** Why it was rejected */
+    statusReason: text("status_reason"),
+    /** Sealed for the row (scope feedback-shot:uid) */
+    screenshot: bytea("screenshot"),
+    screenshotType: text("screenshot_type"),
+    /** Its author agreed to send it to inkledger's developers (and the screenshot with it) */
+    shareConsent: integer("share_consent").notNull().default(0),
+    shareScreenshot: integer("share_screenshot").notNull().default(0),
+    /** contracts/feedback.ts FEEDBACK_SHARE_STATES; null: not shared */
+    shareState: text("share_state"),
+    sharedAt: ms("shared_at"),
+    /** The developers' state last read back: applied here only when it changes */
+    upstreamStatus: text("upstream_status"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: ms("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("uq_feedback_uid").on(t.uid),
+    index("idx_feedback_user").on(t.userId, t.createdAt),
+    index("idx_feedback_share").on(t.shareState),
+    check("feedback_type", sql`${t.type} IN ('problem', 'idea', 'improvement')`),
+    check("feedback_status", sql`${t.status} IN ('new', 'discussion', 'accepted', 'in_progress', 'implemented', 'rejected')`),
+    check("feedback_share_state", sql`${t.shareState} IS NULL OR ${t.shareState} IN ('queued', 'sent', 'refused')`),
+    check("feedback_title", sql`length(${t.title}) BETWEEN 1 AND 200`),
+  ],
+);
+
+export type Feedback = typeof feedback.$inferSelect;
+
+/** A feedback's thread: its author and the admins writing, the developers' replies, every change of state. */
+export const feedbackComments = pgTable(
+  "feedback_comments",
+  {
+    id: serial("id").primaryKey(),
+    feedbackId: integer("feedback_id")
+      .notNull()
+      .references(() => feedback.id, { onDelete: "cascade" }),
+    /** Who wrote it; null for the developers' replies, or once its writer's account is erased */
+    authorId: integer("author_id").references(() => users.id, { onDelete: "set null" }),
+    /** contracts/feedback.ts FEEDBACK_ORIGINS */
+    origin: text("origin").notNull(),
+    body: text("body").notNull().default(""),
+    /** A change of state: from and to */
+    statusFrom: text("status_from"),
+    statusTo: text("status_to"),
+    /** The developers' comment it copies (never twice) */
+    upstreamId: text("upstream_id"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_feedback_comments_feedback").on(t.feedbackId, t.createdAt),
+    uniqueIndex("uq_feedback_comments_upstream").on(t.feedbackId, t.upstreamId),
+    check("feedback_comments_origin", sql`${t.origin} IN ('user', 'admin', 'upstream', 'status')`),
+  ],
+);
+
 export const workspaceRevisions = pgTable("workspace_revisions", {
   id: text("id").notNull(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

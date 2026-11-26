@@ -46,6 +46,8 @@ export function parseAllowedHosts(raw: string | undefined, production: boolean):
 /** The inkledger OAuth App on GitHub (public: device flow needs no secret). */
 const GITHUB_CLIENT_ID = "Ov23liv6ivYsJX6Cqoh8";
 const DEFAULT_STORE_URL = "https://inkledger-store.lorenzomusche.workers.dev";
+/** inkledger's feedback inbox (the private repo inkledger/feedback's Worker): protocol in docs/self-hosting.md. */
+const DEFAULT_FEEDBACK_URL = "https://inkledger-feedback.lorenzomusche.workers.dev";
 
 /** An http(s) origin without trailing slash, or null for "off" / unusable values. */
 export function storeUrl(raw: string): string | null {
@@ -176,6 +178,12 @@ export const env = {
    * disables Settings → Store. Off under the unit tests: they never reach it.
    */
   storeUrl: storeUrl(process.env.STORE_URL ?? (process.env.VITEST ? "off" : DEFAULT_STORE_URL)),
+  /**
+   * Where feedback shared with inkledger's developers goes (only once an admin turns sharing on,
+   * and per feedback with its author's consent): unset, inkledger's own inbox; empty or "off",
+   * sharing is disabled; any compatible inbox otherwise (docs/self-hosting.md). Off under the unit tests.
+   */
+  feedbackUrl: storeUrl(process.env.FEEDBACK_URL ?? (process.env.VITEST ? "off" : DEFAULT_FEEDBACK_URL)),
   /** Real weather for add-on modules (Open-Meteo, server-side). "off" turns it off. */
   weather: (process.env.WEATHER ?? (process.env.VITEST ? "off" : "on")).trim() !== "off",
   /**

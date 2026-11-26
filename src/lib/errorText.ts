@@ -2,6 +2,7 @@ import { TRPCClientError } from "@trpc/client";
 import { toast } from "sonner";
 import { t } from "@/i18n";
 import { APP_BUILD_CHANGED } from "@contracts/appBuild";
+import { feedbackHost, openFeedback } from "@/lib/flag";
 
 /**
  * An error written for the person using the app (already in their words): shown as it is.
@@ -80,5 +81,8 @@ export function failureText(e: unknown): string {
 export function toastError(e: unknown, opts?: { duration?: number; action?: { label: string; onClick: () => void } }): void {
   logFault(e);
   const text = errorText(e);
-  toast.error(text, { id: `error:${text}`, ...opts });
+  // Besides its own action (Retry), an error can be reported: a problem with its words already written.
+  // Only in the signed-in shell, where "Send feedback" can open (never on the sign-in page).
+  const report = feedbackHost.get() ? { label: t("ui.feedback.report"), onClick: () => openFeedback({ type: "problem", body: text }) } : null;
+  toast.error(text, { id: `error:${text}`, ...(report ? (opts?.action ? { cancel: report } : { action: report }) : {}), ...opts });
 }

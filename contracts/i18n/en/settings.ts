@@ -839,6 +839,8 @@ export const settings = {
       exportAudit: "Export the audit log",
       exportUserData: "Export a person's data",
       eraseUserData: "Erase a person's data",
+      readFeedback: "Feedback: read everyone's",
+      manageFeedback: "Feedback: answer, change state, share",
     },
   },
   teams: {
@@ -1017,6 +1019,14 @@ export const settings = {
         setRetention: "Changed how long the audit log is kept",
         export: "Exported the audit log",
         purge: "Removed events past retention",
+      },
+      feedback: {
+        create: "Sent feedback",
+        comment: "Wrote in a feedback's thread",
+        setStatus: "Changed a feedback's state",
+        export: "Exported feedback",
+        setSharing: "Turned sharing feedback with the developers on or off",
+        forward: "Shared feedback with the developers and read back their answers",
       },
       connections: {
         add: "Added a connection",

@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AXE, start } from "./harness.mjs";
 
-const ROUTES = ["/", "/issues", "/issues/desk", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard", "/notifications", "/notifications?sel=1:DEMO-101&open=1:DEMO-101"];
+const ROUTES = ["/", "/issues", "/issues/desk", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard", "/notifications", "/notifications?sel=1:DEMO-101&open=1:DEMO-101", "/info", "/info/feedback", "/info/feedback/1"];
 
 test("key routes have no serious or critical accessibility violation", async () => {
   // A desk with two issues and one parked: its panes, dividers and tray are checked too.
@@ -18,6 +18,9 @@ test("key routes have no serious or critical accessibility violation", async () 
       await db.q("INSERT INTO desks (user_id, name, layout, created_at, updated_at) VALUES (1, NULL, ?, 1, 1)", JSON.stringify(desk));
       for (const [i, [kind, key]] of notes.entries())
         await db.q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at) VALUES (1, 1, ?, ?, '', ?, ?)", kind, key, `a11y-${i}`, Date.now() - i * 60_000);
+      // A feedback with a thread (Info › Feedback, its list and its detail).
+      await db.q("INSERT INTO feedback (id, user_id, type, title, body, page, status, created_at, updated_at) VALUES (1, 1, 'problem', 'The board jumps', 'It jumps when I drag.', '/board', 'discussion', 1, 1)");
+      await db.q("INSERT INTO feedback_comments (feedback_id, author_id, origin, body, status_from, status_to, created_at) VALUES (1, 1, 'status', '', 'new', 'discussion', 1)");
     },
   });
   try {

@@ -13,6 +13,15 @@ export const server = {
   sinks: {
     notASink: "That connection isn’t a time sink.",
   },
+  feedback: {
+    notFound: "That feedback is gone, or isn't yours.",
+    sharingOff: "Sharing with inkledger's developers is off on this server: send it without ticking the box.",
+    storeOff: "This server has no feedback inbox (FEEDBACK_URL is empty): sharing can't be turned on.",
+    reasonRequired: "Say why it's rejected: its author will read it.",
+    screenshotTaken: "This feedback already has a screenshot.",
+    screenshotTooLarge: "The screenshot is larger than {mb} MB.",
+    screenshotNotImage: "The screenshot must be a PNG, JPEG or WebP image.",
+  },
   queries: {
     notFound: "That saved search is gone.",
     badTerms: "Not understood: {terms}. Fix or remove them before saving.",

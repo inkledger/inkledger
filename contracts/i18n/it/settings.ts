@@ -839,6 +839,8 @@ export const settings: Shape<typeof en> = {
       exportAudit: "Esportare il registro attività",
       exportUserData: "Esportare i dati di una persona",
       eraseUserData: "Cancellare i dati di una persona",
+      readFeedback: "Feedback: leggere quelli di tutti",
+      manageFeedback: "Feedback: rispondere, cambiare stato, condividere",
     },
   },
   teams: {
@@ -1017,6 +1019,14 @@ export const settings: Shape<typeof en> = {
         setRetention: "Ha cambiato per quanto si tiene il registro",
         export: "Ha esportato il registro",
         purge: "Eventi oltre la conservazione rimossi",
+      },
+      feedback: {
+        create: "Ha inviato un feedback",
+        comment: "Ha scritto nel thread di un feedback",
+        setStatus: "Ha cambiato lo stato di un feedback",
+        export: "Ha esportato dei feedback",
+        setSharing: "Ha acceso o spento la condivisione dei feedback con gli sviluppatori",
+        forward: "Feedback condivisi con gli sviluppatori e loro risposte lette",
       },
       connections: {
         add: "Ha aggiunto una connessione",
@@ -1397,6 +1407,8 @@ export const settings: Shape<typeof en> = {
       licence: "Non è stato possibile rinnovare la licenza di {name}.",
       certificate: "Il certificato HTTPS scade tra {count} giorni.",
       certificateExpired: "Il certificato HTTPS è scaduto.",
+      feedbackStatus: "Il tuo feedback «{name}» ha cambiato stato.",
+      feedbackComment: "Nuova risposta al tuo feedback «{name}».",
     },
     alertOpen: "Apri le impostazioni di questo avviso",
     alertArchive: "Archivia questo avviso",

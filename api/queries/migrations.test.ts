@@ -186,6 +186,7 @@ describe("legacy Jira connections (0047)", () => {
     await query('DROP TABLE "roles"');
     for (const c of ["theme_variant", "theme_contrast"]) await query(`ALTER TABLE "settings" DROP COLUMN "${c}"`);
     await query('ALTER TABLE "notifications" DROP COLUMN "read_at"');
+    for (const t of ["feedback_comments", "feedback"]) await query(`DROP TABLE "${t}"`);
     await query("delete from drizzle.__drizzle_migrations where created_at >= $1", [journal.find(e => e.tag === "0047_legacy_connections")!.when]);
     await up();
     const streams = await query("select connection_id, stream, checkpoint, last_ok_at, last_full_at from connection_sync order by connection_id, stream");
@@ -226,6 +227,7 @@ describe("migrations over a draft of 0010", () => {
     await query('ALTER TABLE "settings" DROP CONSTRAINT "settings_agent_command"');
     await query('ALTER TABLE "settings" DROP COLUMN "agent_command"');
     for (const c of ["theme_variant", "theme_contrast"]) await query(`ALTER TABLE "settings" DROP COLUMN "${c}"`);
+    for (const t of ["feedback_comments", "feedback"]) await query(`DROP TABLE "${t}"`);
     await query('DROP TABLE "idea_files"');
     await query('DROP TABLE "ideas"');
     await query('DROP TABLE "decisions"');
