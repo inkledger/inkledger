@@ -5,13 +5,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AXE, start } from "./harness.mjs";
 
-const ROUTES = ["/", "/issues", "/issues/desk", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
+const ROUTES = ["/", "/issues", "/issues/desk", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard", "/notifications", "/notifications?sel=1:DEMO-101&open=1:DEMO-101"];
 
 test("key routes have no serious or critical accessibility violation", async () => {
   // A desk with two issues and one parked: its panes, dividers and tray are checked too.
   const pane = key => ({ connectionId: 1, key, remoteId: key });
   const desk = { v: 1, preset: "cols-2", tracks: {}, panes: [pane("DEMO-101"), pane("DEMO-102")], parked: [pane("DEMO-103")], maximized: null, compare: false, onlyDifferences: false, noteId: null };
-  const app = await start({ seed: db => db.q("INSERT INTO desks (user_id, name, layout, created_at, updated_at) VALUES (1, NULL, ?, 1, 1)", JSON.stringify(desk)) });
+  // Notifications too: a group of three (opened, selected in the preview) and single ones.
+  const notes = [["commented", "DEMO-101"], ["status", "DEMO-101"], ["mentioned", "DEMO-101"], ["assigned", "DEMO-102"], ["due", "DEMO-103"]];
+  const app = await start({
+    seed: async db => {
+      await db.q("INSERT INTO desks (user_id, name, layout, created_at, updated_at) VALUES (1, NULL, ?, 1, 1)", JSON.stringify(desk));
+      for (const [i, [kind, key]] of notes.entries())
+        await db.q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at) VALUES (1, 1, ?, ?, '', ?, ?)", kind, key, `a11y-${i}`, Date.now() - i * 60_000);
+    },
+  });
   try {
     const { page, base } = app;
     const found = [];

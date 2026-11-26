@@ -105,14 +105,16 @@ for (const width of VIEWPORTS) {
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto(base + "/issues");
       await page.locator("[data-surface-stage]").waitFor();
-      // The notification center: today's TODOs, then the notifications.
+      // The notifications page: today's TODOs, then the notifications (the bell leads there).
       await page.getByRole("button", { name: /^Notifications/ }).first().click();
-      const center = page.getByRole("dialog", { name: "Notifications" });
+      await page.waitForURL(/\/notifications/);
+      const center = page.locator("main");
       await center.getByText(`Finish ${TOKEN}`).waitFor();
       await page.waitForTimeout(300);
-      assert.deepEqual(await overlayOverflow(center), [], "notification center");
-      await page.keyboard.press("Escape");
-      await center.waitFor({ state: "detached" });
+      assert.deepEqual(await overlayOverflow(center), [], "notifications page");
+      await page.goBack();
+      await page.waitForURL(/\/issues/);
+      await page.locator("[data-surface-stage]").waitFor();
       // The floating TODO list (d), where it is offered.
       await page.keyboard.press("d");
       const float = page.getByRole("region", { name: "Floating TODO list" });

@@ -63,6 +63,16 @@ export async function seedDense(db) {
   for (const [n] of PEOPLE.entries()) await db.q("INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'member')", team, n + 2);
   for (let i = 0; i < 8; i++)
     await db.q("INSERT INTO todos (user_id, text, position, created_at, updated_at, issue_key, connection_id) VALUES (1, ?, ?, ?, ?, ?, ?)", TITLES[i % TITLES.length] + " — da ricontrollare con il team prima della consegna", i, now, now, i % 2 ? `LONG-${1000 + i}` : null, i % 2 ? 1 : null);
+  // Notifications: a busy issue (comments, status changes, a mention), then one or two on many others, some read.
+  const notes = [
+    ...["commented", "status", "commented", "mentioned", "commented", "status"].map(kind => [kind, "LONG-1000"]),
+    ...Array.from({ length: 26 }, (_, i) => [["commented", "status", "assigned", "mentioned", "due", "watch_added", "review", "priority"][i % 8], `LONG-${1001 + i}`]),
+    ...Array.from({ length: 8 }, (_, i) => ["commented", `LONG-${1001 + i * 3}`]),
+  ];
+  for (const [i, [kind, key]] of notes.entries()) {
+    const detail = kind === "status" ? "In revisione con il cliente → In lavorazione presso il fornitore" : kind === "priority" ? "Critica" : kind === "due" ? new Date(now + 86_400_000).toISOString().slice(0, 10) : "";
+    await db.q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at, read_at) VALUES (1, 1, ?, ?, ?, ?, ?, ?)", kind, key, detail, `dense-n-${i}`, now - i * 7 * 60_000, i % 5 === 4 ? now : null);
+  }
   for (let i = 0; i < 6; i++)
     await db.q("INSERT INTO ideas (user_id, title, body, position, created_at, updated_at) VALUES (1, ?, ?, ?, ?, ?)", TITLES[(i + 2) % TITLES.length], "Una descrizione lunga dell'idea, con il perché e i criteri di accettazione da discutere.", i, now, now);
 }

@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { withApp } from "./harness.mjs";
 
-// The notification center groups a burst on one issue into a stack (its newest on top, the rest in
-// place on request, archived in one call) and filters by kind.
-test("notifications: a stack per issue, opened and archived at once; one kind at a time", { timeout: 180_000 }, () =>
+// The bell leads to the notifications page, which groups a burst on one issue into one row (its newest
+// leads, the rest open in place, done in one call) and filters by category.
+test("notifications: a group per issue, opened and done at once; one category at a time", { timeout: 180_000 }, () =>
   withApp({
     seed: async db => {
       const now = Date.now();
@@ -14,20 +14,22 @@ test("notifications: a stack per issue, opened and archived at once; one kind at
   }, async ({ page, base, db }) => {
     await page.goto(base + "/");
     await page.getByRole("button", { name: /^Notifications/ }).first().click();
-    const center = page.getByRole("dialog", { name: "Notifications" });
-    await center.waitFor();
-    // DEMO-101's three are one stack: its newest shown, "2 more" opens the rest.
-    const more = center.getByRole("button", { name: "2 more on DEMO-101" });
-    await more.waitFor();
+    await page.waitForURL(/\/notifications$/);
+    const main = page.getByRole("main");
+    // DEMO-101's three are one group: what happened in all, the rest a click away.
+    await main.getByText("2 comments · 1 mention").waitFor();
+    const more = main.getByRole("button", { name: "Show all 3 on DEMO-101" });
     assert.equal(await more.getAttribute("aria-expanded"), "false");
     await more.click();
-    await center.getByRole("button", { name: "Fewer on DEMO-101" }).waitFor();
-    // A kind alone.
-    await center.getByRole("radio", { name: /^Assigned to you 1$/ }).click();
-    await center.getByRole("button", { name: /DEMO-101/ }).first().waitFor({ state: "detached" });
-    await center.getByRole("radio", { name: /^All 4$/ }).click();
-    // Archived in one call.
-    await center.getByRole("button", { name: "Archive all 3 on DEMO-101" }).click();
+    await main.getByRole("button", { name: "Fewer on DEMO-101" }).waitFor();
+    assert.equal(await main.getByRole("button", { name: "Done: this one on DEMO-101" }).count(), 3);
+    // A category alone, kept in the URL.
+    await main.getByRole("radio", { name: "Assignments 1" }).click();
+    await main.getByText("2 comments · 1 mention").waitFor({ state: "detached" });
+    assert.match(page.url(), /cat=assignments/);
+    await main.getByRole("radio", { name: "All 4" }).click();
+    // Done in one call.
+    await main.getByRole("button", { name: "Done: all 3 on DEMO-101" }).click();
     for (let i = 0; i < 50 && (await db.q("SELECT count(*)::int AS n FROM notifications WHERE dismissed_at IS NULL"))[0].n !== 1; i++) await page.waitForTimeout(100);
     assert.equal((await db.q("SELECT count(*)::int AS n FROM notifications WHERE dismissed_at IS NULL"))[0].n, 1, "only DEMO-102's left");
   }));
