@@ -338,7 +338,8 @@ describe("feedback", () => {
     expect([f.publicIssueUrl, f.publicIssueState, f.publicPrUrl, f.publicPrState]).toEqual([issueUrl, "open", prUrl, "open"]);
     expect((await a.feedback.mine()).find(m => m.id === id)?.publicIssueUrl).toBe(issueUrl);
     const told = async () => (await a.notifications.alerts()).filter(n => n.alert === "feedback" && n.ref === id && n.what === "status").length;
-    expect(await told()).toBe(2);
+    // One alert: the change of state and the links came together.
+    expect(await told()).toBe(1);
 
     // The proposal merged (labels still "accepted"): implemented here.
     items = [{ ...items[0], publicIssueState: "closed", publicPrState: "merged" }];

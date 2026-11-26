@@ -247,6 +247,7 @@ export function readStatusAnswer(raw: unknown): { cursor: number | null; items: 
  */
 export async function applyUpstream(row: Feedback, item: StatusItem, now = new Date()): Promise<boolean> {
   let changed = false;
+  const status = effectiveStatus(item);
   if (item.pub) {
     const p = item.pub;
     if (p.issueUrl !== row.publicIssueUrl || p.issueState !== row.publicIssueState || p.prUrl !== row.publicPrUrl || p.prState !== row.publicPrState) {
@@ -254,8 +255,8 @@ export async function applyUpstream(row: Feedback, item: StatusItem, now = new D
         .update(feedback)
         .set({ publicIssueUrl: p.issueUrl, publicIssueState: p.issueState, publicPrUrl: p.prUrl, publicPrState: p.prState, updatedAt: now })
         .where(eq(feedback.id, row.id));
-      // Made public just now: its author hears of it.
-      if (!row.publicIssueUrl) await notifyAuthor(row, "status", now.getTime());
+      // Made public just now: its author hears of it (once: a change of state tells them anyway).
+      if (!row.publicIssueUrl && (status === row.upstreamStatus || status === row.status)) await notifyAuthor(row, "status", now.getTime());
       changed = true;
     }
   }
@@ -270,7 +271,6 @@ export async function applyUpstream(row: Feedback, item: StatusItem, now = new D
       await notifyAuthor(row, "comment", now.getTime());
     }
   }
-  const status = effectiveStatus(item);
   if (status !== row.upstreamStatus) {
     const reason = status === "rejected" ? (item.replies.at(-1)?.body ?? null) : null;
     await setFeedbackStatus(row, status, { by: null, reason, origin: "upstream", upstream: status, now });
