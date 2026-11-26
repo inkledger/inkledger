@@ -1256,6 +1256,7 @@ export const pages: Shape<(typeof en)["pages"]> = {
     to: "a",
     details: "Dettagli issue",
     keys: { move: "scorri", done: "fatto", unread: "da leggere", open: "apri issue", back: "lista", esc: "Esc" },
+  },
   feedback: {
     tabServer: "Server",
     tabsLabel: "Sezioni di Info",

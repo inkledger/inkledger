@@ -75,7 +75,7 @@ describe("0052 keeps every server's access as it was", () => {
       .filter((r) => (JSON.parse(r.permissions) as string[]).includes("acquireModules"))
       .map((r) => r.key);
     expect(acquire).toEqual(["owner", "it-admin"]);
-    // 0058: reading and managing everyone's feedback, owners and IT admins; members keep only their own.
+    // 0059: reading and managing everyone's feedback, owners and IT admins; members keep only their own.
     const feedback = (await client.query<{ key: string; permissions: string }>("SELECT key, permissions FROM roles ORDER BY id")).rows
       .filter((r) => ["readFeedback", "manageFeedback"].every((p) => (JSON.parse(r.permissions) as string[]).includes(p)))
       .map((r) => r.key);
