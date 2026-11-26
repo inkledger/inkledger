@@ -73,7 +73,8 @@ export function PageHeader({
   return (
     <div
       ref={ref}
-      // Over modules drawn over the page: they never paint over it nor take its clicks.
+      // Over modules drawn in the page (z-10): they never paint over it nor take its clicks. A module drawn
+      // over the whole window paints over it, its shape taking clicks there but on the header's controls (hit.ts).
       data-above-modules={sticky ? "" : undefined}
       // The sticky header is ground; over the Dashboard backdrop (bg-card/[0.97]) it is near see-through but stays ground.
       {...surface("ground", { on: sticky })}

@@ -102,6 +102,35 @@ describe("module hit areas", () => {
     expect(reached).toEqual(["pointerdown", "pointerup", "click"]);
   });
 
+  // The bunny standing on the Dashboard's sticky header was drawn over it but could not be clicked (26 Nov).
+  it("marked above modules inside the page's layer (its header): above in-page modules only, under a page overlay", () => {
+    // The header's plain surface, in the page's layer; a banner outside it; a button in the header.
+    const header = { closest: (s: string) => (s.includes("data-above-modules") || s.includes("data-page-layer") ? {} : null) };
+    const banner = { closest: (s: string) => (s.includes("data-above-modules") ? {} : null) };
+    const button = { closest: (s: string) => (s.includes("data-above-modules") || s.includes("data-page-layer") || s.includes("button") ? {} : null) };
+    const overlay = (s: string) => (s === "[data-page-overlay]" ? {} : null);
+    const inPage = (s: string) => (s === "[data-page-layer]" ? {} : null);
+    // The panel's edge strip: no rule for controls there, the marks keep their points.
+    const edge = () => null;
+    const cases = [
+      [header, overlay, true],
+      [header, edge, false],
+      [header, inPage, false],
+      [banner, overlay, false],
+      [button, overlay, false],
+    ] as const;
+    for (const [under, where, takes] of cases) {
+      const { win, fire } = page();
+      (win.document as unknown as { elementFromPoint: () => unknown }).elementFromPoint = () => under;
+      let opened = 0;
+      createHitAreas(win).add(Object.assign(box(), { closest: where }), leftHalf, () => opened++);
+      fire("pointerdown", 20, 20);
+      fire("pointerup", 20, 20);
+      fire("click", 20, 20);
+      expect(opened).toBe(takes ? 1 : 0);
+    }
+  });
+
   // The bunny drawn over a dialog's backdrop took the click meant to close the search (23 Nov).
   it("a page overlay never takes a point on a dialog's backdrop", () => {
     const { win, fire } = page();

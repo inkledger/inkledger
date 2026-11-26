@@ -4,8 +4,8 @@ import { FramedBox } from "./FrameHost";
 
 /**
  * The framed modules drawn over the whole window ("page.overlay"), on every page: over the
- * page and the sidebar, under the page's banners, the burrow's edge, headers and dialogs
- * (z-15); while a dialog that lets it (the search palette) is open, over its backdrop (z-49) and
+ * page (its sticky header too: the page is one layer, AppLayout) and the sidebar, under the
+ * page's banners, the burrow's edge and dialogs (z-15); while a dialog that lets it (the search palette) is open, over its backdrop (z-49) and
  * under the dialog itself (z-50, later in the page). Nothing in it takes the pointer: the host tests a module's shapes (hit.set).
  */
 export function ModulePageOverlay() {
