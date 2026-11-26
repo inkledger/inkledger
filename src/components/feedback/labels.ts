@@ -37,3 +37,23 @@ export function currentLook(): string {
 /** The density the page is drawn in. */
 export const currentDensity = (): "compact" | "comfortable" =>
   typeof document !== "undefined" && document.documentElement.dataset.density === "comfortable" ? "comfortable" : "compact";
+
+/** A feedback's public side, as the developers last reported it. */
+export type PublicFields = { publicIssueUrl: string | null; publicIssueState: string | null; publicPrUrl: string | null; publicPrState: string | null };
+
+/** The number at the end of a GitHub issue or pull request page, or null. */
+const numberOf = (url: string | null) => (url ? (/\/(?:issues|pull)\/(\d+)$/.exec(url)?.[1] ?? null) : null);
+
+/** What a feedback made public by the developers links to: its public issue and draft proposal, with their states in words. */
+export function publicRefs(f: PublicFields): { issue: { url: string; label: string }; pr: { url: string; label: string } | null } | null {
+  const n = numberOf(f.publicIssueUrl);
+  if (!f.publicIssueUrl || !n) return null;
+  const issueState = f.publicIssueState === "closed" ? ` (${t("pages.feedback.detail.publicClosed")})` : "";
+  const prN = numberOf(f.publicPrUrl);
+  const prState = f.publicPrState === "merged" ? t("pages.feedback.detail.prMerged") : f.publicPrState === "closed" ? t("pages.feedback.detail.publicClosed") : t("pages.feedback.detail.prDraft");
+  return {
+    issue: { url: f.publicIssueUrl, label: `#${n}${issueState}` },
+    pr: f.publicPrUrl && prN ? { url: f.publicPrUrl, label: `${t("pages.feedback.detail.pr", { number: prN })} (${prState})` } : null,
+  };
+}
+

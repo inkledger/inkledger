@@ -318,6 +318,45 @@ describe("feedback", () => {
     expect(gets()).toHaveLength(before);
   });
 
+  it("made public: links kept (GitHub pages only), a merged proposal reads as implemented, the author told", async () => {
+    await (await as(manager)).feedback.setSharing({ enabled: true });
+    const a = await as(ann);
+    const { syncStatuses, forwardQueued, readStatusAnswer } = await import("../feedback/upstream");
+    const { id } = await a.feedback.create({ ...base, title: "Made public", share: true });
+    await forwardQueued();
+    const [{ uid }] = await q<{ uid: string }>("SELECT uid FROM feedback WHERE id = ?", id);
+    const issueUrl = "https://github.com/inkledger/inkledger/issues/123";
+    const prUrl = "https://github.com/inkledger/inkledger/pull/124";
+    let items: Record<string, unknown>[] = [{ id: uid, status: "accepted", replies: [], publicIssueUrl: issueUrl, publicIssueState: "open", publicPrUrl: prUrl, publicPrState: "open" }];
+    let cursor = 10;
+    store.status = () => json({ cursor, items });
+
+    const day0 = Date.now();
+    await syncStatuses(day0);
+    let f = await a.feedback.get({ id });
+    expect(f.status).toBe("accepted");
+    expect([f.publicIssueUrl, f.publicIssueState, f.publicPrUrl, f.publicPrState]).toEqual([issueUrl, "open", prUrl, "open"]);
+    expect((await a.feedback.mine()).find(m => m.id === id)?.publicIssueUrl).toBe(issueUrl);
+    const told = async () => (await a.notifications.alerts()).filter(n => n.alert === "feedback" && n.ref === id && n.what === "status").length;
+    expect(await told()).toBe(2);
+
+    // The proposal merged (labels still "accepted"): implemented here.
+    items = [{ ...items[0], publicIssueState: "closed", publicPrState: "merged" }];
+    cursor = 20;
+    await syncStatuses(day0 + 25 * 3_600_000);
+    f = await a.feedback.get({ id });
+    expect(f.status).toBe("implemented");
+    expect([f.publicIssueState, f.publicPrState]).toEqual(["closed", "merged"]);
+    expect(f.thread.filter(c => c.origin === "upstream" && c.statusTo).map(c => c.statusTo)).toEqual(["accepted", "implemented"]);
+
+    // Anything but a GitHub issue / pull page is dropped (FEEDBACK_URL may be anyone's Worker).
+    const read = (extra: Record<string, unknown>) => readStatusAnswer({ cursor: 1, items: [{ id: uid, status: "accepted", replies: [], ...extra }] }).items[0]?.pub;
+    expect(read({ publicIssueUrl: "javascript:alert(1)" })).toBeUndefined();
+    expect(read({ publicIssueUrl: "https://evil.example/inkledger/inkledger/issues/1" })).toBeUndefined();
+    expect(read({ publicIssueUrl: issueUrl, publicPrUrl: "https://github.com/a/b/issues/2", publicPrState: "merged" })).toEqual({ issueUrl, issueState: "open", prUrl: null, prState: null });
+    expect(read({ publicIssueUrl: issueUrl, publicIssueState: "weird", publicPrUrl: prUrl, publicPrState: "weird" })).toEqual({ issueUrl, issueState: "open", prUrl, prState: "open" });
+  });
+
   it("signs exactly as the shared protocol vectors say", async () => {
     const vectors = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "../feedback/__fixtures__/signature-vectors.json"), "utf8")) as {
       instanceId: string;

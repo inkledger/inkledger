@@ -194,7 +194,28 @@ export async function forwardQueued(o: { now?: number; locale?: "it" | "en" } = 
   return out;
 }
 
-export type StatusItem = { id: string; status: FeedbackStatus; replies: { id: string; body: string; at: number }[] };
+/** What the developers made public of a feedback: its public issue and draft proposal, and their states. */
+export type PublicLinks = { issueUrl: string; issueState: "open" | "closed"; prUrl: string | null; prState: "open" | "merged" | "closed" | null };
+export type StatusItem = { id: string; status: FeedbackStatus; replies: { id: string; body: string; at: number }[]; pub?: PublicLinks };
+
+/** Only a GitHub issue or pull request page: FEEDBACK_URL may be anyone's Worker, and these become links. */
+const GITHUB_PAGE = (kind: "issues" | "pull") => new RegExp(`^https://github\\.com/[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}/${kind}/\\d{1,9}$`);
+const oneOf = <T extends string>(v: unknown, list: readonly T[]): v is T => typeof v === "string" && (list as readonly string[]).includes(v);
+
+/** The public links of a status item, when they are what they should be; else none. */
+export function publicLinksOf(i: { publicIssueUrl?: unknown; publicIssueState?: unknown; publicPrUrl?: unknown; publicPrState?: unknown }): PublicLinks | undefined {
+  if (typeof i.publicIssueUrl !== "string" || !GITHUB_PAGE("issues").test(i.publicIssueUrl)) return undefined;
+  const pr = typeof i.publicPrUrl === "string" && GITHUB_PAGE("pull").test(i.publicPrUrl) ? i.publicPrUrl : null;
+  return {
+    issueUrl: i.publicIssueUrl,
+    issueState: i.publicIssueState === "closed" ? "closed" : "open",
+    prUrl: pr,
+    prState: pr ? (oneOf(i.publicPrState, ["open", "merged", "closed"] as const) ? i.publicPrState : "open") : null,
+  };
+}
+
+/** The developers' state as this server reads it: a merged proposal is implemented, whatever the labels say. */
+export const effectiveStatus = (item: Pick<StatusItem, "status" | "pub">): FeedbackStatus => (item.pub?.prState === "merged" ? "implemented" : item.status);
 
 /** The inbox's answer, kept to what it may say. */
 export function readStatusAnswer(raw: unknown): { cursor: number | null; items: StatusItem[] } {
@@ -205,6 +226,7 @@ export function readStatusAnswer(raw: unknown): { cursor: number | null; items: 
     items: items.flatMap((i: unknown) => {
       if (!i || typeof i !== "object") return [];
       const { id, status, replies } = i as { id?: unknown; status?: unknown; replies?: unknown };
+      const pub = publicLinksOf(i);
       if (typeof id !== "string" || typeof status !== "string" || !isFeedbackStatus(status)) return [];
       const list = Array.isArray(replies)
         ? replies.flatMap((r: unknown) => {
@@ -212,7 +234,7 @@ export function readStatusAnswer(raw: unknown): { cursor: number | null; items: 
             return typeof rid === "string" && rid.length <= 64 && typeof body === "string" && body.trim() && typeof at === "number" ? [{ id: rid, body: body.slice(0, 5000), at }] : [];
           })
         : [];
-      return [{ id, status, replies: list }];
+      return [{ id, status, replies: list, ...(pub ? { pub } : {}) }];
     }),
   };
 }
@@ -220,10 +242,23 @@ export function readStatusAnswer(raw: unknown): { cursor: number | null; items: 
 /**
  * The developers' answer applied to one feedback. Their state is applied only when it
  * changed since it was last read (kept apart, upstream_status): an admin here may move it
- * meanwhile and the next read doesn't move it back. Each public reply lands once.
+ * meanwhile and the next read doesn't move it back. Each public reply lands once. The public
+ * issue and proposal are kept as last read; a merged proposal counts as implemented.
  */
 export async function applyUpstream(row: Feedback, item: StatusItem, now = new Date()): Promise<boolean> {
   let changed = false;
+  if (item.pub) {
+    const p = item.pub;
+    if (p.issueUrl !== row.publicIssueUrl || p.issueState !== row.publicIssueState || p.prUrl !== row.publicPrUrl || p.prState !== row.publicPrState) {
+      await getDb()
+        .update(feedback)
+        .set({ publicIssueUrl: p.issueUrl, publicIssueState: p.issueState, publicPrUrl: p.prUrl, publicPrState: p.prState, updatedAt: now })
+        .where(eq(feedback.id, row.id));
+      // Made public just now: its author hears of it.
+      if (!row.publicIssueUrl) await notifyAuthor(row, "status", now.getTime());
+      changed = true;
+    }
+  }
   for (const r of item.replies) {
     const [made] = await getDb()
       .insert(feedbackComments)
@@ -235,9 +270,10 @@ export async function applyUpstream(row: Feedback, item: StatusItem, now = new D
       await notifyAuthor(row, "comment", now.getTime());
     }
   }
-  if (item.status !== row.upstreamStatus) {
-    const reason = item.status === "rejected" ? (item.replies.at(-1)?.body ?? null) : null;
-    await setFeedbackStatus(row, item.status, { by: null, reason, origin: "upstream", upstream: item.status, now });
+  const status = effectiveStatus(item);
+  if (status !== row.upstreamStatus) {
+    const reason = status === "rejected" ? (item.replies.at(-1)?.body ?? null) : null;
+    await setFeedbackStatus(row, status, { by: null, reason, origin: "upstream", upstream: status, now });
     changed = true;
   }
   return changed;

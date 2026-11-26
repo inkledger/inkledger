@@ -2177,6 +2177,13 @@ export const feedback = pgTable(
     sharedAt: ms("shared_at"),
     /** The developers' state last read back: applied here only when it changes */
     upstreamStatus: text("upstream_status"),
+    /** Accepted by the developers and made public: its public issue and draft proposal (https://github.com/… only) */
+    publicIssueUrl: text("public_issue_url"),
+    /** open | closed */
+    publicIssueState: text("public_issue_state"),
+    publicPrUrl: text("public_pr_url"),
+    /** open | merged | closed (merged reads as implemented) */
+    publicPrState: text("public_pr_state"),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
