@@ -309,7 +309,7 @@ export default function NotificationsPage() {
         <div
           ref={splitRef}
           style={{ "--notifications-preview-w": width === null ? undefined : `${width}px` } as CSSProperties}
-          className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(360px,var(--notifications-preview-w,28rem),min(60vw,100cqw_-_420px))]"
+          className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(360px,var(--notifications-preview-w,50cqw),min(60vw,100cqw_-_420px))]"
         >
           <div className={cn("min-w-0 p-3 md:p-4", detail && current && "max-@xl:hidden")}>
             {state === "unread" && (
