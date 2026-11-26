@@ -322,16 +322,16 @@ export const notificationsRouter = createRouter({
     });
   }),
 
-  /** Unread undismissed count (the badge) and the newest id (the client notices new ones by id). */
+  /** Unread undismissed count (the badge) and the newest undismissed id, read or not (the client notices new ones by id). */
   count: protectedProcedure.query(async ({ ctx }) => {
     const row = (await getDb()
       .select({
-        count: sql<number>`count(*)`,
+        count: sql<number>`count(*) filter (where ${notifications.readAt} is null)`,
         latestId: sql<number | null>`max(${notifications.id})`,
       })
       .from(notifications)
       .leftJoin(issues, joinIssue)
-      .where(and(visible(ctx.user.id), isNull(notifications.readAt), await notificationsInBucket(ctx.user.id, ctx.deviceId))).limit(1))[0];
+      .where(and(visible(ctx.user.id), await notificationsInBucket(ctx.user.id, ctx.deviceId))).limit(1))[0];
     return { count: Number(row?.count ?? 0), latestId: row?.latestId ?? null };
   }),
 

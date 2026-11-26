@@ -30,7 +30,7 @@ export const PAGES = [
   ["pinboard", "/pinboard"],
   ["todos", "/todos"],
   ["notifications", "/notifications?open=1:LONG-1000"],
-  ["notifications-detail", "/notifications?sel=1:LONG-1000&detail"],
+  ["notifications-detail", "/notifications?sel=1:LONG-1001&detail"],
   ["ideas", "/ideas"],
   ["notes", "/notes"],
   ["notes-diary", "/notes/diary"],

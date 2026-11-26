@@ -132,11 +132,16 @@ test("notifications on a phone: the detail replaces the list, next / previous, B
     await until(() => pressed(page, "DEMO-106"), "back on the list, the one last read selected");
     assert.equal(param(page, "detail"), null);
     await until(async () => Math.abs((await scrollTop(page)) - before) < 80, `about where it was (${before})`);
-    // The browser's Back does the same.
+    // The browser's Back does the same, to the pixel.
+    await page.waitForTimeout(300);
+    const there = await scrollTop(page);
     await pick(page, "DEMO-106").click();
     await preview.getByRole("heading", { name: "Test task number 6" }).first().waitFor();
-    const there = before;
     await page.goBack();
     await until(async () => (await pick(page, "DEMO-106").isVisible()) && (await pressed(page, "DEMO-106")), "selection kept");
-    await until(async () => Math.abs((await scrollTop(page)) - there) < 80, "scroll kept");
+    await until(async () => Math.abs((await scrollTop(page)) - there) < 4, `scroll kept (${there})`);
+    // A detail whose group is gone (done elsewhere, Forward after Done) shows the list, not an empty page.
+    await page.goto(base + "/notifications?sel=1:NOPE-1&detail");
+    await pick(page, "DEMO-101").waitFor();
+    await page.getByRole("radiogroup", { name: "Category" }).waitFor();
   }));

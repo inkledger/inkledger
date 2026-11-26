@@ -47,6 +47,12 @@ describe("notification groups", () => {
     expect(inState(items, "done")).toHaveLength(3);
   });
 
+  it("states take a whole issue: one unread item brings its read ones along, and keeps it out of read", () => {
+    const items = [n("commented", "A-1", 3, true), n("status", "A-1", 2), n("assigned", "C-1", 1, true)];
+    expect(inState(items, "unread").map((i) => i.kind)).toEqual(["commented", "status"]);
+    expect(inState(items, "read").map((i) => i.issueKey)).toEqual(["C-1"]);
+  });
+
   it("categories filter and count the notifications", () => {
     const items = [n("commented", "A-1", 3), n("commented", "A-1", 2), n("review", "B-1", 2), n("watch_added", "C-1", 1), n("unassigned", "D-1", 1)];
     expect(inCategory(items, "comments")).toHaveLength(2);

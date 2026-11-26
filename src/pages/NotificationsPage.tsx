@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useRef, useState, type CSSProperties } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { NavigationType, useLocation, useNavigate, useNavigationType } from "react-router";
 import { ArrowUpRight, BellOff, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Mail, MailOpen, Play, RotateCcw, X } from "lucide-react";
 import {
   INBOX_STATES,
@@ -84,6 +84,12 @@ export default function NotificationsPage() {
   const start = useStartTimer({ announce: true });
 
   const filter = `${cat}|${state}`;
+  // A visit that is not Back / Forward starts afresh: groups read last time are no longer held under Unread.
+  const navigationType = useNavigationType();
+  useEffect(() => {
+    if (navigationType !== NavigationType.Pop) keptRead.set({ filter: "", keys: new Set() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the page is opened
+  }, []);
   const held = keptRead.use();
   const kept = held.filter === filter ? held.keys : new Set<string>();
   const keep = (...add: string[]) => {
@@ -99,6 +105,7 @@ export default function NotificationsPage() {
   const byKey = (key: string | null) => groups.find(g => g.key === key) ?? null;
   const openRows = inbox.open.data ?? [];
   const unreadTotal = openRows.filter(n => n.readAt === null).length;
+  const readTotal = inState(openRows, "read").length;
 
   const regionRef = useRef<HTMLDivElement>(null);
   const splitRef = useRef<HTMLDivElement>(null);
@@ -115,7 +122,6 @@ export default function NotificationsPage() {
     return () => ro.disconnect();
   }, []);
   const split = () => wide;
-  const reading = detail && !wide;
   const previewShown = () => previewRef.current?.offsetParent != null;
 
   const select = (key: string | null, how: "click" | "keys" = "keys") => {
@@ -215,6 +221,9 @@ export default function NotificationsPage() {
   );
 
   const current = byKey(selected);
+  // The detail over the list (narrow), when there is one to show: a selection gone (done elsewhere, Forward
+  // after Done) shows the list instead of an empty page.
+  const reading = detail && !wide && current !== null;
   const at = selected ? keys.indexOf(selected) : -1;
   const visibleIds = groups.flatMap(g => g.items.map(n => n.id));
   const visibleUnread = groups.flatMap(g => g.items.filter(n => n.readAt === null).map(n => n.id));
@@ -289,7 +298,7 @@ export default function NotificationsPage() {
             onChange={s => setView({ state: s, sel: "", open: new Set() })}
             options={INBOX_STATES.map(s => ({
               value: s,
-              label: s === "unread" ? `${t("pages.notifications.states.unread")} ${unreadTotal}` : s === "read" ? `${t("pages.notifications.states.read")} ${openRows.length - unreadTotal}` : t("pages.notifications.states.done"),
+              label: s === "unread" ? `${t("pages.notifications.states.unread")} ${unreadTotal}` : s === "read" ? `${t("pages.notifications.states.read")} ${readTotal}` : t("pages.notifications.states.done"),
             }))}
           />
         </PageToolbar>
@@ -300,7 +309,7 @@ export default function NotificationsPage() {
           style={{ "--notifications-preview-w": width === null ? undefined : `${width}px` } as CSSProperties}
           className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(360px,var(--notifications-preview-w,28rem),min(60vw,100cqw_-_420px))]"
         >
-          <div className={cn("min-w-0 p-3 md:p-4", detail && "max-@xl:hidden")}>
+          <div className={cn("min-w-0 p-3 md:p-4", detail && current && "max-@xl:hidden")}>
             {state === "unread" && (
               <div className="mb-4 grid grid-cols-[minmax(0,1fr)] gap-4 empty:hidden">
                 <AlertList />

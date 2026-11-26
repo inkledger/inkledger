@@ -53,13 +53,15 @@ export type InboxGroup<T extends InboxItem> = {
 export const groupKey = (n: Pick<InboxItem, "connectionId" | "issueKey">): string => `${n.connectionId}:${n.issueKey}`;
 
 /**
- * What the state shows: done shows all it is given (the done query); unread the unread ones, and
- * the groups in `keep` (read while looked at: they stay in place until the filter changes); read the read ones.
+ * What the state shows, a whole issue at a time (a group looks the same selected or not, and done takes
+ * all of it): done all it is given (the done query); unread the issues with something unread, and those in
+ * `keep` (read while looked at: they stay in place until the filter changes); read the issues read through.
  */
 export function inState<T extends InboxItem>(items: readonly T[], state: InboxState, keep: ReadonlySet<string> = new Set()): T[] {
   if (state === "done") return [...items];
-  if (state === "read") return items.filter((n) => n.readAt !== null);
-  return items.filter((n) => n.readAt === null || keep.has(groupKey(n)));
+  const unread = new Set(items.filter((n) => n.readAt === null).map(groupKey));
+  if (state === "read") return items.filter((n) => !unread.has(groupKey(n)));
+  return items.filter((n) => unread.has(groupKey(n)) || keep.has(groupKey(n)));
 }
 
 export function inCategory<T extends InboxItem>(items: readonly T[], category: NotificationCategory): T[] {

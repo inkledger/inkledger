@@ -86,7 +86,8 @@ export function useNotificationAlerts(): void {
   useEffect(() => {
     if (latest === null) return;
     const before = seen.current;
-    seen.current = latest;
+    // Never lowered (the newest done, or read away): only an id above every one seen is news.
+    seen.current = Math.max(before ?? latest, latest);
     // First load: what is already there is not "new".
     if (before === null || latest <= before) return;
     // Framed modules watching the page hear that something landed (where the bell is, nothing more).

@@ -6,7 +6,7 @@ import { start } from "./harness.mjs";
 // Enforced: no focusable control clipped out of sight by an ancestor that does not scroll, and no
 // sideways scroller outside a declared board or table. Reported (for the before/after): the chrome's
 // share of the screen, how many screens a page is, and scrollers' hidden items.
-const ROUTES = ["/", "/timesheet", "/reports", "/issues", "/issues/DEMO-101", "/board", "/team", "/notes", "/ideas", "/settings"];
+const ROUTES = ["/", "/timesheet", "/reports", "/issues", "/issues/DEMO-101", "/board", "/team", "/notes", "/ideas", "/settings", "/notifications"];
 const VIEWPORTS = [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },

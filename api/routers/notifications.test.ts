@@ -443,8 +443,12 @@ describe("notifications, incremental sync, watchers", () => {
     ]);
     const [mention, comment] = open;
     const calls = vi.mocked(fetch).mock.calls.length;
-    expect(await caller.notifications.markRead({ ids: [comment.id], read: true })).toEqual({ changed: 1 });
+    const latest = (await caller.notifications.count()).latestId;
+    expect(await caller.notifications.markRead({ ids: [comment.id, mention.id], read: true })).toEqual({ changed: 2 });
     expect(vi.mocked(fetch).mock.calls.length).toBe(calls);
+    // Read ones leave the badge, not the newest id (reading the newest must not make a later one look old).
+    expect(await caller.notifications.count()).toEqual({ count: 0, latestId: latest });
+    await caller.notifications.markRead({ ids: [mention.id], read: false });
     expect((await caller.notifications.count()).count).toBe(1);
     expect((await caller.notifications.inbox({ done: false })).find((n) => n.id === comment.id)?.readAt).toBeInstanceOf(Date);
     // Someone else's ids change nothing.
