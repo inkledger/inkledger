@@ -189,7 +189,7 @@ export function useStickyTable({
 const TITLE_MIN = 160;
 const TITLE_COLUMN = 3;
 /**
- * The columns that leave first when the list is narrower than every column needs (Aggiornata, Scadenza): their
+ * The columns that leave first when the list is narrower than every column needs (Updated, Due): their
  * cells and `col`s are marked `data-opt`, hidden while the group has `data-narrow`. Only once they are gone and
  * the rest still does not fit do the columns stick (`data-sticky`) and the middle scroll sideways.
  */

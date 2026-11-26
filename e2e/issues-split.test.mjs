@@ -6,7 +6,7 @@ import { LOOKS, lookName, scanLayout } from "./visual-sweep.mjs";
 
 // The Issues page's split (docs/design-system.md §7.1): the preview beside the list is resized on its edge
 // (dragged, by the keys, back to the default by a double click) and keeps its width on this device. At rest
-// the catalogue fits its list (Aggiornata and Scadenza leave when the list is too narrow for them) and
+// the catalogue fits its list (Updated and Due leave when the list is too narrow for them) and
 // nothing is frozen; a list narrower still freezes the first columns (pick, star, key, title) and last ones
 // (timer, actions) while the middle scrolls sideways. Its header stays under the bars while the rows scroll.
 
@@ -165,6 +165,14 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
         [...document.querySelectorAll(".sticky-table [data-stick-edge]")].flatMap(c => ["::before", "::after"].map(p => getComputedStyle(c, p).content)).filter(c => c !== "none" && c !== "normal")
       );
       assert.deepEqual(edges, [], `${name}: no frozen edge at rest`);
+      // The row's actions show at rest (quiet, never hover-only).
+      const actions = await table.locator("tbody tr").nth(1).locator("td[data-stick='r1'] button").first().evaluate(b => {
+        const r = b.getBoundingClientRect();
+        let op = 1;
+        for (let el = b; el; el = el.parentElement) op *= Number(getComputedStyle(el).opacity);
+        return { op, w: r.width, color: getComputedStyle(b).color };
+      });
+      assert.ok(actions.op === 1 && actions.w > 0 && !actions.color.endsWith(", 0)"), `${name}: row actions visible at rest (${JSON.stringify(actions)})`);
       await common("at rest");
 
       // The list narrowed (the preview 160 px wider): the table overflows and freezes, both ends (the list at its

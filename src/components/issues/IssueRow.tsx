@@ -421,8 +421,8 @@ function Columns() {
 }
 
 /**
- * Desktop table (same look as the dashboard activity table). Too narrow for every column, Aggiornata and
- * Scadenza leave; still too narrow, its first and last columns stay put while the middle scrolls sideways.
+ * Desktop table (same look as the dashboard activity table). Too narrow for every column, Updated and
+ * Due leave; still too narrow, its first and last columns stay put while the middle scrolls sideways.
  * Its header stays under the page's bars (useStickyTable).
  */
 export function IssueTable({
