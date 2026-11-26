@@ -1,7 +1,7 @@
 import { activateNew, tokenFor } from "../modules/activation";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { runsHere, STORE_HOST_API } from "@contracts/modules";
+import { HOST_API, SLOT_IDS, runsHere } from "@contracts/modules";
 import { LICENSE_FILE_FORMAT, mediaUrl, pickBuild, type StoreCatalog, type StoreEntry, type StorePending } from "@contracts/store";
 import { t, type MessageKey } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
@@ -100,9 +100,14 @@ async function settle(p: Stored): Promise<Settled> {
   return { next: null, installed: true };
 }
 
-/** A build the Store would hand this inkledger (it is told one host API version) and that runs here. */
-const servable = (b: { hostApi: { min: number; max: number }; slots: readonly string[] }) =>
-  runsHere(b) && b.hostApi.min <= STORE_HOST_API && STORE_HOST_API <= b.hostApi.max;
+/**
+ * A build the Store hands this inkledger: it is told the host API range this one
+ * runs (HOST_API) and its slots, and picks the newest build that meets both.
+ */
+const servable = runsHere;
+/** A build that waits for a newer inkledger: a host API above this one's, or a slot it doesn't know. */
+const needsNewerHost = (b: { hostApi: { min: number; max: number }; slots: readonly string[] }) =>
+  b.hostApi.min > HOST_API.max || !b.slots.every((s) => (SLOT_IDS as readonly string[]).includes(s));
 
 export const storeRouter = createRouter({
   catalog: store.query(async (): Promise<StoreCatalog> => {
@@ -112,7 +117,7 @@ export const storeRouter = createRouter({
     const entries = items.map((item): StoreEntry => {
       const installed = modules.find((m) => m.product === item.product);
       const p = pending.find((x) => x.product === item.product);
-      const { build, newerElsewhere } = pickBuild(item, servable, older);
+      const { build, newerElsewhere } = pickBuild(item, servable, older, needsNewerHost);
       return {
         ...item,
         version: build?.version ?? item.version,

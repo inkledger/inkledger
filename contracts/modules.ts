@@ -8,7 +8,10 @@
 
 /** The host API versions this inkledger runs: 1 in the page (publisher code only), 2 in sandboxed frames. */
 export const HOST_API = { min: 1, max: 2 } as const;
-/** What the Store is told this inkledger runs: it reads one version, so v1 builds until it takes a range. */
+/**
+ * The single host API version told to a Store from before ranges (it reads `api`
+ * only): v1, which every v1 build answers to. A current Store reads HOST_API.
+ */
 export const STORE_HOST_API = 1;
 
 /**

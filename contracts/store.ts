@@ -70,13 +70,21 @@ export type StoreEntry = Omit<StoreItem, "image" | "hero" | "gallery"> & {
 
 export type StoreBuild = NonNullable<StoreItem["builds"]>[number];
 
-/** The newest build this inkledger can run (`runs`), and whether a newer one needs a newer host. */
-export function pickBuild(item: StoreItem, runs: (b: StoreBuild) => boolean, older: (a: string, b: string) => boolean): { build: StoreBuild | null; newerElsewhere: boolean } {
+/**
+ * The newest build this inkledger can run (`runs`), and whether a newer one
+ * needs a newer host (`ahead`: by default, any newer build that doesn't run here).
+ */
+export function pickBuild(
+  item: StoreItem,
+  runs: (b: StoreBuild) => boolean,
+  older: (a: string, b: string) => boolean,
+  ahead: (b: StoreBuild) => boolean = (b) => !runs(b),
+): { build: StoreBuild | null; newerElsewhere: boolean } {
   const all = item.builds ?? [{ version: item.version, hostApi: item.hostApi, slots: [], build: "" }];
   const newest = (xs: StoreBuild[]) => xs.reduce<StoreBuild | null>((a, b) => (a && !older(a.version, b.version) ? a : b), null);
   const build = newest(all.filter(runs));
-  const top = newest(all);
-  return { build, newerElsewhere: !!top && (!build || older(build.version, top.version)) };
+  const newer = all.filter((b) => !build || older(build.version, b.version));
+  return { build, newerElsewhere: newer.some(ahead) };
 }
 
 export type StoreCatalog = { enabled: boolean; entries: StoreEntry[] };

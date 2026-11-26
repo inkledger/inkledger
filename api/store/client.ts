@@ -1,4 +1,4 @@
-import { STORE_HOST_API, SLOT_IDS } from "@contracts/modules";
+import { HOST_API, STORE_HOST_API, SLOT_IDS } from "@contracts/modules";
 import { type PaymentMethod, type StoreItem } from "@contracts/store";
 import { storeCatalogSchema } from "@contracts/storeSchema";
 import { env } from "../lib/env";
@@ -154,11 +154,13 @@ export async function bundleForLicense(product: string, license: string, activat
 
 /** The signed bundle (.iklmod JSON) for a licensed token. */
 export async function downloadBundle(product: string, token: string): Promise<string> {
-  return (await call(`/download/${product}?token=${encodeURIComponent(token)}&api=${HOST.api}&slots=${HOST.slots.join(",")}`)).text();
+  return (await call(`/download/${product}?token=${encodeURIComponent(token)}&api=${HOST.api}&apiMin=${HOST.apiMin}&apiMax=${HOST.apiMax}&slots=${HOST.slots.join(",")}`)).text();
 }
 
 /**
  * What this inkledger runs, sent with every bundle request: the store answers
- * with the newest build that fits, never one that would not load here.
+ * with the newest build that fits, never one that would not load here. The
+ * range (apiMin..apiMax) is what the Store reads; `api` is for a Store from
+ * before ranges, which reads one version.
  */
-const HOST = { api: STORE_HOST_API, slots: [...SLOT_IDS] };
+const HOST = { api: STORE_HOST_API, apiMin: HOST_API.min, apiMax: HOST_API.max, slots: [...SLOT_IDS] };

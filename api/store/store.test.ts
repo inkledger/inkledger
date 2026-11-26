@@ -26,7 +26,7 @@ const ENTRY = "export default { id: 'hello', hostApi: 1, mount: {} };\n";
 const license = (product: string) =>
   signEnvelope(Buffer.from(JSON.stringify({ id: "R-1", email_hash: "h", product, issued: 1, v: 1 })), LICENSE_CONTEXT, KEY.privateKey);
 
-function bundle() {
+function bundle(over: Record<string, unknown> = {}) {
   const manifest = {
     id: "hello",
     version: "1.0.0",
@@ -36,6 +36,7 @@ function bundle() {
     slots: ["sidebar-footer"],
     name: { en: "Hello", it: "Ciao" },
     files: { "index.js": sha256hex(Buffer.from(ENTRY)) },
+    ...over,
   };
   return JSON.stringify({
     format: "seal-bundle-v1",
@@ -65,7 +66,7 @@ const worker = {
     hero: "https://img.test/hero.webp",
     gallery: [{ src: "https://img.test/g0.webp", caption: { en: "One", it: "Uno" } }],
     highlights: [{ icon: "unknown-icon", title: { en: "T", it: "T" }, body: { en: "B", it: "B" } }],
-  }), item({ id: "svg", product: "inkledger.svg", image: "https://img.test/x.svg" }), item({ id: "future", product: "inkledger.future", hostApi: { min: 2, max: 2 }, mode: "warp" }), { id: "broken" }] as unknown[],
+  }), item({ id: "svg", product: "inkledger.svg", image: "https://img.test/x.svg" }), item({ id: "future", product: "inkledger.future", hostApi: { min: 3, max: 3 }, mode: "warp" }), { id: "broken" }] as unknown[],
   requestStatus: { status: "pending" } as Record<string, unknown>,
   calls: [] as { path: string; body?: unknown }[],
   checkoutUrl: "https://shop.test/buy?claim=c",
@@ -190,7 +191,7 @@ describe("module store", () => {
     expect((await caller.store.catalog()).entries[0]).toMatchObject({ installed: null, installedVersion: null, licensed: true });
     expect(await caller.store.install({ product: "inkledger.hello" })).toEqual({ id: "hello", version: "1.0.0" });
     // The store is told what this inkledger runs, to answer with a build that loads here.
-    expect(worker.calls.at(-1)).toMatchObject({ path: "/bundle/inkledger.hello", body: { license: expect.any(String), host: { api: 1, slots: expect.arrayContaining(["sidebar-footer"]) } } });
+    expect(worker.calls.at(-1)).toMatchObject({ path: "/bundle/inkledger.hello", body: { license: expect.any(String), host: { api: 1, apiMin: 1, apiMax: 2, slots: expect.arrayContaining(["sidebar-footer"]) } } });
     expect((await caller.store.catalog()).entries[0]).toMatchObject({ installed: { state: "active" }, installedVersion: "1.0.0", outdated: false });
     await expect(caller.store.install({ product: "inkledger.future" })).rejects.toThrow(/No licence/);
   });
@@ -247,14 +248,47 @@ describe("module store", () => {
     await forgetCatalog();
     expect((await caller.store.catalog()).entries[0]).toMatchObject({ version: "1.0.0", outdated: true });
 
-    // 2.0.0 needs host API 2, 1.5.0 a slot this inkledger lacks: 1.0.0 stays, nothing to install.
-    worker.items = [item({ version: "2.0.0", builds: [b("2.0.0", "a".repeat(32), 2), b("1.5.0", "c".repeat(32), 1, ["warp-drive"]), b("1.0.0", installed)] })];
+    // 2.0.0 needs host API 3, 1.5.0 a slot this inkledger lacks: 1.0.0 stays, nothing to install.
+    worker.items = [item({ version: "2.0.0", builds: [b("2.0.0", "a".repeat(32), 3), b("1.5.0", "c".repeat(32), 1, ["warp-drive"]), b("1.0.0", installed)] })];
     await forgetCatalog();
     expect((await caller.store.catalog()).entries[0]).toMatchObject({ version: "1.0.0", outdated: false, supported: true, needsNewerHost: true });
 
-    worker.items = [item({ builds: [b("2.0.0", "a".repeat(32), 2)] })];
+    worker.items = [item({ builds: [b("2.0.0", "a".repeat(32), 3)] })];
     await forgetCatalog();
     expect((await caller.store.catalog()).entries[0]).toMatchObject({ supported: false, needsNewerHost: true });
+    await forgetCatalog();
+  });
+
+  it("builds for host API 1, 2 or both: the newest whose range meets this inkledger's is offered", async () => {
+    const { forgetCatalog } = await import("./client");
+    const b = (version: string, min: number, max = min) => ({ version, hostApi: { min, max }, slots: ["sidebar-footer"], build: version.replace(/\./g, "").padEnd(32, "0") });
+    const offered = async (builds: ReturnType<typeof b>[]) => {
+      worker.items = [item({ version: builds[0].version, hostApi: builds[0].hostApi, builds })];
+      await forgetCatalog();
+      return (await caller.store.catalog()).entries[0];
+    };
+    // v1 only, v2 only, a build spanning both: each runs here.
+    expect(await offered([b("1.0.0", 1)])).toMatchObject({ version: "1.0.0", supported: true, needsNewerHost: false });
+    expect(await offered([b("1.0.1", 2)])).toMatchObject({ version: "1.0.1", supported: true, needsNewerHost: false });
+    expect(await offered([b("1.0.2", 1, 2), b("1.0.1", 2), b("1.0.0", 1)])).toMatchObject({ version: "1.0.2", supported: true, needsNewerHost: false });
+    expect(await offered([b("1.0.3", 2, 3), b("1.0.0", 1)])).toMatchObject({ version: "1.0.3", supported: true, needsNewerHost: false });
+    // Only a build above this inkledger's host API asks for a newer inkledger.
+    expect(await offered([b("1.1.0", 3), b("1.0.1", 2)])).toMatchObject({ version: "1.0.1", supported: true, needsNewerHost: true });
+    await forgetCatalog();
+  });
+
+  it("an installed framed build (host API 2) that the catalog has is up to date, not waiting for a newer inkledger", async () => {
+    const { forgetCatalog } = await import("./client");
+    const { buildOf, installBundle } = await import("../modules/registry");
+    const v2 = bundle({ version: "1.0.1", hostApi: { min: 2, max: 2 }, runtime: "frame" });
+    expect(installBundle(v2)).toMatchObject({ ok: true });
+    const build = buildOf((JSON.parse(v2) as { signature: string }).signature);
+    worker.items = [item({ version: "1.0.1", hostApi: { min: 2, max: 2 }, builds: [{ version: "1.0.1", hostApi: { min: 2, max: 2 }, slots: ["sidebar-footer"], build }, { version: "1.0.0", hostApi: { min: 1, max: 1 }, slots: ["sidebar-footer"], build: "e".repeat(32) }] })];
+    await forgetCatalog();
+    expect((await caller.store.catalog()).entries[0]).toMatchObject({ installedVersion: "1.0.1", version: "1.0.1", outdated: false, supported: true, needsNewerHost: false });
+    // Reinstalls and updates tell the Store the whole range, so it hands back this build.
+    await caller.store.install({ product: "inkledger.hello" }).catch(() => null);
+    expect(worker.calls.find((c) => c.path === "/bundle/inkledger.hello")).toMatchObject({ body: { host: { apiMin: 1, apiMax: 2 } } });
     await forgetCatalog();
   });
 
