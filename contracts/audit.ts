@@ -159,6 +159,7 @@ export const AUDIT_ACTIONS = {
   "worklog.replay": ["connectionId", "synced", "failed", "remaining"],
   // Feedback (Info > Feedback): ids, types, states and counts, never what was written
   "feedback.create": ["type", "shared"],
+  "feedback.share": ["shareScreenshot"],
   "feedback.comment": ["origin"],
   "feedback.setStatus": ["from", "to"],
   "feedback.export": ["format", "rows", "scope"],

@@ -1347,6 +1347,11 @@ export const pages: Shape<(typeof en)["pages"]> = {
       sendNow: "Invia ora",
       sendNowDone: "Inviati {count} agli sviluppatori di inkledger",
       sendNowNone: "Nessun feedback in coda",
+      shareMine: "Condividi con gli sviluppatori di inkledger",
+      shareMineText: "Parte anonimo con il prossimo invio; stato e risposte tornano qui.",
+      shareMineScreenshot: "Includi la schermata",
+      shareMineDone: "In coda per gli sviluppatori di inkledger",
+      notShared: "Non condiviso con gli sviluppatori: l'autore può condividerlo dai suoi feedback.",
     },
   },
 };

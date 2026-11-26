@@ -704,6 +704,11 @@ export const pagesRest = {
       sendNow: "Send now",
       sendNowDone: "Sent {count} to inkledger's developers",
       sendNowNone: "Nothing waiting to be sent",
+      shareMine: "Share with inkledger's developers",
+      shareMineText: "Sent anonymised with the next batch; their state and replies come back here.",
+      shareMineScreenshot: "Include the screenshot",
+      shareMineDone: "Queued for inkledger's developers",
+      notShared: "Not shared with the developers: its author can share it from their own feedback.",
     },
   },
 } satisfies Tree;

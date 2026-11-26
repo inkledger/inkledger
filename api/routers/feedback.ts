@@ -13,7 +13,7 @@ import { createRouter, permProcedure, protectedProcedure } from "../middleware";
 import { holds, withAccess, type Account } from "../queries/accounts";
 import { record } from "../lib/audit";
 import { serverBuild } from "../lib/appBuild";
-import { addComment, commentsOf, createFeedback, feedbackById, feedbackRow, listFeedback, setFeedbackStatus, type FeedbackFilter, type FeedbackView } from "../feedback/store";
+import { addComment, commentsOf, createFeedback, shareLater, feedbackById, feedbackRow, listFeedback, setFeedbackStatus, type FeedbackFilter, type FeedbackView } from "../feedback/store";
 import { feedbackJson, feedbackMarkdown } from "../feedback/export";
 import { forwardQueued, setSharing, sharingAvailable, sharingEnabled } from "../feedback/upstream";
 
@@ -91,6 +91,18 @@ export const feedbackRouter = createRouter({
       await record(ctx, "feedback.create", { target: { type: "feedback", id: row.id, ownerUserId: ctx.user.id }, after: { type: row.type, shared: sharing } });
       // Shared: queued, sent with the server's next batch (the maintenance cycle), never one call per feedback.
       return { id: row.id };
+    }),
+
+  /** The author shares one of their own later (consent given now), queued for the next batch. */
+  share: protectedProcedure
+    .input(z.object({ id: z.number().int().positive(), shareScreenshot: z.boolean().default(false) }))
+    .mutation(async ({ ctx, input }) => {
+      const f = await feedbackById(input.id);
+      if (!f || f.userId !== ctx.user.id) throw notFound();
+      if (!(await sharingEnabled())) throw new TRPCError({ code: "PRECONDITION_FAILED", message: tr("server.feedback.sharingOff") });
+      const queued = await shareLater(f.id, ctx.user.id, input.shareScreenshot);
+      if (queued) await record(ctx, "feedback.share", { target: { type: "feedback", id: f.id, ownerUserId: ctx.user.id }, after: { shareScreenshot: input.shareScreenshot } });
+      return { queued };
     }),
 
   /** A line in the thread: the author on their own, manageFeedback on anyone's. */

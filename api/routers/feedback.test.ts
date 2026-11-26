@@ -426,4 +426,16 @@ describe("feedback", () => {
     expect(r.sent).toBe(1);
     await expect((await as(manager)).feedback.sendNow()).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
   });
+
+  it("an author shares their own later: consent now, queued once, never someone else's, only with sharing on", async () => {
+    const { id } = await (await as(ann)).feedback.create(base);
+    await expect((await as(ann)).feedback.share({ id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const { setSharing } = await import("../feedback/upstream");
+    await setSharing(true);
+    await expect((await as(bob)).feedback.share({ id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect((await as(manager)).feedback.share({ id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await (await as(ann)).feedback.share({ id })).toEqual({ queued: true });
+    expect(await (await as(ann)).feedback.share({ id })).toEqual({ queued: false });
+    expect((await (await as(ann)).feedback.get({ id })).shareState).toBe("queued");
+  });
 });

@@ -1022,6 +1022,7 @@ export const settings: Shape<typeof en> = {
       },
       feedback: {
         create: "Ha inviato un feedback",
+        share: "Ha condiviso il suo feedback con gli sviluppatori",
         comment: "Ha scritto nel thread di un feedback",
         setStatus: "Ha cambiato lo stato di un feedback",
         export: "Ha esportato dei feedback",

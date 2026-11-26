@@ -503,6 +503,7 @@ const CASES: Case[] = [
   { proc: "ideas.get", fields: ["id"], call: (c, a) => c.ideas.get({ id: a.idea }) },
   { proc: "feedback.get", fields: ["id"], call: (c, a) => c.feedback.get({ id: a.feedback }) },
   { proc: "feedback.comment", fields: ["id"], call: (c, a) => c.feedback.comment({ id: a.feedback, body: "mine" }) },
+  { proc: "feedback.share", fields: ["id"], call: (c, a) => c.feedback.share({ id: a.feedback }) },
   { proc: "feedback.export", fields: ["ids"], call: (c, a) => c.feedback.export({ scope: "mine", format: "json", ids: [a.feedback] }), expect: "noLeak" },
   { proc: "ideas.capture", fields: ["containerId"], call: (c, a) => c.ideas.capture({ text: "x", containerId: a.container }) },
   { proc: "ideas.update", fields: ["id"], call: (c, a) => c.ideas.update({ id: a.idea, title: "mine" }) },

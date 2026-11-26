@@ -2,7 +2,7 @@
 // states. Who may see or change what is decided by the caller (api/routers/feedback.ts);
 // here only the reading and writing, and the author's notifications.
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { feedback, feedbackComments, notifications, users, type Feedback } from "@db/schema";
 import type { FeedbackOrigin, FeedbackStatus, FeedbackType } from "@contracts/feedback";
 import { getDb } from "../queries/connection";
@@ -145,6 +145,16 @@ export async function createFeedback(userId: number, f: NewFeedback, queue: bool
 }
 
 /** The author is told in-app (the alerts list, about no tracker) that their feedback changed. */
+/** The author's consent given later: their own, not shared yet, queued for the next batch. True when it was. */
+export async function shareLater(id: number, userId: number, shareScreenshot: boolean, now = new Date()): Promise<boolean> {
+  const rows = await getDb()
+    .update(feedback)
+    .set({ shareConsent: 1, shareScreenshot: shareScreenshot ? 1 : 0, shareState: "queued", updatedAt: now })
+    .where(and(eq(feedback.id, id), eq(feedback.userId, userId), isNull(feedback.shareState)))
+    .returning({ id: feedback.id });
+  return rows.length > 0;
+}
+
 export async function notifyAuthor(row: Pick<Feedback, "id" | "userId" | "title">, what: "status" | "comment", now = Date.now()): Promise<void> {
   await getDb()
     .insert(notifications)

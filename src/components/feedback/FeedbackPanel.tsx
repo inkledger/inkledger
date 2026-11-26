@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -232,6 +233,37 @@ function SharingRow({ on }: { on: boolean }) {
   );
 }
 
+/** The author's own, not shared yet: share it now (consent given here), when this server shares. */
+function ShareMine({ id, hasScreenshot }: { id: number; hasScreenshot: boolean }) {
+  const access = trpc.feedback.access.useQuery();
+  const utils = trpc.useUtils();
+  const [shot, setShot] = useState(false);
+  const share = trpc.feedback.share.useMutation({
+    onSuccess: () => {
+      toast.success(t("pages.feedback.sharing.shareMineDone"));
+      void utils.feedback.invalidate();
+    },
+    onError: e => toastError(e),
+  });
+  if (!access.data?.sharing) return null;
+  return (
+    <div className="grid gap-2 rounded-md border p-3">
+      <p className="text-caption text-muted-foreground">{t("pages.feedback.sharing.shareMineText")}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" size="sm" disabled={share.isPending} onClick={() => share.mutate({ id, shareScreenshot: hasScreenshot && shot })}>
+          {t("pages.feedback.sharing.shareMine")}
+        </Button>
+        {hasScreenshot && (
+          <label className="flex items-center gap-2 text-caption">
+            <Checkbox checked={shot} onCheckedChange={v => setShot(v === true)} />
+            {t("pages.feedback.sharing.shareMineScreenshot")}
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FeedbackDetail({ id, back }: { id: number; back: string }) {
   const q = trpc.feedback.get.useQuery({ id });
   const navigate = useNavigate();
@@ -266,6 +298,8 @@ function FeedbackDetail({ id, back }: { id: number; back: string }) {
           <img src={`/api/feedback/${f.id}/screenshot`} alt={t("pages.feedback.detail.screenshotAlt")} className="max-h-72 max-w-full rounded-md border object-contain" {...surface("picture")} />
         </a>
       )}
+      {f.mine && f.shareState === null && <ShareMine id={f.id} hasScreenshot={f.hasScreenshot} />}
+      {!f.mine && f.canManage && f.shareState === null && <p className="text-caption text-muted-foreground">{t("pages.feedback.sharing.notShared")}</p>}
       {f.canManage && <StatusChanger id={f.id} status={f.status} />}
       <section className="grid gap-3" aria-labelledby={`feedback-${f.id}-thread`}>
         <h3 id={`feedback-${f.id}-thread`} className="text-body font-semibold">

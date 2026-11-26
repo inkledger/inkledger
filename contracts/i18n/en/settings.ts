@@ -1022,6 +1022,7 @@ export const settings = {
       },
       feedback: {
         create: "Sent feedback",
+        share: "Shared their feedback with the developers",
         comment: "Wrote in a feedback's thread",
         setStatus: "Changed a feedback's state",
         export: "Exported feedback",

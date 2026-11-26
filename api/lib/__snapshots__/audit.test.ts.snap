@@ -258,6 +258,12 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "feedback.share": {
+    "kept": [
+      "shareScreenshot",
+    ],
+    "redacted": 17,
+  },
   "info.addHosts": {
     "kept": [
       "hosts",

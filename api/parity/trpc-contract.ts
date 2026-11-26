@@ -88,6 +88,7 @@ export interface FrozenIn {
   "feedback.sendNow": void;
   "feedback.setSharing": { enabled: boolean };
   "feedback.setStatus": { id: number; reason?: string | undefined; status: "accepted" | "discussion" | "implemented" | "in_progress" | "new" | "rejected" };
+  "feedback.share": { id: number; shareScreenshot?: false | true | undefined };
   "flowMap.aggregate": { effectiveRevision?: string | undefined; scope: { deviceClass: "desktop" | "mobile"; surfaceId: "board" | "dashboard" | "desk" | "issues" | "mobile-tabs" | "reports" | "shell-desktop" | "team" | "timesheet" } };
   "flowMap.consent": { enabled: boolean };
   "flowMap.delete": void;
@@ -500,6 +501,7 @@ export interface FrozenOut {
   "feedback.sendNow": { failed: number; refused: number; sent: number };
   "feedback.setSharing": { enabled: boolean };
   "feedback.setStatus": { changed: boolean };
+  "feedback.share": { queued: boolean };
   "flowMap.aggregate": { algorithmVersion: 1; coverage: { activeDays: number; droppedEvents: number; exposures: number; firstAt: number; gaps: number; lastAt: number; sessions: number }; descriptor: { catalogVersion: string; constraintsFingerprint: string; discoveryFingerprint: string; effectiveRevision: string; feedbackFingerprint: string; productDefaultVersion: string; rendererBindingsFingerprint: string; resolverVersion: 1; sourceActiveRevision: string; workspaceFingerprint: string }; evidenceId: string; expectations: readonly { areaId: string; confidence: number; coverage: number; destinationControlId?: string | undefined; id: string; occurrences: number; pattern: "discoverability" | "missing-capability" | "placement"; state: "confirmed" | "rejected" | "unconfirmed" }[]; flows: readonly { count: number; fromControlId: string; toControlId: string }[]; friction: readonly { abandoned: number; backtracks: number; controlId: string; failures: number; loops: number }[]; heat: readonly { activationRate: number; activations: number; anchorId: string; cells: number[][]; controlId: string; exposures: number; failures: number; modalities: { keyboard: number; pointer: number; touch: number; unknown: number }; semanticRevision: number; successes: number }[]; origin: "import" | "local"; scope: { deviceClass: "desktop" | "mobile"; surfaceId: "board" | "dashboard" | "desk" | "issues" | "mobile-tabs" | "reports" | "shell-desktop" | "team" | "timesheet" }; semanticRevision: number };
   "flowMap.consent": { aggregateRetentionDays: number; enabled: boolean; rawRetentionDays: number; updatedAt: number; userId: number };
   "flowMap.delete": { deleted: boolean };
