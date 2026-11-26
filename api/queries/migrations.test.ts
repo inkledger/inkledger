@@ -185,6 +185,7 @@ describe("legacy Jira connections (0047)", () => {
     await query('ALTER TABLE "users" DROP COLUMN "role_id"');
     await query('DROP TABLE "roles"');
     for (const c of ["theme_variant", "theme_contrast"]) await query(`ALTER TABLE "settings" DROP COLUMN "${c}"`);
+    await query('ALTER TABLE "notifications" DROP COLUMN "read_at"');
     await query("delete from drizzle.__drizzle_migrations where created_at >= $1", [journal.find(e => e.tag === "0047_legacy_connections")!.when]);
     await up();
     const streams = await query("select connection_id, stream, checkpoint, last_ok_at, last_full_at from connection_sync order by connection_id, stream");
@@ -254,6 +255,7 @@ describe("migrations over a draft of 0010", () => {
     for (const f of ["inkledger_issue_estimates", "inkledger_worklog_estimates", "inkledger_todo_estimates", "inkledger_user_estimates", "inkledger_raise_estimate_revision"]) await query(`DROP FUNCTION "${f}" CASCADE`);
     for (const t of ["estimate_revisions", "issue_history_reads", "issue_status_changes", "status_snapshots", "work_statuses"]) await query(`DROP TABLE "${t}"`);
     await query('ALTER TABLE "issues" DROP COLUMN "status_id"');
+    await query('ALTER TABLE "notifications" DROP COLUMN "read_at"');
     await query("delete from drizzle.__drizzle_migrations where created_at >= $1", [w10]);
     await query("insert into drizzle.__drizzle_migrations (hash, created_at) values ('draft', $1)", [w10 - 1]);
     await expect(up()).resolves.toBeUndefined();
