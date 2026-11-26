@@ -13,6 +13,8 @@ const MIDDLE_MIN = 160;
  * away (docs/design-system.md §7). Everything is written to the DOM directly, never through React state:
  * - the frozen cells' offsets and the strip's column widths, from a ResizeObserver on the header row;
  * - whether the end's columns stick too (`data-free-end` on the wrapper when the middle would lose its room);
+ * - with the group (joinGroup): the optional columns hidden (`data-narrow`) and the columns frozen at all
+ *   (`data-sticky`) only while the table is wider than its room;
  * - whether something is scrolled under either frozen edge (`data-under-start` / `data-under-end`), from
  *   an IntersectionObserver on two sentinels at the ends of the scrolled content;
  * - whether the header row is under the bars (`data-stuck`, the strip shows), from an IntersectionObserver;
@@ -64,9 +66,10 @@ export function useStickyTable({
         at += widths[cells.length - 1 - j];
         end = at;
       });
+      // Whether the columns stick at all (`data-sticky`) is the group's decision (joinGroup): only while
+      // the table is wider than its room, the same for every table of the page.
       const overflow = scroll.scrollWidth > scroll.clientWidth + 1;
       const freeEnd = overflow && scroll.clientWidth - start - end < MIDDLE_MIN;
-      box.toggleAttribute("data-sticky", true);
       box.toggleAttribute("data-free-end", freeEnd);
       put(box, "--stick-start", `${start}px`);
       put(box, "--stick-end", `${freeEnd ? 0 : end}px`);
@@ -185,8 +188,22 @@ export function useStickyTable({
 /** The title's least width (two lines, clamped): the column that takes what the others leave. */
 const TITLE_MIN = 160;
 const TITLE_COLUMN = 3;
+/**
+ * The columns that leave first when the list is narrower than every column needs (Updated, Due): their
+ * cells and `col`s are marked `data-opt`, hidden while the group has `data-narrow`. Only once they are gone and
+ * the rest still does not fit do the columns stick (`data-sticky`) and the middle scroll sideways.
+ */
+const OPTIONAL = [6, 7];
 
-type Group = { tables: Map<HTMLElement, HTMLElement>; ro: ResizeObserver; mo: MutationObserver; measure: () => void; leader?: HTMLElement | null };
+type Group = {
+  tables: Map<HTMLElement, HTMLElement>;
+  ro: ResizeObserver;
+  mo: MutationObserver;
+  /** Reads the room only (a scroller resized, every frame of a splitter drag): the widths are the last measured. */
+  rooms: ResizeObserver;
+  measure: () => void;
+  leader?: HTMLElement | null;
+};
 const groups = new WeakMap<HTMLElement, Group>();
 
 /**
@@ -199,8 +216,27 @@ function joinGroup(root: HTMLElement, box: HTMLElement, scroll: HTMLElement): ()
   let group = groups.get(root);
   if (!group) {
     const tables = new Map<HTMLElement, HTMLElement>();
+    // The columns' widths as last measured; a hidden column's content measures nothing, so its last width is kept.
+    let widest: number[] = [];
+    // Hidden or not, and sticky or not, from the widths and the room the tables have.
+    const decide = () => {
+      const scroll = tables.values().next().value;
+      if (!scroll) return;
+      const st = getComputedStyle(scroll);
+      const room = scroll.clientWidth - (parseFloat(st.paddingLeft) || 0) - (parseFloat(st.paddingRight) || 0);
+      const sum = (skip: readonly number[]) => widest.reduce((s, w, i) => (w === undefined || skip.includes(i) ? s : s + w), 0) + TITLE_MIN;
+      const narrow = room + 1 < sum([]);
+      root.toggleAttribute("data-narrow", narrow);
+      const least = Math.ceil(sum(narrow ? OPTIONAL : []));
+      const min = `${least}px`;
+      if (root.style.getPropertyValue("--cols-min") !== min) root.style.setProperty("--cols-min", min);
+      const sticky = room + 1 < least;
+      for (const wrap of tables.keys()) wrap.toggleAttribute("data-sticky", sticky);
+    };
     const measure = () => {
-      const widest: number[] = [];
+      const hidden = root.hasAttribute("data-narrow");
+      const kept = widest;
+      widest = [];
       for (const wrap of tables.keys()) {
         const table = wrap.querySelector<HTMLTableElement>("table[data-slot=table]");
         if (!table) continue;
@@ -215,15 +251,13 @@ function joinGroup(root: HTMLElement, box: HTMLElement, scroll: HTMLElement): ()
             widest[i] = Math.max(widest[i] ?? 0, Math.ceil(content.getBoundingClientRect().width + (pads[i] ?? 0)));
           });
       }
-      let sum = 0;
+      if (hidden) for (const i of OPTIONAL) widest[i] = kept[i] ?? widest[i];
       widest.forEach((w, i) => {
         if (w === undefined) return;
-        sum += w;
         const value = `${w}px`;
         if (root.style.getPropertyValue(`--col-${i}`) !== value) root.style.setProperty(`--col-${i}`, value);
       });
-      const min = `${Math.ceil(sum + TITLE_MIN)}px`;
-      if (root.style.getPropertyValue("--cols-min") !== min) root.style.setProperty("--cols-min", min);
+      decide();
       // The list's least width, for the split around it (`[data-list-min-host]`, its first child the list): the
       // frozen start, one scrolled column's room, and what the list puts around its table.
       const host = root.closest<HTMLElement>("[data-list-min-host]");
@@ -248,7 +282,8 @@ function joinGroup(root: HTMLElement, box: HTMLElement, scroll: HTMLElement): ()
       watchAll();
       measure();
     });
-    group = { tables, ro, mo, measure };
+    const rooms = new ResizeObserver(decide);
+    group = { tables, ro, mo, rooms, measure };
     groups.set(root, group);
   }
   const g = group;
@@ -267,17 +302,22 @@ function joinGroup(root: HTMLElement, box: HTMLElement, scroll: HTMLElement): ()
   g.tables.set(box, scroll);
   if (first) scroll.scrollLeft = first.scrollLeft;
   scroll.addEventListener("scroll", follow, { passive: true });
+  g.rooms.observe(scroll);
   const body = box.querySelector("table[data-slot=table]");
   if (body) g.mo.observe(body, { childList: true, subtree: true });
   for (const el of box.querySelectorAll("table[data-slot=table] [data-col], table[data-slot=table] th > button")) g.ro.observe(el);
   g.measure();
   return () => {
     scroll.removeEventListener("scroll", follow);
+    g.rooms.unobserve(scroll);
+    box.removeAttribute("data-sticky");
     g.tables.delete(box);
     for (const el of box.querySelectorAll("[data-col], th > button")) g.ro.unobserve(el);
     if (g.tables.size === 0) {
       g.ro.disconnect();
       g.mo.disconnect();
+      g.rooms.disconnect();
+      root.removeAttribute("data-narrow");
       groups.delete(root);
     } else g.measure();
   };

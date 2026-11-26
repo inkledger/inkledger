@@ -163,7 +163,7 @@ function StoreCard({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
         aria-label={t("settings.store.openDetails", { name })}
         className="group relative block overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <StoreImage src={e.hero ?? e.image} name={name} className="aspect-video w-full" />
+        <StoreImage src={e.hero ?? e.image} className="aspect-video w-full" />
         {e.badge && (
           <span className="absolute left-3 top-3">
             <BadgeChip badge={e.badge} />
@@ -206,7 +206,7 @@ function StoreTile({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
         aria-label={t("settings.store.openDetails", { name })}
         className="group relative block overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <StoreImage src={e.hero ?? e.image} name={name} className="aspect-[16/10] w-full" />
+        <StoreImage src={e.hero ?? e.image} className="aspect-[16/10] w-full" />
         {e.badge && (
           <span className="absolute left-2 top-2">
             <BadgeChip badge={e.badge} />
@@ -248,7 +248,7 @@ function LocalCard({
   const [settings, setSettings] = useState(false);
   return (
     <li data-store-item={m.id} {...surface("card")} className={cn("flex items-center gap-3 rounded-xl border bg-card p-4", className)}>
-      <StoreImage picture name={name} className="h-12 w-12 shrink-0 rounded-lg" />
+      <StoreImage picture className="h-12 w-12 shrink-0 rounded-lg" />
       <p className="min-w-0 flex-1">
         <span className="block truncate font-medium">{name}</span>
         <span className="text-caption text-muted-foreground tabular">{t("settings.store.version", { version: m.version })}</span>

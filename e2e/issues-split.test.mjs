@@ -5,9 +5,10 @@ import { seedDense } from "./fixtures/dense.mjs";
 import { LOOKS, lookName, scanLayout } from "./visual-sweep.mjs";
 
 // The Issues page's split (docs/design-system.md §7.1): the preview beside the list is resized on its edge
-// (dragged, by the keys, back to the default by a double click) and keeps its width on this device; the
-// catalogue's first columns (pick, star, key, title) and last ones (timer, actions) stay put while the
-// middle scrolls sideways, and its header stays under the bars while the rows scroll.
+// (dragged, by the keys, back to the default by a double click) and keeps its width on this device. At rest
+// the catalogue fits its list (Updated and Due leave when the list is too narrow for them) and
+// nothing is frozen; a list narrower still freezes the first columns (pick, star, key, title) and last ones
+// (timer, actions) while the middle scrolls sideways. Its header stays under the bars while the rows scroll.
 
 const previewWidth = page => page.locator("[data-issues-preview]").evaluate(el => el.getBoundingClientRect().width);
 
@@ -106,27 +107,26 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
       await table.locator("tbody tr").first().waitFor();
       await page.mouse.move(0, 0);
       // Settled: the list and the favourites both drawn, their shared columns measured and applied (both
-      // load on their own; a slower machine draws one first), the frozen columns placed.
-      await page.waitForFunction(() => {
+      // load on their own; a slower machine draws one first).
+      const settled = sticky => page.waitForFunction(sticky => {
         if (document.querySelector('[aria-busy="true"]')) return false;
         const heads = [...document.querySelectorAll(".sticky-table table[data-slot=table] thead tr")];
-        if (heads.length < 2 || [...document.querySelectorAll(".sticky-table")].some(w => !w.hasAttribute("data-sticky") || !w.querySelector("tbody tr"))) return false;
+        if (heads.length < 2 || [...document.querySelectorAll(".sticky-table")].some(w => w.hasAttribute("data-sticky") !== sticky || !w.querySelector("tbody tr"))) return false;
         const at = tr => [...tr.cells].map(c => Math.round(c.getBoundingClientRect().left)).join();
         return heads.every(h => at(h) === at(heads[0]));
-      });
+      }, sticky);
       const scroller = table.locator("[data-slot=table-container]");
-      assert.equal(await table.getAttribute("data-sticky"), "", `${name}: the columns stick`);
-      const overflow = await scroller.evaluate(s => s.scrollWidth - s.clientWidth);
-      assert.ok(overflow > 40, `${name}: the table scrolls sideways (${overflow})`);
-      assert.deepEqual(await page.evaluate(scanLayout), [], `${name}: nothing overlaps, unscrolled`);
-      // One column template: the favourites' columns and the rest's are at the same places.
-      const columns = await page.evaluate(() =>
-        [...document.querySelectorAll(".sticky-table table[data-slot=table] thead tr")].map(tr => [...tr.cells].map(c => { const b = c.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.width)]; }))
-      );
-      assert.ok(columns.length >= 2, `${name}: favourites and the rest are both shown`);
-      for (const other of columns.slice(1)) assert.deepEqual(other, columns[0], `${name}: the groups' columns line up`);
-      // No row drawn past the panel's content: beside the section's padding edge nothing of the table shows.
-      const past = await page.evaluate(() => {
+      // What holds at rest and narrowed alike: nothing overlaps, one column template, no row past the panel.
+      const common = async when => {
+        assert.deepEqual(await page.evaluate(scanLayout), [], `${name} ${when}: nothing overlaps, unscrolled`);
+        // One column template: the favourites' columns and the rest's are at the same places.
+        const columns = await page.evaluate(() =>
+          [...document.querySelectorAll(".sticky-table table[data-slot=table] thead tr")].map(tr => [...tr.cells].map(c => { const b = c.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.width)]; }))
+        );
+        assert.ok(columns.length >= 2, `${name} ${when}: favourites and the rest are both shown`);
+        for (const other of columns.slice(1)) assert.deepEqual(other, columns[0], `${name} ${when}: the groups' columns line up`);
+        // No row drawn past the panel's content: beside the section's padding edge nothing of the table shows.
+        const past = await page.evaluate(() => {
         const section = document.querySelector("section[data-workspace-anchor='issues.catalog']");
         const st = getComputedStyle(section);
         const s = section.getBoundingClientRect();
@@ -141,8 +141,55 @@ test("issues: frozen columns stay put while the middle scrolls, in every look", 
           if (hit && tr.contains(hit)) out.push(`row shows at ${right + 4}`);
         }
         return out;
+        });
+        assert.deepEqual(past, [], `${name} ${when}: no row past the panel's content`);
+      };
+
+      // At rest, the preview at its default width: the table fits (the dates may have left), nothing is frozen,
+      // no edge is drawn, and every column's header is whole.
+      await settled(false);
+      assert.ok((await scroller.evaluate(s => s.scrollWidth - s.clientWidth)) <= 0, `${name}: no sideways scroll at rest`);
+      const clipped = await page.evaluate(() =>
+        [...document.querySelectorAll(".sticky-table table[data-slot=table] thead th")]
+          .filter(th => th.getBoundingClientRect().width > 0)
+          .filter(th => {
+            const b = th.getBoundingClientRect();
+            const label = th.querySelector(":scope > :is([data-col], button)")?.getBoundingClientRect();
+            const hit = label && document.elementFromPoint(label.left + 2, label.top + label.height / 2);
+            return label && (label.left < b.left - 0.5 || label.right > b.right + 0.5 || (hit && !th.contains(hit)));
+          })
+          .map(th => th.textContent.trim())
+      );
+      assert.deepEqual(clipped, [], `${name}: every header whole at rest`);
+      const edges = await page.evaluate(() =>
+        [...document.querySelectorAll(".sticky-table [data-stick-edge]")].flatMap(c => ["::before", "::after"].map(p => getComputedStyle(c, p).content)).filter(c => c !== "none" && c !== "normal")
+      );
+      assert.deepEqual(edges, [], `${name}: no frozen edge at rest`);
+      // The row's actions show at rest (quiet, never hover-only).
+      const actions = await table.locator("tbody tr").nth(1).locator("td[data-stick='r1'] button").first().evaluate(b => {
+        const r = b.getBoundingClientRect();
+        let op = 1;
+        for (let el = b; el; el = el.parentElement) op *= Number(getComputedStyle(el).opacity);
+        return { op, w: r.width, color: getComputedStyle(b).color };
       });
-      assert.deepEqual(past, [], `${name}: no row past the panel's content`);
+      assert.ok(actions.op === 1 && actions.w > 0 && !actions.color.endsWith(", 0)"), `${name}: row actions visible at rest (${JSON.stringify(actions)})`);
+      await common("at rest");
+
+      // The list narrowed (the preview 160 px wider): the table overflows and freezes, both ends (the list at its
+      // least width, where the end scrolls with the middle, is the first test's).
+      await page.getByRole("separator", { name: /^Ridimensiona|^Resize/ }).focus();
+      // Widened 16 px at a time until the table scrolls well sideways.
+      for (let i = 0; i < 30 && (await scroller.evaluate(s => s.scrollWidth - s.clientWidth)) < 64; i++) {
+        await page.keyboard.press("ArrowLeft");
+        await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+      }
+      await settled(true);
+      await page.mouse.move(0, 0);
+      assert.equal(await table.getAttribute("data-sticky"), "", `${name}: the columns stick`);
+      const overflow = await scroller.evaluate(s => s.scrollWidth - s.clientWidth);
+      assert.ok(overflow > 40, `${name}: the table scrolls sideways (${overflow})`);
+      assert.equal(await table.getAttribute("data-free-end"), null, `${name}: both ends stay frozen`);
+      await common("narrowed");
 
       const row = table.locator("tbody tr").first();
       const cells = { key: row.locator('td[data-stick="3"]'), title: row.locator('td[data-stick="4"]'), timer: row.locator('td[data-stick="r2"]'), status: row.locator("td:nth-child(5)") };
