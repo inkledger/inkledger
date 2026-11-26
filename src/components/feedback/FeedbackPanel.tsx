@@ -24,6 +24,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { statusLabel, statusTone, typeLabel } from "./labels";
+import { PublicLinks } from "./PublicLinks";
 
 const ANY = "any";
 
@@ -291,6 +292,7 @@ function FeedbackDetail({ id, back }: { id: number; back: string }) {
           {t("pages.feedback.detail.sentFrom", { page: f.page || "-", version: f.appVersion || "-", look: f.look || "-", density: f.density || "-" })}
         </p>
         {f.status === "rejected" && f.statusReason && <p className="text-body-sm [overflow-wrap:anywhere]">{t("pages.feedback.detail.reason", { reason: f.statusReason })}</p>}
+        <PublicLinks feedback={f} />
       </header>
       {f.body && <p className="whitespace-pre-wrap text-body-sm [overflow-wrap:anywhere]">{f.body}</p>}
       {f.hasScreenshot && (
