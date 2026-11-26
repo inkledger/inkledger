@@ -701,6 +701,9 @@ export const pagesRest = {
       label: "Share feedback with inkledger's developers",
       on: "Sharing turned on",
       off: "Sharing turned off",
+      sendNow: "Send now",
+      sendNowDone: "Sent {count} to inkledger's developers",
+      sendNowNone: "Nothing waiting to be sent",
     },
   },
 } satisfies Tree;

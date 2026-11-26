@@ -415,4 +415,15 @@ describe("feedback", () => {
       expect(new Uint8Array(Buffer.from(shot?.data ?? "", "base64"))).toEqual(PNG);
     });
   });
+
+  it("Send now: only manageFeedback, only with sharing on, at most every few minutes; it sends the consented queue", async () => {
+    await expect((await as(manager)).feedback.sendNow()).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await expect((await as(ann)).feedback.sendNow()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const { setSharing } = await import("../feedback/upstream");
+    await setSharing(true);
+    await (await as(ann)).feedback.create({ ...base, share: true });
+    const r = await (await as(manager)).feedback.sendNow();
+    expect(r.sent).toBe(1);
+    await expect((await as(manager)).feedback.sendNow()).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+  });
 });

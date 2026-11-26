@@ -207,13 +207,27 @@ function SharingRow({ on }: { on: boolean }) {
     },
     onError: e => toastError(e),
   });
+  const send = trpc.feedback.sendNow.useMutation({
+    onSuccess: r => {
+      toast.success(r.sent > 0 ? t("pages.feedback.sharing.sendNowDone", { count: r.sent }) : t("pages.feedback.sharing.sendNowNone"));
+      void utils.feedback.invalidate();
+    },
+    onError: e => toastError(e),
+  });
   return (
     <div className="flex items-start justify-between gap-3 border-b px-5 py-3 md:px-6">
       <div className="min-w-0">
         <p className="text-body-sm font-medium">{t("pages.feedback.sharing.title")}</p>
         <p className="text-caption text-muted-foreground">{t("pages.feedback.sharing.text")}</p>
       </div>
-      <Switch aria-label={t("pages.feedback.sharing.label")} checked={on} disabled={save.isPending} onCheckedChange={v => save.mutate({ enabled: v })} />
+      <div className="flex shrink-0 items-center gap-3">
+        {on && (
+          <Button variant="outline" size="sm" disabled={send.isPending} onClick={() => send.mutate()}>
+            {t("pages.feedback.sharing.sendNow")}
+          </Button>
+        )}
+        <Switch aria-label={t("pages.feedback.sharing.label")} checked={on} disabled={save.isPending} onCheckedChange={v => save.mutate({ enabled: v })} />
+      </div>
     </div>
   );
 }

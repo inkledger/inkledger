@@ -320,6 +320,10 @@
     "type": "query"
   },
   {
+    "path": "feedback.sendNow",
+    "type": "mutation"
+  },
+  {
     "path": "feedback.setSharing",
     "type": "mutation"
   },

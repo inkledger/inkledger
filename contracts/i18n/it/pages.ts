@@ -1344,6 +1344,9 @@ export const pages: Shape<(typeof en)["pages"]> = {
       label: "Condividi i feedback con gli sviluppatori di inkledger",
       on: "Condivisione accesa",
       off: "Condivisione spenta",
+      sendNow: "Invia ora",
+      sendNowDone: "Inviati {count} agli sviluppatori di inkledger",
+      sendNowNone: "Nessun feedback in coda",
     },
   },
 };

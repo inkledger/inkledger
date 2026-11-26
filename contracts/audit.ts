@@ -163,6 +163,7 @@ export const AUDIT_ACTIONS = {
   "feedback.setStatus": ["from", "to"],
   "feedback.export": ["format", "rows", "scope"],
   "feedback.setSharing": ["enabled"],
+  "feedback.sendNow": ["sent", "refused", "failed"],
   "feedback.forward": ["sent", "refused", "failed", "updated"],
   // The log itself
   "audit.export": ["format", "rows", "filters"],

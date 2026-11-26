@@ -1026,6 +1026,7 @@ export const settings: Shape<typeof en> = {
         setStatus: "Ha cambiato lo stato di un feedback",
         export: "Ha esportato dei feedback",
         setSharing: "Ha acceso o spento la condivisione dei feedback con gli sviluppatori",
+        sendNow: "Ha inviato agli sviluppatori i feedback in coda",
         forward: "Feedback condivisi con gli sviluppatori e loro risposte lette",
       },
       connections: {

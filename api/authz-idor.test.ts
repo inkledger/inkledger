@@ -889,6 +889,7 @@ const PERMISSION_OF: Record<string, Permission> = {
   "feedback.all": "readFeedback",
   "feedback.setStatus": "manageFeedback",
   "feedback.setSharing": "manageFeedback",
+  "feedback.sendNow": "manageFeedback",
 };
 /** Open to anyone (signing in, the session itself). */
 const PUBLIC = ["ping", "auth.login", "auth.activate", "auth.invite", "auth.acceptInvite", "auth.remembered", "auth.resume", "auth.forget", "auth.me", "auth.logout", "sso.loginOptions"];

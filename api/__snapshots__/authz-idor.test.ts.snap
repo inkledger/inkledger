@@ -142,6 +142,13 @@ exports[`each system role reaches what its permissions hold > matches the checke
     "owner": "allow",
     "team-lead": "deny",
   },
+  "feedback.sendNow": {
+    "auditor": "deny",
+    "it-admin": "allow",
+    "member": "deny",
+    "owner": "allow",
+    "team-lead": "deny",
+  },
   "feedback.setSharing": {
     "auditor": "deny",
     "it-admin": "allow",

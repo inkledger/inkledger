@@ -237,6 +237,14 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "feedback.sendNow": {
+    "kept": [
+      "failed",
+      "refused",
+      "sent",
+    ],
+    "redacted": 17,
+  },
   "feedback.setSharing": {
     "kept": [
       "enabled",

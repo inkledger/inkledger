@@ -15,7 +15,11 @@ import { record } from "../lib/audit";
 import { serverBuild } from "../lib/appBuild";
 import { addComment, commentsOf, createFeedback, feedbackById, feedbackRow, listFeedback, setFeedbackStatus, type FeedbackFilter, type FeedbackView } from "../feedback/store";
 import { feedbackJson, feedbackMarkdown } from "../feedback/export";
-import { setSharing, sharingAvailable, sharingEnabled } from "../feedback/upstream";
+import { forwardQueued, setSharing, sharingAvailable, sharingEnabled } from "../feedback/upstream";
+
+/** "Send now" at most every few minutes per server: the inbox keeps its own caps, this keeps clicks cheap. */
+const SEND_NOW_GAP_MS = 5 * 60_000;
+let lastSendNow = 0;
 
 const status = z.enum(FEEDBACK_STATUSES);
 const type = z.enum(FEEDBACK_TYPES);
@@ -122,6 +126,17 @@ export const feedbackRouter = createRouter({
       ctx.audit.set({ target: { type: "server", id: "feedback.sharing" }, after: { enabled: input.enabled } });
       return { enabled: input.enabled };
     }),
+
+  /** The queued (consented) feedback sent now instead of at the next 6-hour round. */
+  sendNow: permProcedure("manageFeedback").mutation(async ({ ctx }) => {
+    if (!(await sharingEnabled())) throw new TRPCError({ code: "PRECONDITION_FAILED", message: tr("server.feedback.sendNowOff") });
+    const now = Date.now();
+    if (now - lastSendNow < SEND_NOW_GAP_MS) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: tr("server.feedback.sendNowWait") });
+    lastSendNow = now;
+    const r = await forwardQueued({ now });
+    ctx.audit.set({ target: { type: "server", id: "feedback.sendNow" }, after: r });
+    return r;
+  }),
 
   /**
    * Feedback as a file: the ones picked, or what a filter shows. Of the caller's own, or

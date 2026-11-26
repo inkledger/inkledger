@@ -49,6 +49,7 @@ const CASES: Record<string, { input: (t: { member: number }) => unknown; action?
   "audit.setRetention": { input: () => ({ days: 120 }) },
   "feedback.setStatus": { input: () => ({ id: 999999, status: "accepted" }) },
   "feedback.setSharing": { input: () => ({ enabled: false }) },
+  "feedback.sendNow": { input: () => undefined },
   "alerts.setWebhook": { input: () => ({ url: "https://203.0.113.10/SECRET-hook-path", format: "json" }) },
   "alerts.test": { input: () => undefined },
   "backup.update": { input: () => ({ keep: 5 }) },

@@ -1026,6 +1026,7 @@ export const settings = {
         setStatus: "Changed a feedback's state",
         export: "Exported feedback",
         setSharing: "Turned sharing feedback with the developers on or off",
+        sendNow: "Sent the queued feedback to the developers",
         forward: "Shared feedback with the developers and read back their answers",
       },
       connections: {
