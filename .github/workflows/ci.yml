@@ -45,8 +45,13 @@ jobs:
     # ubuntu-latest is Ubuntu 26.04 since 2026-10-19, which Playwright 1.57 cannot install a browser on.
     runs-on: ubuntu-24.04
     needs: check
-    # The whole suite takes about 45 minutes on the runner, one file at a time.
+    # The whole suite takes about 50 minutes on the runner, one file at a time: two shards of about 25 minutes,
+    # split by each file's recent duration (scripts/e2e-shard.mjs). Jobs that need e2e wait for both.
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     services:
       postgres:
         image: postgres:17-alpine
@@ -63,6 +68,7 @@ jobs:
       # Never a real tracker from a test server.
       PROVIDERS_READ_ONLY: "1"
       JIRA_READ_ONLY: "1"
+      SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
@@ -72,13 +78,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright-core install --with-deps chromium-headless-shell
+      - run: node scripts/e2e-shard.mjs --check 2
       # One file at a time: two browsers and servers at once overload the runner (timeouts that vary from run to run).
-      - run: pnpm build && node --test --test-concurrency=1 --test-timeout=300000 'e2e/*.test.mjs'
+      - run: pnpm build && node --test --test-concurrency=1 --test-timeout=300000 $(node scripts/e2e-shard.mjs "$SHARD" 2)
       # A failed test's screenshots, HTML, console and server log (e2e/harness.mjs), to see what it waited on.
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-artifacts
+          name: e2e-artifacts-${{ matrix.shard }}
           path: e2e-artifacts/
           if-no-files-found: ignore
           retention-days: 14
