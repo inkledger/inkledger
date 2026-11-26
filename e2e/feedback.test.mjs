@@ -1,4 +1,4 @@
-// Feedback in the browser: sent from the account menu, followed in Info › Feedback, its state
+// Feedback in the browser: sent from the account menu, followed on the Feedback page, its state
 // changed by an admin and seen by its author; Back keeps the list's filters and place.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -36,8 +36,8 @@ test("sent from the account menu, listed as mine, moved by an admin, seen by its
         await sheet.waitFor({ state: "detached" });
         await giulia.getByText("Feedback sent").waitFor();
 
-        // Info › Feedback: hers, new.
-        await giulia.goto(base + "/info/feedback");
+        // The Feedback page: hers, new.
+        await giulia.goto(base + "/feedback");
         const list = giulia.getByRole("list", { name: "Feedback" });
         const row = list.getByRole("link", { name: /A weekly total in the header/ });
         await row.waitFor();
@@ -46,13 +46,13 @@ test("sent from the account menu, listed as mine, moved by an admin, seen by its
         assert.deepEqual({ ...stored, id: undefined }, { id: undefined, user_id: 2, type: "idea", page: "/timesheet", share_state: null });
 
         // Mario (an owner) sees everyone's; filtered to new ones, he opens hers and accepts it.
-        await page.goto(base + "/info/feedback?scope=all");
+        await page.goto(base + "/feedback?scope=all");
         await page.getByRole("combobox", { name: "State" }).first().click();
         await page.getByRole("option", { name: "New" }).click();
         await page.waitForURL(/status=new/);
         const theirs = page.getByRole("list", { name: "Feedback" }).getByRole("link", { name: /A weekly total in the header/ });
         await theirs.click();
-        await page.waitForURL(new RegExp(`/info/feedback/${stored.id}\\?.*status=new`));
+        await page.waitForURL(new RegExp(`/feedback/${stored.id}\\?.*status=new`));
         const detail = page.getByRole("article");
         await detail.getByRole("heading", { name: "A weekly total in the header" }).waitFor();
         await detail.getByRole("combobox", { name: "State" }).click();
@@ -63,7 +63,7 @@ test("sent from the account menu, listed as mine, moved by an admin, seen by its
 
         // Back: the list as it was, its filter kept.
         await page.goBack();
-        await page.waitForURL(u => u.pathname === "/info/feedback" && u.searchParams.get("status") === "new" && u.searchParams.get("scope") === "all");
+        await page.waitForURL(u => u.pathname === "/feedback" && u.searchParams.get("status") === "new" && u.searchParams.get("scope") === "all");
         assert.match(await page.getByRole("combobox", { name: "State" }).first().innerText(), /New/);
 
         // Giulia sees it accepted, and was told.
@@ -82,7 +82,7 @@ test("sent from the account menu, listed as mine, moved by an admin, seen by its
   );
 });
 
-test("on a phone: More, the account, Send feedback; it lands in Info › Feedback", () =>
+test("on a phone: More, the account, Send feedback; it lands on the Feedback page", () =>
   withApp(
     { viewport: { width: 390, height: 844 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" },
     async ({ page, base, db }) => {
@@ -95,7 +95,7 @@ test("on a phone: More, the account, Send feedback; it lands in Info › Feedbac
       await sheet.getByLabel("Title").fill("Hard to reach on the phone");
       await sheet.getByRole("button", { name: "Send" }).click();
       await sheet.waitFor({ state: "detached" });
-      await page.goto(base + "/info/feedback");
+      await page.goto(base + "/feedback");
       await page.getByRole("list", { name: "Feedback" }).getByRole("link", { name: /Hard to reach on the phone/ }).click();
       // One pane at a time: the detail, with its way back to the list.
       await page.getByRole("article").getByRole("heading", { name: "Hard to reach on the phone" }).waitFor();

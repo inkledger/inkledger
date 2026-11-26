@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { ArrowLeft, Download, MessageSquarePlus, Send } from "lucide-react";
@@ -13,6 +13,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Chip } from "@/components/app/Chip";
+import { PageToolbar } from "@/components/app/PageToolbar";
+import { Splitter } from "@/components/app/Splitter";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatWidth, parseWidth, splitBounds } from "@/lib/layout/split";
+import { deviceSetting } from "@/lib/storage";
 import { ListRow } from "@/components/app/ListRow";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { EmptyState, ErrorState } from "@/components/app/States";
@@ -23,10 +28,15 @@ import { errorText, toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { useAlerts } from "@/components/notifications/alerts";
 import { statusLabel, statusTone, typeLabel } from "./labels";
 import { PublicLinks } from "./PublicLinks";
 
 const ANY = "any";
+
+/** The preview's width beside the list (px; null: half the region), kept on this device like Notifications'. */
+const previewWidth = deviceSetting("ikl-feedback-preview-width", parseWidth, formatWidth);
+const previewBounds = (container: number) => splitBounds({ container, viewport: window.innerWidth, paneMin: 360, mainMin: 420, viewportShare: 0.6 });
 
 /** The list's filters, kept in the URL: Back and a reload find the same list. */
 function useFilters() {
@@ -61,12 +71,15 @@ function useFilters() {
 }
 
 /**
- * Info › Feedback: everyone's own feedback with its state and thread; with readFeedback,
+ * The Feedback page: everyone's own feedback with its state and thread; with readFeedback,
  * everyone's, filtered; with manageFeedback, the state changed and answered. List and
  * detail side by side on a wide panel, one at a time on a narrow one (Back returns).
  */
 export function FeedbackPanel({ selected }: { selected: number | null }) {
   const { filters, set, clear, search } = useFilters();
+  const splitRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLElement>(null);
+  const width = previewWidth.use();
   const access = trpc.feedback.access.useQuery();
   const readAll = access.data?.readAll === true;
   const scope = readAll ? filters.scope : "mine";
@@ -89,39 +102,46 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
     }
   };
 
+  const toolbar = (
+    <PageToolbar label={t("pages.feedback.list.filters")}>
+      {readAll && (
+        <SegmentedControl
+          label={t("pages.feedback.list.scope")}
+          value={scope}
+          onChange={v => set("scope", v)}
+          options={[
+            { value: "mine", label: t("pages.feedback.list.mine") },
+            { value: "all", label: t("pages.feedback.list.all") },
+          ]}
+        />
+      )}
+      <FilterSelect label={t("pages.feedback.list.status")} value={filters.status ?? ANY} any={t("pages.feedback.list.anyStatus")} options={FEEDBACK_STATUSES.map(s => [s, statusLabel(s)] as const)} onChange={v => set("status", v)} />
+      <FilterSelect label={t("pages.feedback.list.type")} value={filters.type ?? ANY} any={t("pages.feedback.list.anyType")} options={FEEDBACK_TYPES.map(s => [s, typeLabel(s)] as const)} onChange={v => set("type", v)} />
+      {scope === "all" && (
+        <FilterSelect label={t("pages.feedback.list.person")} value={filters.userId ? String(filters.userId) : ANY} any={t("pages.feedback.list.anyone")} options={authors.map(([id, name]) => [String(id), name] as const)} onChange={v => set("user", v)} />
+      )}
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="ml-auto" aria-label={t("pages.feedback.list.export")} disabled={exportMut.isPending || !list.data?.length}>
+                <Download className="h-4 w-4" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{t("pages.feedback.list.export")}</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => void doExport("markdown")}>{t("pages.feedback.list.exportMarkdown")}</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void doExport("json")}>{t("pages.feedback.list.exportJson")}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </PageToolbar>
+  );
+
   const listPane = (
-    <div className={cn("min-w-0 border-b @xl:border-b-0 @xl:border-r", selected !== null && "hidden @xl:block")}>
+    <div className={cn("min-w-0", selected !== null && "max-@xl:hidden")}>
       {access.data?.manage && access.data.sharingAvailable && <SharingRow on={access.data.sharing} />}
-      <div className="flex flex-wrap items-center gap-2 border-b px-5 py-3 md:px-6">
-        {readAll && (
-          <SegmentedControl
-            label={t("pages.feedback.list.scope")}
-            value={scope}
-            onChange={v => set("scope", v)}
-            options={[
-              { value: "mine", label: t("pages.feedback.list.mine") },
-              { value: "all", label: t("pages.feedback.list.all") },
-            ]}
-          />
-        )}
-        <FilterSelect label={t("pages.feedback.list.status")} value={filters.status ?? ANY} any={t("pages.feedback.list.anyStatus")} options={FEEDBACK_STATUSES.map(s => [s, statusLabel(s)] as const)} onChange={v => set("status", v)} />
-        <FilterSelect label={t("pages.feedback.list.type")} value={filters.type ?? ANY} any={t("pages.feedback.list.anyType")} options={FEEDBACK_TYPES.map(s => [s, typeLabel(s)] as const)} onChange={v => set("type", v)} />
-        {scope === "all" && (
-          <FilterSelect label={t("pages.feedback.list.person")} value={filters.userId ? String(filters.userId) : ANY} any={t("pages.feedback.list.anyone")} options={authors.map(([id, name]) => [String(id), name] as const)} onChange={v => set("user", v)} />
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" disabled={exportMut.isPending || !list.data?.length}>
-              <Download className="mr-1.5 h-4 w-4" aria-hidden />
-              {t("pages.feedback.list.export")}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => void doExport("markdown")}>{t("pages.feedback.list.exportMarkdown")}</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => void doExport("json")}>{t("pages.feedback.list.exportJson")}</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
       {list.error ? (
         <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
       ) : list.isPending ? (
@@ -139,7 +159,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
             action={
               <Button size="sm" onClick={() => openFeedback()}>
                 <MessageSquarePlus className="mr-1.5 h-4 w-4" aria-hidden />
-                {t("ui.feedback.send")}
+                {t("pages.feedback.new")}
               </Button>
             }
           />
@@ -149,7 +169,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
           {list.data.map(f => (
             <li key={f.id}>
               <Link
-                to={`/info/feedback/${f.id}${suffix}`}
+                to={`/feedback/${f.id}${suffix}`}
                 aria-current={f.id === selected ? "true" : undefined}
                 className={cn("block rounded-md px-2 outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring", f.id === selected && "bg-accent")}
               >
@@ -166,19 +186,45 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
     </div>
   );
 
+  // As Notifications: list and preview side by side from a wide region (@xl), the preview half of it to
+  // start (50cqw), resized with the Splitter and kept on this device; narrower, one at a time.
   return (
-    <div className="region">
-      <div className="@xl:grid @xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        {listPane}
-        <div className={cn("min-w-0", selected === null && "hidden @xl:block")}>
-          {selected === null ? (
-            <p className="p-6 text-body-sm text-muted-foreground">{t("pages.feedback.list.pick")}</p>
-          ) : (
-            <FeedbackDetail id={selected} back={`/info/feedback${suffix}`} />
-          )}
+    <>
+      {toolbar}
+      <div className="region">
+        <div
+          ref={splitRef}
+          style={{ "--feedback-preview-w": width === null ? undefined : `${width}px` } as CSSProperties}
+          className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(360px,var(--feedback-preview-w,50cqw),min(60vw,100cqw_-_420px))]"
+        >
+          {listPane}
+          <aside
+            ref={previewRef}
+            id="feedback-preview"
+            aria-label={t("pages.feedback.list.preview")}
+            className={cn(
+              "relative min-h-0 min-w-0 @xl:sticky @xl:top-[calc(var(--page-header-h,0px)+var(--page-toolbar-h,0px))] @xl:max-h-[calc(100dvh-2rem-var(--page-header-h,0px)-var(--page-toolbar-h,0px))] @xl:overflow-y-auto @xl:border-l",
+              selected === null && "max-@xl:hidden"
+            )}
+          >
+            <Splitter
+              grid={splitRef}
+              pane={{ id: "feedback-preview", ref: previewRef }}
+              cssVar="--feedback-preview-w"
+              bounds={previewBounds}
+              onChange={w => previewWidth.set(w)}
+              label={t("pages.feedback.list.resizePreview")}
+              className="max-@xl:hidden"
+            />
+            {selected === null ? (
+              <EmptyState className="py-16" title={t("pages.feedback.list.preview")} message={t("pages.feedback.list.pick")} />
+            ) : (
+              <FeedbackDetail id={selected} back={`/feedback${suffix}`} />
+            )}
+          </aside>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -265,9 +311,22 @@ function ShareMine({ id, hasScreenshot }: { id: number; hasScreenshot: boolean }
   );
 }
 
+/** Opening one's own feedback reads its news: the alerts about it leave the bell and the Feedback tile's badge. */
+function useReadNews(id: number) {
+  const alerts = useAlerts();
+  const utils = trpc.useUtils();
+  const { mutate } = trpc.notifications.dismissMany.useMutation({ onSuccess: () => void utils.notifications.alerts.invalidate() });
+  // As text: a new array on every poll would ask again for the same ones.
+  const news = (alerts.data ?? []).filter(a => a.alert === "feedback" && a.ref === id).map(a => a.id).join(",");
+  useEffect(() => {
+    if (news) mutate({ ids: news.split(",").map(Number) });
+  }, [news, mutate]);
+}
+
 function FeedbackDetail({ id, back }: { id: number; back: string }) {
   const q = trpc.feedback.get.useQuery({ id });
   const navigate = useNavigate();
+  useReadNews(id);
   if (q.error) return <ErrorState title={t("pages.feedback.detail.notFound")} message={errorText(q.error)} onRetry={() => void q.refetch()} />;
   if (q.isPending) return <Skeleton className="m-6 h-64" aria-hidden />;
   const f = q.data;

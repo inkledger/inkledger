@@ -261,7 +261,7 @@ For Lighthouse against the real development data, use `pnpm preview` at `http://
 
 ## Feedback inbox protocol
 
-People send feedback about the app from the account menu, ⌘K or "Report" on an error; it stays on your server (Info › Feedback). Sharing it with inkledger's developers is **off** until an administrator (`manageFeedback`) turns it on, and then each feedback leaves only if its author ticks the consent on it. Where it goes is `FEEDBACK_URL`:
+People send feedback about the app from the account menu, ⌘K or "Report" on an error; it stays on your server (the Feedback page). Sharing it with inkledger's developers is **off** until an administrator (`manageFeedback`) turns it on, and then each feedback leaves only if its author ticks the consent on it. Where it goes is `FEEDBACK_URL`:
 
 - unset: inkledger's inbox, `https://inkledger-feedback.lorenzomusche.workers.dev`;
 - empty (`FEEDBACK_URL=`) or `off`: disabled, and the switch is hidden;

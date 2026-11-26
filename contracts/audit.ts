@@ -157,7 +157,7 @@ export const AUDIT_ACTIONS = {
   "worklog.resolveConflict": ["issueKey", "keep"],
   "worklog.sync": ["connectionId", "imported", "deleted", "upserted", "removed", "initial"],
   "worklog.replay": ["connectionId", "synced", "failed", "remaining"],
-  // Feedback (Info > Feedback): ids, types, states and counts, never what was written
+  // Feedback (the Feedback page): ids, types, states and counts, never what was written
   "feedback.create": ["type", "shared"],
   "feedback.share": ["shareScreenshot"],
   "feedback.comment": ["origin"],

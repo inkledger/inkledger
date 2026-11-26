@@ -101,7 +101,7 @@ function FeedbackForm({ draft, onDirty, onDone }: { draft: FeedbackDraft; onDirt
       await utils.feedback.invalidate();
       onDirty(false);
       onDone();
-      toast.success(t("pages.feedback.sheet.sent"), { action: { label: t("pages.feedback.sheet.open"), onClick: () => void navigate(`/info/feedback/${made.id}`) } });
+      toast.success(t("pages.feedback.sheet.sent"), { action: { label: t("pages.feedback.sheet.open"), onClick: () => void navigate(`/feedback/${made.id}`) } });
     } catch (e) {
       // What was typed stays: the sheet is still open.
       toastError(e);

@@ -8,6 +8,7 @@ import {
   ListTodo,
   NotebookPen,
   Lightbulb,
+  MessagesSquare,
   Pin,
   Settings as SettingsIcon,
   Users,
@@ -54,6 +55,7 @@ export function navItems() {
       title: t("ui.nav.other"),
       items: [
         { to: "/settings", label: t("ui.nav.settings"), icon: SettingsIcon },
+        { to: "/feedback", label: t("ui.feedback.nav"), icon: MessagesSquare },
         { to: "/info", label: t("ui.nav.info"), icon: InfoIcon },
       ],
     },

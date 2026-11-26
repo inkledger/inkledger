@@ -17,7 +17,7 @@
  * in the Store only the modules granted (a seat held) or offered to the account (by a Store
  * manager, to it or its team), to buy for itself, turn on or off and set up. In-module
  * purchases are always the person's own, never bought by an admin for someone else.
- * Feedback (Info > Feedback): everyone sends and follows their own; readFeedback reads
+ * Feedback (the Feedback page): everyone sends and follows their own; readFeedback reads
  * everyone's and exports them; manageFeedback moves them through their states, answers in
  * their threads and decides whether they may be shared with inkledger's developers.
  */

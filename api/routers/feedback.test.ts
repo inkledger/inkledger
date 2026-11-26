@@ -11,7 +11,7 @@ process.env.INSTANCE_KEY_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 
 import type { Permission } from "@contracts/accounts";
 
 /**
- * Feedback (Info > Feedback): everyone's own, readFeedback reads all, manageFeedback moves
+ * Feedback (the Feedback page): everyone's own, readFeedback reads all, manageFeedback moves
  * them through their states; sharing with inkledger's developers is off until turned on,
  * needs the author's consent per feedback, leaves anonymised and signed, and the
  * developers' state comes back without undoing what an admin here decided since.

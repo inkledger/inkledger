@@ -39,7 +39,7 @@ async function readable(user: Account, id: number): Promise<FeedbackView> {
 
 
 /**
- * Feedback about the app (Info > Feedback): everyone sends and follows their own;
+ * Feedback about the app (the Feedback page): everyone sends and follows their own;
  * readFeedback reads everyone's; manageFeedback moves them through their states and
  * decides whether they may be shared with inkledger's developers (feedback/upstream.ts).
  */

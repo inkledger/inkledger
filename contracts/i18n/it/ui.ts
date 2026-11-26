@@ -45,6 +45,8 @@ export const ui: Shape<(typeof en)["ui"]> = {
     send: "Invia feedback",
     report: "Segnala",
     nav: "Feedback",
+    news: { one: "{count} feedback con novità", other: "{count} feedback con novità" },
+    withNews: " con novità",
   },
   layout: {
     openPinboard: "Apri la lavagna",

@@ -67,7 +67,7 @@ Off by default. With `MS_CLIENT_ID` (your own Entra app, see [Outlook](../outloo
 
 ## Feedback shared with inkledger's developers
 
-Only when an administrator turns sharing on in Info › Feedback (off by default), and only the feedback whose author ticked the consent on it (the screenshot needs a second tick). What leaves, to `FEEDBACK_URL`: the kind, title and text as written, the shape of the page's path (`/issues/:id`, never keys or queries), the app build, look and density, and a pseudonym per person (an HMAC with a secret that never leaves the server); never a name, username or email. Queued feedback goes in one batch per maintenance cycle (every 6 hours); the developers' states are read back at most once a day and only while something shared is still open. Calls are signed with the server's instance key. The protocol, to point it at your own inbox or turn it off: [self-hosting.md](../self-hosting.md#feedback-inbox-protocol).
+Only when an administrator turns sharing on on the Feedback page (off by default), and only the feedback whose author ticked the consent on it (the screenshot needs a second tick). What leaves, to `FEEDBACK_URL`: the kind, title and text as written, the shape of the page's path (`/issues/:id`, never keys or queries), the app build, look and density, and a pseudonym per person (an HMAC with a secret that never leaves the server); never a name, username or email. Queued feedback goes in one batch per maintenance cycle (every 6 hours); the developers' states are read back at most once a day and only while something shared is still open. Calls are signed with the server's instance key. The protocol, to point it at your own inbox or turn it off: [self-hosting.md](../self-hosting.md#feedback-inbox-protocol).
 
 ## Weather
 

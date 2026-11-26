@@ -84,6 +84,7 @@ import {
   useNotificationCount,
 } from "@/hooks/useNotifications";
 import { useTimers } from "@/hooks/useTimers";
+import { useAlerts } from "@/components/notifications/alerts";
 import { focusMode } from "@/lib/flag";
 import { useDayEndReminder } from "@/hooks/useDayEndReminder";
 import { quickStart } from "@/lib/quickStart";
@@ -240,7 +241,8 @@ const NavTile = memo(function NavTile({ to, name, Icon, collapsed, count, countT
           "relative flex flex-col items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
           // Closed: a 28 px icon (WCAG's 24 px met as it is; a wider area would cover its neighbour).
-          collapsed ? "size-7" : "min-h-12 gap-1 px-1 py-1.5"
+          // Open on a short screen (as the rows, max-height 820px): tighter, so the sidebar still never scrolls.
+          collapsed ? "size-7" : "min-h-12 gap-1 px-1 py-1.5 [@media(max-height:820px)]:min-h-10 [@media(max-height:820px)]:gap-0.5 [@media(max-height:820px)]:py-1"
         )}
       >
         <Icon className={collapsed ? "h-4 w-4" : ICON} aria-hidden />
@@ -366,6 +368,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const unread = useUnreadCount();
   const inbox = useNotificationCount();
   const due = useTodoReminders().items.length;
+  // One's own feedback that moved or got an answer (the bell's alerts, the same query), each counted once: cleared once opened.
+  const feedbackNews = new Set(useAlerts().data?.filter(a => a.alert === "feedback").map(a => a.ref)).size;
   // The Desk's panes, only once the desk was read (it never adds a request to a page).
   const desk = trpc.desks.current.useQuery(undefined, { enabled: false }).data;
   const onDesk = desk ? desk.panes.filter(slot => !("empty" in slot)).length + desk.parked.length : 0;
@@ -375,6 +379,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       ? { count: unread, title: t("ui.layout.issuesWithNews", { count: unread }), sr: t("ui.layout.withNews") }
       : to === "/todos" && due > 0
         ? { count: due, title: t("ui.layout.todosDue", { count: due }), sr: t("ui.layout.forToday") }
+        : to === "/feedback" && feedbackNews > 0
+          ? { count: feedbackNews, title: t("ui.feedback.news", { count: feedbackNews }), sr: t("ui.feedback.withNews") }
         : to === "/issues/desk" && onDesk > 0
           ? { count: onDesk, title: t("pages.desk.count", { count: onDesk }), sr: undefined, quiet: true }
           : null;

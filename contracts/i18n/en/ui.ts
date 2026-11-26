@@ -45,6 +45,8 @@ export const ui = {
     send: "Send feedback",
     report: "Report",
     nav: "Feedback",
+    news: { one: "{count} feedback with news", other: "{count} feedback with news" },
+    withNews: " with news",
   },
   layout: {
     openPinboard: "Open the pinboard",

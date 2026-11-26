@@ -12,6 +12,7 @@ export const ROUTE_CONTROLS: Readonly<Record<string, string>> = {
   "/team": "shell.nav.team",
   "/settings": "shell.nav.settings",
   "/info": "shell.nav.info",
+  "/feedback": "shell.nav.feedback",
 };
 
 export function routeControlId(path: string): string | undefined {

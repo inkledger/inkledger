@@ -265,6 +265,7 @@ const controls: ControlDefinition[] = [
   control("shell.nav.team", "shell.navigation", "ui.nav.team", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.settings", "shell.navigation", "ui.nav.settings", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.info", "shell.navigation", "ui.nav.info", { kind: "navigation", role: "link", keyboard: "navigation" }),
+  control("shell.nav.feedback", "shell.navigation", "ui.feedback.nav", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.search.open", "shell.search", "ui.layout.search", { kind: "disclosure" }),
   control("shell.search.select", "shell.search", "ui.layout.search", { kind: "navigation", role: "menuitem", keyboard: "navigation" }),
   control("shell.notifications.open", "shell.notifications", "ui.layout.notifications", { kind: "disclosure" }),
