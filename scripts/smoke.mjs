@@ -28,6 +28,8 @@ const server = spawn(process.execPath, ["dist/boot.js"], {
     SESSION_SECRET: randomBytes(32).toString("hex"),
     // Never write to a real tracker, and no background sync during the check.
     PROVIDERS_READ_ONLY: "1",
+    // Never the real feedback inbox from a check.
+    FEEDBACK_URL: "",
     STORE_URL: "off",
     WEATHER: "off",
     SYNC_INTERVAL_MIN: "0",

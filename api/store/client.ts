@@ -8,9 +8,7 @@ import { getServerSetting, setServerSetting } from "../lib/serverSettings";
 /**
  * The store Worker, seen from this server. Besides Jira, the only outbound
  * calls inkledger makes, and only when someone opens Settings → Store, asks for a
- * licence or pays, or (once an admin turns sharing on, and per feedback with its
- * author's consent) when feedback is shared with inkledger's developers
- * (feedback/upstream.ts). STORE_URL=off removes them all. The page never talks to the
+ * licence or pays (STORE_URL=off removes them). The page never talks to the
  * Worker: tokens stay server-side.
  */
 
@@ -77,9 +75,6 @@ async function call(path: string, init?: RequestInit): Promise<Response> {
 
 const postJson = (path: string, data: unknown) =>
   call(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
-
-/** A call to the store with headers of its own (feedback, signed by this server's key: feedback/upstream.ts). */
-export const callStore = (path: string, init: RequestInit) => call(path, init);
 
 /** A call to the store (activation, modules/activation.ts): POST with JSON, or GET without a body. */
 export const postStore = (path: string, data: unknown, method: "POST" | "GET" = "POST") => (method === "GET" ? call(path) : postJson(path, data));

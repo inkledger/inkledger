@@ -13,6 +13,7 @@ This list covers the server only. Browsers and the native apps load the app from
 | Microsoft Planner connection | `graph.microsoft.com` | No Planner connection |
 | GitHub connection | `github.com` (device sign-in, attachments), `api.github.com`, `user-images.githubusercontent.com`, `private-user-images.githubusercontent.com`, `objects.githubusercontent.com` (attachments) | No GitHub connection |
 | Module store and licences | The host of `STORE_URL` (default: the inkledger store, see `api/lib/env.ts`) | `STORE_URL=off` |
+| Feedback shared with inkledger's developers (opt-in) | The host of `FEEDBACK_URL` (default: inkledger's feedback inbox) | `FEEDBACK_URL=` (empty) |
 | Weather for modules | `api.open-meteo.com`, `geocoding-api.open-meteo.com` | `WEATHER=off` |
 | Licence timestamp check | The host of `OTS_EXPLORER` (default `blockstream.info`) | Only on an admin's "Verify"; point it at your own Esplora server to keep it inside |
 | Local AI (idea suggestions, Desk chat, planner) | The host of `OLLAMA_URL` | `OLLAMA_URL` unset (the default) |
@@ -61,7 +62,12 @@ Off by default. With `MS_CLIENT_ID` (your own Entra app, see [Outlook](../outloo
 
 `STORE_URL` (default: the inkledger store) is called when someone opens Settings → Store (the catalog, at most every 12 hours, the last copy kept), while a licence request or payment is pending, to download a module package, and to renew licence activations (every 90 days, 30 days of grace). Redirects to other hosts are refused. `STORE_URL=off` turns all of it off; a server that never reaches the internet activates licences with an offline code.
 
-**Feedback shared with inkledger's developers** goes to the same host, and only when an administrator turns sharing on in Info › Feedback (off by default) and the feedback's author ticks the consent on that feedback (the screenshot needs a second tick). What leaves: the kind, title and text as written, the shape of the page's path (`/issues/:id`, never keys or queries), the app build, look and density, and a pseudonym per person (an HMAC with a secret that never leaves the server); never a name, username or email. Calls are signed with the server's instance key. The developers' state and public replies are read back on the server's 6-hour maintenance cycle. `STORE_URL=off` hides sharing.
+**Feedback shared with inkledger's developers** goes to `FEEDBACK_URL` (default: inkledger's feedback inbox), see the next section.
+
+
+## Feedback shared with inkledger's developers
+
+Only when an administrator turns sharing on in Info › Feedback (off by default), and only the feedback whose author ticked the consent on it (the screenshot needs a second tick). What leaves, to `FEEDBACK_URL`: the kind, title and text as written, the shape of the page's path (`/issues/:id`, never keys or queries), the app build, look and density, and a pseudonym per person (an HMAC with a secret that never leaves the server); never a name, username or email. Queued feedback goes in one batch per maintenance cycle (every 6 hours); the developers' states are read back at most once a day and only while something shared is still open. Calls are signed with the server's instance key. The protocol, to point it at your own inbox or turn it off: [self-hosting.md](../self-hosting.md#feedback-inbox-protocol).
 
 ## Weather
 

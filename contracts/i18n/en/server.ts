@@ -16,7 +16,7 @@ export const server = {
   feedback: {
     notFound: "That feedback is gone, or isn't yours.",
     sharingOff: "Sharing with inkledger's developers is off on this server: send it without ticking the box.",
-    storeOff: "This server doesn't reach the inkledger Store (STORE_URL=off): sharing can't be turned on.",
+    storeOff: "This server has no feedback inbox (FEEDBACK_URL is empty): sharing can't be turned on.",
     reasonRequired: "Say why it's rejected: its author will read it.",
     screenshotTaken: "This feedback already has a screenshot.",
     screenshotTooLarge: "The screenshot is larger than {mb} MB.",

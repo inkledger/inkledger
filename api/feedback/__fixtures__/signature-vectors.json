@@ -1,0 +1,39 @@
+{
+  "about": "Ed25519 signatures of the inkledger feedback protocol (v2). The same file is in inkledger/feedback test/fixtures and in the app's api/feedback/__fixtures__: both sides verify every vector. The key is a test key derived from a public seed: never use it for anything else.",
+  "seed": "9e4de3d582ac3028e1f82cce7330ef86f5308b9b80cc221a91fd1d72b4132e99",
+  "instanceId": "3c8918f3af18bd7b880c944e46e90ebd",
+  "pubkey": "udERzBbU_MgspIacb7GF61pC-XUusYvvj6UpLFMmbCM",
+  "context": "inkledger-feedback-v1\n",
+  "vectors": [
+    {
+      "name": "batch POST",
+      "method": "POST",
+      "path": "/feedback",
+      "time": "1795700000000",
+      "body": "{\"v\":2,\"items\":[{\"id\":\"0b0a3c1e-1f6a-4c8e-9d5b-2a7f1c3e9b10\",\"user\":\"e5433f50677ba3559d39726c267ce28d\",\"type\":\"idea\",\"title\":\"Totale settimanale — è così\",\"body\":\"Riga 1\\nRiga 2\",\"route\":\"/timesheet\",\"appVersion\":\"dev\",\"look\":\"light·standard·normal\",\"density\":\"compact\",\"locale\":\"it\",\"createdAt\":1795700000000}]}",
+      "message": "inkledger-feedback-v1\nPOST\n/feedback\n1795700000000\n3c8918f3af18bd7b880c944e46e90ebd\na508a1611b4ef3ff3baf39db53408bcf3a2fc3585b6dfd52d64a5b5be02828c5",
+      "sig": "hjoCfRBBmnY_U7cHEu61kJDdehH4kRkMctIHgrJuZzkpBaCth8bD4_j7h44HxdFib8zjTT8D5E6xzdVxuid6BA",
+      "valid": true
+    },
+    {
+      "name": "status GET",
+      "method": "GET",
+      "path": "/feedback/status?since=1795600000000",
+      "time": "1795700000001",
+      "body": "",
+      "message": "inkledger-feedback-v1\nGET\n/feedback/status?since=1795600000000\n1795700000001\n3c8918f3af18bd7b880c944e46e90ebd\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sig": "gSSIpeU8Y_1xB69qrHD5QMPkLV4Wtdd5SFiBQ9a8m8KMnQ9LriOCbnOhHHCjAo2ptGRbMV2eBzkRXWnGs2BYAQ",
+      "valid": true
+    },
+    {
+      "name": "body changed after signing",
+      "method": "POST",
+      "path": "/feedback",
+      "time": "1795700000000",
+      "body": "{\"v\":2,\"items\":[{\"id\":\"0b0a3c1e-1f6a-4c8e-9d5b-2a7f1c3e9b10\",\"user\":\"e5433f50677ba3559d39726c267ce28d\",\"type\":\"idea\",\"title\":\"Totale settimanale — è così\",\"body\":\"Riga 1\\nRiga 3\",\"route\":\"/timesheet\",\"appVersion\":\"dev\",\"look\":\"light·standard·normal\",\"density\":\"compact\",\"locale\":\"it\",\"createdAt\":1795700000000}]}",
+      "message": "inkledger-feedback-v1\nPOST\n/feedback\n1795700000000\n3c8918f3af18bd7b880c944e46e90ebd\na508a1611b4ef3ff3baf39db53408bcf3a2fc3585b6dfd52d64a5b5be02828c5",
+      "sig": "hjoCfRBBmnY_U7cHEu61kJDdehH4kRkMctIHgrJuZzkpBaCth8bD4_j7h44HxdFib8zjTT8D5E6xzdVxuid6BA",
+      "valid": false
+    }
+  ]
+}

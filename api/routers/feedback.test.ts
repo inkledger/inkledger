@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 process.env.DATABASE_URL = ":memory:";
-process.env.STORE_URL = "https://store.test";
+process.env.FEEDBACK_URL = "https://inbox.test";
 process.env.INSTANCE_KEY_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "ikl-feedback-")), "instance.key");
 
 import type { Permission } from "@contracts/accounts";
@@ -45,13 +45,17 @@ async function events(action: string) {
   return q<{ actor_user_id: number | null; target_id: string | null; after: string | null; outcome: string }>("SELECT actor_user_id, target_id, after, outcome FROM audit_events WHERE action = ? ORDER BY id", action);
 }
 
-/** What reached the Store, and what it answers next. */
+/** What reached the inbox (FEEDBACK_URL), and what it answers next. */
 type Call = { url: string; method: string; headers: Record<string, string>; body: string };
-const store = { calls: [] as Call[], post: (): Response => json({ ok: true }), status: (): Response => json({ items: [] }) };
+/** Every item of a batch taken, as the inbox answers it. */
+const takeAll = (c: Call) => json({ results: (JSON.parse(c.body) as { items: { id: string }[] }).items.map(i => ({ id: i.id, ok: true })) });
+const store = { calls: [] as Call[], post: takeAll, status: ((): Response => json({ cursor: 0, items: [] })) as (c: Call) => Response };
+const posts = () => store.calls.filter(c => c.method === "POST");
+const gets = () => store.calls.filter(c => c.method === "GET");
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
 
 const SPKI_ED25519 = Buffer.from("302a300506032b6570032100", "hex");
-/** The signature the Worker checks (store/src/worker.ts), checked the same way here. */
+/** The signature the inbox checks (inkledger/feedback src/signature.ts), checked the same way here. */
 function signedByInstance(c: Call): boolean {
   const raw = Buffer.from(c.headers["x-ikl-pubkey"], "base64url");
   const id = createHash("sha256").update(raw).digest("hex").slice(0, 32);
@@ -75,8 +79,9 @@ describe("feedback", () => {
       const url = String(input instanceof Request ? input.url : input);
       const headers = Object.fromEntries(new Headers(init?.headers).entries());
       store.calls.push({ url, method: init?.method ?? "GET", headers, body: typeof init?.body === "string" ? init.body : "" });
-      if (url.startsWith("https://store.test/feedback/status")) return store.status();
-      if (url === "https://store.test/feedback") return store.post();
+      const call = store.calls.at(-1)!;
+      if (url.startsWith("https://inbox.test/feedback/status")) return store.status(call);
+      if (url === "https://inbox.test/feedback") return store.post(call);
       return json({ error: "unexpected" }, 500);
     });
     await (await import("../queries/connection")).resetDbForTests();
@@ -88,10 +93,15 @@ describe("feedback", () => {
 
   beforeEach(async () => {
     store.calls.length = 0;
-    store.post = () => json({ ok: true });
-    store.status = () => json({ items: [] });
-    const { setSharing } = await import("../feedback/upstream");
+    store.post = takeAll;
+    store.status = () => json({ cursor: 0, items: [] });
+    const { setSharing, forgetStatusSync } = await import("../feedback/upstream");
     await setSharing(false);
+    await forgetStatusSync();
+    const { setServerSetting } = await import("../lib/serverSettings");
+    await setServerSetting("feedback.pausedUntil", 0);
+    // Each test its own queue.
+    await q("UPDATE feedback SET share_state = NULL WHERE share_state = 'queued'");
   });
 
   it("is its author's own: someone else reads it as missing; readFeedback reads all, manageFeedback answers", async () => {
@@ -174,54 +184,77 @@ describe("feedback", () => {
     expect((await a.feedback.get({ id })).shareState).toBeNull();
   });
 
-  it("leaves anonymised and signed with this server's key, once", async () => {
+  it("leaves in one signed, anonymised batch per cycle, never at creation, and once", async () => {
     await (await as(manager)).feedback.setSharing({ enabled: true });
     const a = await as(ann);
     const { id } = await a.feedback.create({ ...base, share: true });
-    await vi.waitFor(async () => expect((await a.feedback.get({ id })).shareState).toBe("sent"));
-    const posts = store.calls.filter(c => c.method === "POST");
-    expect(posts).toHaveLength(1);
-    expect(signedByInstance(posts[0])).toBe(true);
-    // A signature for another body (or path) is no signature.
-    expect(signedByInstance({ ...posts[0], body: posts[0].body.replace("flickers", "flicker") })).toBe(false);
+    await (await as(bob)).feedback.create({ ...base, title: "Bob's shared one", share: true });
+    await a.feedback.create({ ...base, title: "Third", share: true });
+    // Created: queued, nothing sent yet.
+    expect(store.calls).toEqual([]);
+    expect((await a.feedback.get({ id })).shareState).toBe("queued");
 
-    const sent = JSON.parse(posts[0].body) as Record<string, unknown>;
-    expect(sent).toMatchObject({ v: 1, type: "problem", title: base.title, body: base.body, route: "/issues/:id", look: base.look, density: "compact" });
-    expect(sent).not.toHaveProperty("screenshot");
-    const text = posts[0].body;
-    for (const personal of ["person", "Person Number", "@example.com", "assignee", "ABC-12?q"]) expect(text).not.toContain(personal);
-    expect(String(sent.user)).toMatch(/^[0-9a-f]{32}$/);
+    const { forwardQueued, userPseudonym } = await import("../feedback/upstream");
+    expect(await forwardQueued()).toEqual({ sent: 3, refused: 0, failed: 0 });
+    expect(posts()).toHaveLength(1);
+    expect(signedByInstance(posts()[0])).toBe(true);
+    // A signature for another body is no signature.
+    expect(signedByInstance({ ...posts()[0], body: posts()[0].body.replace("flickers", "flicker") })).toBe(false);
 
-    // The same person, the same pseudonym; another person, another.
-    const { userPseudonym } = await import("../feedback/upstream");
-    expect(await userPseudonym(ann)).toBe(sent.user);
-    expect(await userPseudonym(bob)).not.toBe(sent.user);
+    const sent = JSON.parse(posts()[0].body) as { v: number; items: Record<string, unknown>[] };
+    expect(sent.v).toBe(2);
+    expect(sent.items).toHaveLength(3);
+    expect(sent.items[0]).toMatchObject({ type: "problem", title: base.title, body: base.body, route: "/issues/:id", look: base.look, density: "compact" });
+    expect(sent.items[0]).not.toHaveProperty("screenshot");
+    for (const personal of ["person", "Person Number", "@example.com", "assignee", "ABC-12?q"]) expect(posts()[0].body).not.toContain(personal);
+    expect(String(sent.items[0].user)).toMatch(/^[0-9a-f]{32}$/);
+    expect(await userPseudonym(ann)).toBe(sent.items[0].user);
+    expect(sent.items[1].user).toBe(await userPseudonym(bob));
+    expect(sent.items[1].user).not.toBe(sent.items[0].user);
     const [row] = await q<{ uid: string }>("SELECT uid FROM feedback WHERE id = ?", id);
-    expect(sent.id).toBe(row.uid);
+    expect(sent.items[0].id).toBe(row.uid);
+    expect((await a.feedback.get({ id })).shareState).toBe("sent");
 
     // Sent once: the next cycle has nothing queued.
-    const { forwardQueued } = await import("../feedback/upstream");
     await forwardQueued();
-    expect(store.calls.filter(c => c.method === "POST")).toHaveLength(1);
+    expect(posts()).toHaveLength(1);
   });
 
-  it("stays queued while the Store can't take it, and stops for good when it refuses its input", async () => {
+  it("keeps its queue when the inbox asks to wait, and never asks before then", async () => {
+    await (await as(manager)).feedback.setSharing({ enabled: true });
+    const a = await as(ann);
+    const { forwardQueued, pausedUntil } = await import("../feedback/upstream");
+    const { id } = await a.feedback.create({ ...base, title: "Later", share: true });
+    const now = Date.now();
+    store.post = () => new Response(JSON.stringify({ error: "rate", retryAfter: 3600 }), { status: 429, headers: { "retry-after": "3600", "content-type": "application/json" } });
+    expect(await forwardQueued({ now })).toEqual({ sent: 0, refused: 0, failed: 1 });
+    expect((await a.feedback.get({ id })).shareState).toBe("queued");
+    expect(await pausedUntil()).toBe(now + 3_600_000);
+    store.post = takeAll;
+    await forwardQueued({ now: now + 60_000 });
+    expect(posts()).toHaveLength(1);
+    await forwardQueued({ now: now + 2 * 3_600_000 });
+    expect(posts()).toHaveLength(2);
+    expect((await a.feedback.get({ id })).shareState).toBe("sent");
+  });
+
+  it("stays queued while the inbox can't take it, and stops for good when it refuses an item", async () => {
     await (await as(manager)).feedback.setSharing({ enabled: true });
     const a = await as(ann);
     const { forwardQueued } = await import("../feedback/upstream");
-    // Not published yet (404 without the Worker's own answer), or busy: tried again later.
+    const { id } = await a.feedback.create({ ...base, title: "Unpublished inbox", share: true });
+    // Not published yet (404 without its own answer), or down: tried again later.
     store.post = () => new Response("Not Found", { status: 404 });
-    const { id } = await a.feedback.create({ ...base, title: "Later", screenshot: true, share: true });
-    await forwardQueued({ ids: [id] });
+    await forwardQueued();
     expect((await a.feedback.get({ id })).shareState).toBe("queued");
-    store.post = () => json({ error: "rate" }, 429);
-    await forwardQueued({ ids: [id] });
+    store.post = () => json({ error: "retry" }, 503);
+    await forwardQueued();
     expect((await a.feedback.get({ id })).shareState).toBe("queued");
-    store.post = () => json({ error: "input" }, 400);
-    await forwardQueued({ ids: [id] });
+    // The inbox refuses this one item: never again.
+    store.post = c => json({ results: (JSON.parse(c.body) as { items: { id: string }[] }).items.map(i => ({ id: i.id, error: "input" })) });
+    await forwardQueued();
     expect((await a.feedback.get({ id })).shareState).toBe("refused");
     // Turned off: nothing more leaves, even what is queued.
-    store.post = () => json({ ok: true });
     await q("UPDATE feedback SET share_state = 'queued' WHERE id = ?", id);
     await (await as(manager)).feedback.setSharing({ enabled: false });
     store.calls.length = 0;
@@ -229,45 +262,77 @@ describe("feedback", () => {
     expect(store.calls).toEqual([]);
   });
 
-  it("reads back the developers' state and replies, without undoing what an admin here decided", async () => {
+  it("reads states back at most daily, only while something shared is open, with a cursor and an ETag", async () => {
     await (await as(manager)).feedback.setSharing({ enabled: true });
     const a = await as(ann);
-    const { id } = await a.feedback.create({ ...base, title: "Synced", share: true });
-    await vi.waitFor(async () => expect((await a.feedback.get({ id })).shareState).toBe("sent"));
-    const [{ uid }] = await q<{ uid: string }>("SELECT uid FROM feedback WHERE id = ?", id);
-    const { syncStatuses } = await import("../feedback/upstream");
-    let answer = { status: "accepted", replies: [{ id: "c1", body: "Thanks, we'll look at it.", at: 1_700_000_000_000 }] };
-    store.status = () => json({ items: [{ id: uid, ...answer }, { id: "someone-else", status: "rejected", replies: [] }] });
-
+    const { syncStatuses, forwardQueued } = await import("../feedback/upstream");
+    // Nothing shared open: no call at all.
+    await q("UPDATE feedback SET upstream_status = 'implemented' WHERE share_state = 'sent'");
     await syncStatuses();
-    const gets = store.calls.filter(c => c.method === "GET");
-    expect(gets).toHaveLength(1);
-    expect(new URL(gets[0].url).searchParams.get("ids")).toContain(uid);
-    expect(signedByInstance(gets[0])).toBe(true);
+    expect(gets()).toHaveLength(0);
+
+    const { id } = await a.feedback.create({ ...base, title: "Synced", share: true });
+    await forwardQueued();
+    const [{ uid }] = await q<{ uid: string }>("SELECT uid FROM feedback WHERE id = ?", id);
+    let doc = { cursor: 1000, etag: '"1000"', items: [{ id: uid, status: "accepted", replies: [{ id: "c1", body: "Thanks, we'll look at it.", at: 1_700_000_000_000 }] }, { id: "someone-else", status: "rejected", replies: [] }] };
+    store.status = c => (c.headers["if-none-match"] === doc.etag ? new Response(null, { status: 304, headers: { etag: doc.etag } }) : new Response(JSON.stringify({ cursor: doc.cursor, items: doc.items }), { headers: { etag: doc.etag, "content-type": "application/json" } }));
+
+    const day0 = Date.now();
+    await syncStatuses(day0);
+    expect(gets()).toHaveLength(1);
+    expect(new URL(gets()[0].url).searchParams.get("since")).toBe("0");
+    expect(gets()[0].headers["if-none-match"]).toBeUndefined();
+    expect(signedByInstance(gets()[0])).toBe(true);
     let f = await a.feedback.get({ id });
     expect(f.status).toBe("accepted");
     expect(f.thread.filter(c => c.origin === "upstream" && !c.statusTo).map(c => c.body)).toEqual(["Thanks, we'll look at it."]);
     expect(f.thread.filter(c => c.origin === "upstream" && c.statusTo).map(c => [c.statusFrom, c.statusTo])).toEqual([["new", "accepted"]]);
 
-    // Read again: nothing new, nothing twice.
-    await syncStatuses();
+    // The same day: not asked again.
+    await syncStatuses(day0 + 3_600_000);
+    expect(gets()).toHaveLength(1);
+
+    // The next day, nothing new: the cursor and ETag sent, a 304, nothing changes.
+    await syncStatuses(day0 + 25 * 3_600_000);
+    expect(gets()).toHaveLength(2);
+    expect(new URL(gets()[1].url).searchParams.get("since")).toBe("1000");
+    expect(gets()[1].headers["if-none-match"]).toBe('"1000"');
     f = await a.feedback.get({ id });
-    expect(f.thread.filter(c => c.origin === "upstream" && !c.statusTo)).toHaveLength(1);
-    expect(f.thread.filter(c => c.origin === "upstream" && c.statusTo)).toHaveLength(1);
+    expect(f.thread.filter(c => c.origin === "upstream")).toHaveLength(2);
 
     // An admin here moves it; the developers' unchanged state doesn't move it back.
     await (await as(manager)).feedback.setStatus({ id, status: "in_progress" });
-    await syncStatuses();
+    doc = { ...doc, cursor: 2000, etag: '"2000"', items: [{ ...doc.items[0] }] };
+    await syncStatuses(day0 + 50 * 3_600_000);
     expect((await a.feedback.get({ id })).status).toBe("in_progress");
 
-    // The developers move it: that is news, applied.
-    answer = { status: "implemented", replies: answer.replies };
-    await syncStatuses();
-    f = await a.feedback.get({ id });
-    expect(f.status).toBe("implemented");
+    // The developers move it: news, applied; closed, nothing more is asked for it.
+    doc = { cursor: 3000, etag: '"3000"', items: [{ ...doc.items[0], status: "implemented" }] };
+    await syncStatuses(day0 + 75 * 3_600_000);
+    expect((await a.feedback.get({ id })).status).toBe("implemented");
     const told = (await a.notifications.alerts()).filter(n => n.alert === "feedback" && n.ref === id);
     expect(told.some(n => n.what === "comment")).toBe(true);
     expect(told.filter(n => n.what === "status").length).toBeGreaterThanOrEqual(3);
+    const before = gets().length;
+    await syncStatuses(day0 + 100 * 3_600_000);
+    expect(gets()).toHaveLength(before);
+  });
+
+  it("signs exactly as the shared protocol vectors say", async () => {
+    const vectors = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "../feedback/__fixtures__/signature-vectors.json"), "utf8")) as {
+      instanceId: string;
+      pubkey: string;
+      vectors: { method: string; path: string; time: string; body: string; message: string; sig: string; valid: boolean }[];
+    };
+    const { signedMessage } = await import("../feedback/upstream");
+    const raw = Buffer.from(vectors.pubkey, "base64url");
+    expect(createHash("sha256").update(raw).digest("hex").slice(0, 32)).toBe(vectors.instanceId);
+    const key = createPublicKey({ key: Buffer.concat([SPKI_ED25519, raw]), format: "der", type: "spki" });
+    for (const v of vectors.vectors) {
+      const message = signedMessage(v.method, v.path, v.time, vectors.instanceId, v.body);
+      if (v.valid) expect(message).toBe(v.message);
+      expect(verify(null, Buffer.from(message), key, Buffer.from(v.sig, "base64url"))).toBe(v.valid);
+    }
   });
 
   it("exports what the reader may see, as Markdown or JSON, and says so in the log", async () => {
@@ -279,7 +344,8 @@ describe("feedback", () => {
     expect(md.content).toContain("Export me");
     expect(md.content).not.toContain("Bob's own");
     const js = JSON.parse((await (await as(reader)).feedback.export({ scope: "all", format: "json", filter: { userId: bob } })).content) as { items: { title: string }[] };
-    expect(js.items.map(i => i.title)).toEqual(["Bob's own"]);
+    expect(js.items.map(i => i.title)).toContain("Bob's own");
+    expect(js.items.map(i => i.title)).not.toContain("Export me");
     const logged = await events("feedback.export");
     expect(logged.map(e => JSON.parse(e.after ?? "{}") as { scope: string })).toEqual(expect.arrayContaining([expect.objectContaining({ scope: "mine" }), expect.objectContaining({ scope: "all" })]));
   });
@@ -323,24 +389,28 @@ describe("feedback", () => {
       }
     });
 
-    it("goes to the developers only with its own consent, and waits for the picture before sending", async () => {
+    it("goes to the developers only with its own consent, and only small enough", async () => {
       await (await as(manager)).feedback.setSharing({ enabled: true });
       const a = await as(ann);
       const annC = await cookieOf(ann);
-      const sentBody = async (title: string) => JSON.parse(store.calls.find(c => c.method === "POST" && c.body.includes(title))?.body ?? "{}") as { screenshot?: { type: string; data: string } };
+      const { forwardQueued } = await import("../feedback/upstream");
+      const items = () => posts().flatMap(c => (JSON.parse(c.body) as { items: { title: string; screenshot?: { type: string; data: string } }[] }).items);
 
       // Shared, the picture not: the text leaves, the picture stays here.
       const without = await a.feedback.create({ ...base, title: "Shared, picture kept", share: true, shareScreenshot: false, screenshot: true });
-      expect(store.calls.filter(c => c.method === "POST")).toHaveLength(0);
       expect((await upload(without.id, annC, PNG)).status).toBe(200);
-      await vi.waitFor(async () => expect((await a.feedback.get({ id: without.id })).shareState).toBe("sent"));
-      expect(await sentBody("Shared, picture kept")).not.toHaveProperty("screenshot");
-
       // Both agreed: the picture goes with it, as it was.
       const both = await a.feedback.create({ ...base, title: "Shared with its picture", share: true, shareScreenshot: true, screenshot: true });
       expect((await upload(both.id, annC, PNG)).status).toBe(200);
-      await vi.waitFor(async () => expect((await a.feedback.get({ id: both.id })).shareState).toBe("sent"));
-      const shot = (await sentBody("Shared with its picture")).screenshot;
+      // Agreed, but larger than the inbox takes (300 KB): the text leaves, the picture stays.
+      const big = await a.feedback.create({ ...base, title: "Too big a picture", share: true, shareScreenshot: true, screenshot: true });
+      const large = new Uint8Array(400 * 1024);
+      large.set(PNG);
+      expect((await upload(big.id, annC, large)).status).toBe(200);
+      await forwardQueued();
+      expect(items().find(i => i.title === "Shared, picture kept")).not.toHaveProperty("screenshot");
+      expect(items().find(i => i.title === "Too big a picture")).not.toHaveProperty("screenshot");
+      const shot = items().find(i => i.title === "Shared with its picture")?.screenshot;
       expect(shot?.type).toBe("image/png");
       expect(new Uint8Array(Buffer.from(shot?.data ?? "", "base64"))).toEqual(PNG);
     });

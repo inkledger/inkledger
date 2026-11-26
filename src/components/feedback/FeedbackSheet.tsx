@@ -18,6 +18,7 @@ import { trpc } from "@/lib/trpc";
 import { APP_BUILD_META } from "@contracts/appBuild";
 import { t } from "@/i18n";
 import { currentDensity, currentLook, typeLabel } from "./labels";
+import { PICK_MAX_BYTES, shrinkScreenshot } from "./shrink";
 
 /** "Send feedback", opened from the account menu, ⌘K or "Report" on an error (lib/flag.ts). */
 export function FeedbackSheet() {
@@ -70,9 +71,11 @@ function FeedbackForm({ draft, onDirty, onDone }: { draft: FeedbackDraft; onDirt
     if (shot) URL.revokeObjectURL(shot.url);
   }, [shot]);
 
-  const takeImage = (file: File | null | undefined) => {
-    if (!file) return;
-    if (!(FEEDBACK_SCREENSHOT_TYPES as readonly string[]).includes(file.type) || file.size > FEEDBACK_SCREENSHOT_MAX_BYTES) {
+  // Made small enough to share (≤ 300 KB) here, in the browser, before anything is sent.
+  const takeImage = async (picked: File | null | undefined) => {
+    if (!picked) return;
+    const file = (FEEDBACK_SCREENSHOT_TYPES as readonly string[]).includes(picked.type) && picked.size <= PICK_MAX_BYTES ? await shrinkScreenshot(picked) : null;
+    if (!file || file.size > FEEDBACK_SCREENSHOT_MAX_BYTES) {
       setShotError(t("pages.feedback.sheet.screenshotBad"));
       return;
     }
@@ -125,7 +128,7 @@ function FeedbackForm({ draft, onDirty, onDone }: { draft: FeedbackDraft; onDirt
         const item = [...e.clipboardData.items].find(i => i.kind === "file" && i.type.startsWith("image/"));
         if (!item) return;
         e.preventDefault();
-        takeImage(item.getAsFile());
+        void takeImage(item.getAsFile());
       }}
     >
       <div className="grid gap-1.5">
@@ -160,7 +163,7 @@ function FeedbackForm({ draft, onDirty, onDone }: { draft: FeedbackDraft; onDirt
             <span className="text-caption text-muted-foreground">{t("pages.feedback.sheet.screenshotHint")}</span>
           </div>
         )}
-        <input ref={fileRef} type="file" accept={FEEDBACK_SCREENSHOT_TYPES.join(",")} className="sr-only" tabIndex={-1} aria-hidden onChange={e => takeImage(e.target.files?.[0])} />
+        <input ref={fileRef} type="file" accept={FEEDBACK_SCREENSHOT_TYPES.join(",")} className="sr-only" tabIndex={-1} aria-hidden onChange={e => void takeImage(e.target.files?.[0])} />
         {shotError && (
           <p role="alert" className="text-caption text-danger">
             {shotError}

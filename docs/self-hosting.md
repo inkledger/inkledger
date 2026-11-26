@@ -160,7 +160,7 @@ inkledger asks for `repo`, `read:project`, `project` and `notifications`. GitHub
 
 inkledger can load optional **add-on modules**: small, signed packages that add something on top of the app without touching your data. They come from **Settings → Store**: a module in free release has a **Request licence** button (your email and an optional message go to the developer; once approved, inkledger installs the module by itself), a paid one shows its price and the payment methods. Click a module's status badge to manage it (settings, export or import its progress, uninstall, remove the licence); a module whose licence you hold reinstalls or updates from there with one click. Each module has its own on/off switch, and another switch turns them all off on a device. A module starts from zero when installed; its progress can be exported to a file and brought back. A module runs inside your own inkledger: no account, no tracking. A licence is activated on up to three of your servers (Settings → Store shows them), renewed every 90 days with 30 days of grace when the store can't be reached; a server that never reaches the internet is activated with an offline code.
 
-Licences follow the [module terms](modules-terms.md). The store and, when a module asks for real weather, [Open-Meteo](https://open-meteo.com) are the only outbound calls besides your trackers (weather requests carry only coordinates rounded to 0.1°, are cached 30 minutes and stop with `WEATHER=off`): this server asks the store for the catalog when someone opens Settings → Store (at most every 12 hours; the last copy is kept), and for the licence while a request or a payment is pending. `STORE_URL=off` turns it off.
+Licences follow the [module terms](modules-terms.md). The store and, when a module asks for real weather, [Open-Meteo](https://open-meteo.com) are, with feedback sharing when you turn it on ([below](#feedback-inbox-protocol)), the only outbound calls besides your trackers (weather requests carry only coordinates rounded to 0.1°, are cached 30 minutes and stop with `WEATHER=off`): this server asks the store for the catalog when someone opens Settings → Store (at most every 12 hours; the last copy is kept), and for the licence while a request or a payment is pending. `STORE_URL=off` turns it off.
 
 | Module | What it is | |
 |---|---|---|
@@ -258,3 +258,37 @@ For Lighthouse against the real development data, use `pnpm preview` at `http://
 | `pnpm db:generate` | Migration from `db/schema.ts` into `drizzle/` |
 | `pnpm tauri:dev` / `tauri:build` | Native shell (see [native.md](native.md)) |
 | `pnpm native:publish` | Builds the Android app and serves it from `/install` |
+
+## Feedback inbox protocol
+
+People send feedback about the app from the account menu, ⌘K or "Report" on an error; it stays on your server (Info › Feedback). Sharing it with inkledger's developers is **off** until an administrator (`manageFeedback`) turns it on, and then each feedback leaves only if its author ticks the consent on it. Where it goes is `FEEDBACK_URL`:
+
+- unset: inkledger's inbox, `https://inkledger-feedback.lorenzomusche.workers.dev`;
+- empty (`FEEDBACK_URL=`) or `off`: disabled, and the switch is hidden;
+- any URL: your own inbox, if it speaks the protocol below (for example to collect your organisation's feedback in your own tracker).
+
+Nothing about this is secret: the app is public, and the inbox trusts only signatures and its own limits.
+
+**Signature.** Every call carries four headers, made with the server's Ed25519 instance key (`INSTANCE_KEY_PATH`, the one used for module activations):
+
+| Header | Value |
+| --- | --- |
+| `x-ikl-instance` | the first 32 hex characters of sha256(raw public key) |
+| `x-ikl-pubkey` | the raw 32-byte public key, base64url |
+| `x-ikl-time` | milliseconds since the epoch (the inbox accepts ±5 minutes) |
+| `x-ikl-sig` | base64url Ed25519 signature of `"inkledger-feedback-v1\n" + METHOD + "\n" + path and query + "\n" + time + "\n" + instance + "\n" + hex(sha256(body))` |
+
+Test vectors: `api/feedback/__fixtures__/signature-vectors.json`.
+
+**Sending** — `POST /feedback`, JSON, at most 1 MB and 20 items per request, sent in one batch per maintenance cycle (every 6 hours):
+
+```json
+{ "v": 2, "items": [ { "id": "<uuid>", "user": "<32 hex pseudonym>", "type": "problem | idea | improvement",
+  "title": "…", "body": "…", "route": "/issues/:id", "appVersion": "…", "look": "dark·soft·normal",
+  "density": "compact | comfortable", "locale": "it | en", "createdAt": 1795700000000,
+  "screenshot": { "type": "image/png | image/jpeg | image/webp", "data": "<base64, at most 300 KB>" } } ] }
+```
+
+The answer is `200 { "results": [ { "id", "ok": true } | { "id", "error": "input" | "conflict" } ] }` (an item sent again answers `ok` without a second copy), `401` for a bad signature, `413` for a body too large, or `429` with `Retry-After` when a limit is reached: the server keeps its queue and does not send before then. inkledger's inbox takes 20 items a day and 200 a month per server, has per-address and global daily limits, and keeps a screenshot only up to 300 KB (the page shrinks it before sending).
+
+**States** — `GET /feedback/status?since=<cursor>` with `If-None-Match`, at most once a day and only while something shared is still open: `304` when nothing changed, else `200 { "cursor", "items": [ { "id", "status": "new | discussion | accepted | in_progress | implemented | rejected", "replies": [ { "id", "body", "at" } ] } ] }` with an `ETag`. A new state is applied to the feedback (unless an administrator here moved it since the last one read) and each reply lands once in its thread; the author is notified.

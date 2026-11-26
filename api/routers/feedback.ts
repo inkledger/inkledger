@@ -15,7 +15,7 @@ import { record } from "../lib/audit";
 import { serverBuild } from "../lib/appBuild";
 import { addComment, commentsOf, createFeedback, feedbackById, feedbackRow, listFeedback, setFeedbackStatus, type FeedbackFilter, type FeedbackView } from "../feedback/store";
 import { feedbackJson, feedbackMarkdown } from "../feedback/export";
-import { forwardQueued, setSharing, sharingAvailable, sharingEnabled } from "../feedback/upstream";
+import { setSharing, sharingAvailable, sharingEnabled } from "../feedback/upstream";
 
 const status = z.enum(FEEDBACK_STATUSES);
 const type = z.enum(FEEDBACK_TYPES);
@@ -33,7 +33,6 @@ async function readable(user: Account, id: number): Promise<FeedbackView> {
   return f;
 }
 
-const localeOf = (req: Request): "it" | "en" => (req.headers.get("x-locale") === "en" ? "en" : "it");
 
 /**
  * Feedback about the app (Info > Feedback): everyone sends and follows their own;
@@ -73,7 +72,7 @@ export const feedbackRouter = createRouter({
         density: z.enum(["compact", "comfortable"]).default("compact"),
         share: z.boolean().default(false),
         shareScreenshot: z.boolean().default(false),
-        /** A screenshot follows (POST /api/feedback/:id/screenshot): sending waits for it. */
+        /** A screenshot follows (POST /api/feedback/:id/screenshot). */
         screenshot: z.boolean().default(false),
       }),
     )
@@ -86,8 +85,7 @@ export const feedbackRouter = createRouter({
         sharing,
       );
       await record(ctx, "feedback.create", { target: { type: "feedback", id: row.id, ownerUserId: ctx.user.id }, after: { type: row.type, shared: sharing } });
-      // Sent at once when nothing more is coming (best effort: queued for the next cycle otherwise).
-      if (sharing && !input.screenshot) void forwardQueued({ ids: [row.id], locale: localeOf(ctx.req) }).catch(() => undefined);
+      // Shared: queued, sent with the server's next batch (the maintenance cycle), never one call per feedback.
       return { id: row.id };
     }),
 

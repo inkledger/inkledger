@@ -13,7 +13,7 @@ import { getDb } from "../queries/connection";
 import { openBytesFor, sealBytesFor } from "../lib/crypto";
 import { sniffImage } from "../ideaFiles";
 import { attachmentHeaders } from "../attachments";
-import { forwardQueued, screenshotScope } from "./upstream";
+import { screenshotScope } from "./upstream";
 import { feedbackRow } from "./store";
 
 type App = Hono<{ Bindings: HttpBindings }>;
@@ -48,10 +48,8 @@ export function registerFeedbackRoutes(app: App) {
       .update(feedback)
       .set({ screenshot: sealBytesFor(bytes, screenshotScope(row.uid)), screenshotType: type })
       .where(and(eq(feedback.id, row.id), isNull(feedback.screenshot)))
-      .returning({ id: feedback.id, shareState: feedback.shareState });
+      .returning({ id: feedback.id });
     if (!saved) return c.json({ error: t("server.feedback.screenshotTaken") }, 409);
-    // The feedback waited for its picture to be sent with it.
-    if (saved.shareState === "queued") void forwardQueued({ ids: [saved.id] }).catch(() => undefined);
     return c.json({ ok: true });
   });
 
