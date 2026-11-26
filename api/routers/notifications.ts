@@ -199,6 +199,16 @@ const shown = (userId: number) =>
 /** What list and count show: the shown ones not dismissed yet. */
 const visible = (userId: number) => and(undismissed(userId), shown(userId));
 
+/**
+ * The tracker's id of what a notification is about, read from its dedupe: the comment of "commented"
+ * (c1:commented:KEY:10042) and the changelog entry of "status" (c1:status:KEY:3301), so the page shows that
+ * one; null for the rest (an inbox thread, a sync's diff).
+ */
+export function eventRef(dedupe: string): string | null {
+  const m = /^c\d+:(?:commented|status):[^:]+:([^:]+)$/.exec(dedupe);
+  return m ? m[1] : null;
+}
+
 /** Rows the notifications page reads at most per state (open, done). */
 const INBOX_LIMIT = 500;
 
@@ -261,6 +271,7 @@ export const notificationsRouter = createRouter({
           createdAt: notifications.createdAt,
           readAt: notifications.readAt,
           dismissedAt: notifications.dismissedAt,
+          dedupe: notifications.dedupe,
           summary: issues.summary,
           status: issues.status,
           projectKey: issues.projectKey,
@@ -275,8 +286,8 @@ export const notificationsRouter = createRouter({
         )
         .orderBy(desc(notifications.createdAt), desc(notifications.id))
         .limit(INBOX_LIMIT);
-      return rows.flatMap(({ kind, connectionId, ...r }) =>
-        isNotificationKind(kind) && connectionId !== null ? [{ ...r, connectionId, kind }] : [],
+      return rows.flatMap(({ kind, connectionId, dedupe, ...r }) =>
+        isNotificationKind(kind) && connectionId !== null ? [{ ...r, connectionId, kind, ref: eventRef(dedupe) }] : [],
       );
     }),
 

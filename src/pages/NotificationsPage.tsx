@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useRef, useState, type CSSProperties } from "react";
 import { NavigationType, useLocation, useNavigate, useNavigationType } from "react-router";
-import { ArrowUpRight, BellOff, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Mail, MailOpen, Play, RotateCcw, X } from "lucide-react";
+import { ArrowUpRight, BellOff, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Mail, MailOpen, Play, RotateCcw } from "lucide-react";
 import {
   INBOX_STATES,
   NOTIFICATION_CATEGORIES,
@@ -26,6 +26,8 @@ import { IssueBody } from "@/components/issue/IssueBody";
 import { IssueActions } from "@/components/issue/IssueActions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AlertList } from "@/components/notifications/AlertList";
+import { NotificationEvents } from "@/components/notifications/NotificationEvents";
+import { Kbd } from "@/components/app/Kbd";
 import { KIND_STYLE, ago, reason } from "@/components/notifications/notificationKinds";
 import { TodoReminders } from "@/components/todo/TodoReminders";
 import { Button } from "@/components/ui/button";
@@ -485,12 +487,18 @@ function GroupRow({
       {many && expanded && (
         <ul className="grid grid-cols-[minmax(0,1fr)] border-t py-1 pl-14 pr-1.5">
           {g.items.map(n => (
-            <li key={n.id} className="flex min-h-target min-w-0 items-center gap-2 coarse:min-h-touch">
-              {n.readAt === null && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-strong" aria-hidden {...surface("chip")} />}
-              <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">{reason(n.kind, n.detail, n.createdAt)}</span>
+            <li key={n.id} data-unread={n.readAt === null || undefined} className="flex min-h-target min-w-0 items-center gap-2 coarse:min-h-touch">
+              {/* Dot = unread; its slot stays when read, so every row starts at the same edge. */}
+              <span className="flex w-1.5 shrink-0 justify-center" aria-hidden>
+                {n.readAt === null && <span className="h-1.5 w-1.5 rounded-full bg-primary-strong" {...surface("chip")} />}
+              </span>
+              <span className={cn("min-w-0 flex-1 truncate text-caption", n.readAt === null ? "font-medium text-foreground" : "text-muted-foreground")}>
+                {reason(n.kind, n.detail, n.createdAt)}
+                {n.readAt === null && <span className="sr-only">, {t("pages.notifications.unreadDot")}</span>}
+              </span>
               {!done && (
                 <Button variant="ghost" size="icon-sm" aria-label={t("pages.notifications.doneOne", { issueKey: g.issueKey })} title={t("pages.notifications.done")} onClick={() => onFinishOne(n.id)}>
-                  <X className="h-4 w-4" />
+                  <Check className="h-4 w-4" />
                 </Button>
               )}
             </li>
@@ -530,6 +538,8 @@ function Preview({
 }) {
   const done = state === "done";
   const canStart = g.items.some(n => KIND_STYLE[n.kind]?.canStart);
+  // The issue itself is secondary here: folded until asked for (kept open from one group to the next).
+  const [details, setDetails] = useState(false);
   return (
     <>
       {/* Narrower than the split: back to the list, and on to the next one without going back. */}
@@ -583,23 +593,22 @@ function Preview({
       <div className="flex min-h-0 min-w-0 flex-col @xl:flex-1 @xl:overflow-y-auto" data-scroll-key={`notification-${g.key}`}>
         <section aria-label={t("pages.notifications.happened")} className="grid gap-1 border-b px-4 py-3">
           <SectionLabel as="h3" className="px-0">{t("pages.notifications.happened")}</SectionLabel>
-          <ul className="grid grid-cols-[minmax(0,1fr)]">
-            {g.items.map(n => {
-              const style = KIND_STYLE[n.kind] ?? KIND_STYLE.assigned;
-              const Icon = style.icon;
-              return (
-                <li key={n.id} className="flex min-h-target min-w-0 items-center gap-2">
-                  <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md", style.tone)} aria-hidden {...surface("picture")}>
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <span className={cn("min-w-0 flex-1 text-body-sm [overflow-wrap:anywhere]", n.readAt === null && "font-medium")}>{reason(n.kind, n.detail, n.createdAt)}</span>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="text-caption text-muted-foreground coarse:hidden max-@xl:hidden">{t("pages.notifications.keysHint")}</p>
+          <NotificationEvents items={g.items} issueKey={g.issueKey} connectionId={g.connectionId} />
+          <KeysHint />
         </section>
-        <div className="min-h-0 @xl:flex-1">
+        <section aria-label={t("pages.notifications.details")} className="min-w-0">
+          <button
+            type="button"
+            aria-expanded={details}
+            aria-controls={`notification-details-${g.key}`}
+            onClick={() => setDetails(v => !v)}
+            className="flex min-h-target w-full items-center gap-2 border-b px-4 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring coarse:min-h-touch"
+          >
+            <SectionLabel as="h3" className="flex-1 px-0">{t("pages.notifications.details")}</SectionLabel>
+            <ChevronDown className={cn("h-4 w-4 text-muted-foreground", details && "rotate-180")} aria-hidden />
+          </button>
+          {details && (
+        <div id={`notification-details-${g.key}`} className="min-h-0">
           <IssueBody
             variant="pane"
             issueKey={g.issueKey}
@@ -619,7 +628,30 @@ function Preview({
             }
           />
         </div>
+          )}
+        </section>
       </div>
     </>
+  );
+}
+
+/** The page's keys, as key caps on one line (they wrap between pairs, never inside one). */
+function KeysHint() {
+  const pairs: [string[], string][] = [
+    [["j", "k"], t("pages.notifications.keys.move")],
+    [["e"], t("pages.notifications.keys.done")],
+    [["u"], t("pages.notifications.keys.unread")],
+    [[t("ui.keys.enter")], t("pages.notifications.keys.open")],
+    [[t("pages.notifications.keys.esc")], t("pages.notifications.keys.back")],
+  ];
+  return (
+    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption text-muted-foreground coarse:hidden max-@xl:hidden">
+      {pairs.map(([keys, label]) => (
+        <span key={label} className="inline-flex items-center gap-1 whitespace-nowrap">
+          {keys.map(k => <Kbd key={k}>{k}</Kbd>)}
+          {label}
+        </span>
+      ))}
+    </p>
   );
 }

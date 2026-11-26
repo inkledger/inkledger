@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { withApp } from "./harness.mjs";
+import { fakeProcedures, withApp } from "./harness.mjs";
 
 // The notifications page (studio/notifications/design.md): one group per issue, categories and states
 // in the URL, the selected group read in the preview beside the list (over it on a narrow screen),
@@ -144,4 +144,74 @@ test("notifications on a phone: the detail replaces the list, next / previous, B
     await page.goto(base + "/notifications?sel=1:NOPE-1&detail");
     await pick(page, "DEMO-101").waitFor();
     await page.getByRole("radiogroup", { name: "Category" }).waitFor();
+  }));
+
+test("notifications: the preview says what happened (the comment, from → to, who), the issue folded below", { timeout: 180_000 }, () =>
+  withApp({
+    viewport: { width: 1440, height: 900 },
+    seed: async db => {
+      const now = Date.now();
+      const rows = [
+        ["commented", "", "c1:commented:DEMO-101:c-77", 1, null],
+        ["status", "Da fare → In corso", "c1:status:DEMO-101:h-9", 2, null],
+        ["mentioned", "Lotto 42", "c1:inbox:t-1:1", 3, now],
+        ["assigned", "", "c1:assigned:DEMO-101:1", 4, null],
+      ];
+      for (const [kind, detail, dedupe, i, read] of rows)
+        await db.q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at, read_at) VALUES (1, 1, ?, 'DEMO-101', ?, ?, ?, ?)", kind, detail, dedupe, now - i * 60_000, read);
+    },
+  }, async ({ page, base }) => {
+    const para = v => ({ t: "p", c: [{ t: "text", v }] });
+    const at = Date.now() - 30 * 60_000;
+    await fakeProcedures(page, {
+      "issues.comments": [
+        { id: "c-78", author: "Bea Neri", isMine: false, body: "Prima frase. Puoi vedere @mrossi il lotto? Grazie.", doc: { v: 1, blocks: [para("Prima frase. Puoi vedere @mrossi il lotto? Grazie.")] }, created: new Date(at + 60_000).toISOString(), edited: false },
+        { id: "c-77", author: "Anna Bianchi", isMine: false, body: "Riga 1", doc: { v: 1, blocks: Array.from({ length: 12 }, (_, i) => para(`Riga ${i + 1} del commento sul lotto.`)) }, created: new Date(at).toISOString(), edited: false },
+      ],
+      "issues.history": {
+        reason: null,
+        events: [
+          { kind: "change", at, author: "Carlo Verdi", items: [{ field: "Status", key: "status", from: "Da fare", to: "In corso" }] },
+          { kind: "change", at: at - 60_000, author: "Dario", items: [{ field: "Assignee", key: "assignee", from: "Luca Neri", to: "Mario Rossi" }] },
+        ],
+      },
+    });
+    await page.goto(base + "/notifications?state=read");
+    await page.getByRole("radio", { name: /^Unread/ }).click();
+    // Read and unread rows start at the same edge; only unread ones have the dot.
+    await page.getByRole("button", { name: "Show all 4 on DEMO-101" }).click();
+    const items = rowOf(page, "DEMO-101").locator("ul > li");
+    await items.first().waitFor();
+    const lefts = await items.evaluateAll(lis => lis.map(li => ({ unread: li.dataset.unread === "true", x: Math.round(li.querySelector(".truncate").getBoundingClientRect().left), dots: li.querySelectorAll(".rounded-full").length })));
+    assert.equal(new Set(lefts.map(l => l.x)).size, 1, `one left edge: ${JSON.stringify(lefts)}`);
+    for (const l of lefts) assert.equal(l.dots, l.unread ? 1 : 0, `dot only when unread: ${JSON.stringify(lefts)}`);
+    assert.ok(lefts.some(l => !l.unread) && lefts.some(l => l.unread), "both kinds shown");
+    await pick(page, "DEMO-101").click();
+    const happened = page.getByRole("region", { name: "What happened" });
+    // The comment itself, clamped, with its author; "Show all" opens the rest in place.
+    await happened.getByText("Riga 1 del commento sul lotto.").waitFor();
+    await happened.getByText("Anna Bianchi").waitFor();
+    const hidden = () => happened.getByText("Riga 12 del commento sul lotto.").evaluate(el => {
+      const box = el.closest(".line-clamp-6");
+      return !!box && el.getBoundingClientRect().top >= box.getBoundingClientRect().bottom - 1;
+    });
+    assert.ok(await hidden(), "clamped: the last line is past the box");
+    await happened.getByRole("button", { name: "Show all" }).click();
+    await happened.getByText("Riga 12 del commento sul lotto.").waitFor();
+    // The status change and the assignment: from → to, and who.
+    await happened.getByText("Da fare", { exact: true }).waitFor();
+    await happened.getByText("In corso", { exact: true }).waitFor();
+    await happened.getByText("Carlo Verdi").waitFor();
+    await happened.getByText("Luca Neri", { exact: true }).waitFor();
+    await happened.getByText("Mario Rossi", { exact: true }).waitFor();
+    // The mention: the sentence around it, not the whole comment.
+    await happened.getByText("Puoi vedere @mrossi il lotto?", { exact: true }).waitFor();
+    // The issue is folded below until asked for.
+    const details = page.getByRole("button", { name: "Issue details" });
+    assert.equal(await details.getAttribute("aria-expanded"), "false");
+    await details.click();
+    assert.equal(await details.getAttribute("aria-expanded"), "true");
+    await page.getByRole("complementary", { name: "Preview" }).getByText("Project", { exact: true }).waitFor();
+    // One "done" mark everywhere: ✓, named Done.
+    for (const b of await rowOf(page, "DEMO-101").getByRole("button", { name: /^Done/ }).all()) assert.ok(await b.locator("svg.lucide-check").count(), "a check");
   }));

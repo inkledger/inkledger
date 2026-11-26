@@ -432,6 +432,14 @@ describe("notifications, incremental sync, watchers", () => {
     await expect(caller.notifications.createTest({ kind: "due", issueKey: "nope" })).rejects.toThrow();
   });
 
+  it("eventRef: the comment or changelog id a notification is about, else null", async () => {
+    const { eventRef } = await import("./notifications");
+    expect(eventRef("c1:commented:AB-1:10042")).toBe("10042");
+    expect(eventRef("c3:status:AB-1:3301")).toBe("3301");
+    expect(eventRef("c1:inbox:thread-9:1700000000")).toBeNull();
+    expect(eventRef("c1:assigned:AB-1:1700000000")).toBeNull();
+  });
+
   it("inbox: open and done apart; read / unread is local and only unread ones are counted; done ones come back", async () => {
     await freshStart({ mine: [jiraIssue("AB-1"), jiraIssue("AB-2")] });
     await caller.notifications.createTest({ kind: "commented", issueKey: "AB-1" });

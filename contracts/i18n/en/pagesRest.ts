@@ -582,7 +582,11 @@ export const pagesRest = {
       done: "Nothing done in the last 30 days",
     },
     emptyMessage: "Mentions, comments, status changes and assignments show up here, one group per issue.",
-    keysHint: "j / k move · e done · u unread · Enter opens the issue · Esc back to the list",
+    showWhole: "Show all",
+    showLess: "Show less",
+    to: "to",
+    details: "Issue details",
+    keys: { move: "move", done: "done", unread: "unread", open: "open issue", back: "list", esc: "Esc" },
   },
   info: {
     title: "Info",

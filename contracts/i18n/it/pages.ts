@@ -1251,6 +1251,10 @@ export const pages: Shape<(typeof en)["pages"]> = {
       done: "Niente di fatto negli ultimi 30 giorni",
     },
     emptyMessage: "Menzioni, commenti, cambi di stato e assegnazioni arrivano qui, un gruppo per issue.",
-    keysHint: "j / k scorri · e fatto · u da leggere · Invio apre la issue · Esc torna alla lista",
+    showWhole: "Mostra tutto",
+    showLess: "Mostra meno",
+    to: "a",
+    details: "Dettagli issue",
+    keys: { move: "scorri", done: "fatto", unread: "da leggere", open: "apri issue", back: "lista", esc: "Esc" },
   },
 };
