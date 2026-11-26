@@ -232,11 +232,21 @@ test("A tab left on an older layout keeps its changes nobody touched since, as a
     // The first tab hides "Quick numbers" and applies it.
     await page.locator('[data-anchor="dashboard.stats"]').getByRole("button", { name: /^Show / }).click();
     await page.getByText(/Preview, not applied yet/).waitFor();
+    // The first tab's draft is closed only after its commit: held open here, so the second tab's change lands
+    // in between, as it did on a slow runner (then refused without saying what could be kept).
+    let release = () => {};
+    const held = new Promise(resolve => { release = resolve; });
+    await page.route(url => trpcProcs(url.toString()).includes("workspace.completeDraft"), async route => {
+      await held;
+      await route.continue();
+    });
     await page.getByRole("button", { name: "Apply layout" }).click();
     await waitUntil(async () => (await revisions()) === 1, "the first tab's change to apply");
     // The second tab, still on the layout before it, pins the same block and hides an unrelated one.
     await other.locator('[data-anchor="dashboard.stats"]').getByRole("button", { name: /^Pin / }).click();
     await other.getByRole("alert").filter({ hasText: "The layout changed meanwhile" }).waitFor();
+    release();
+    await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_drafts WHERE status NOT IN ('applied', 'discarded', 'aborted')"))[0].n === 0, "the first tab's draft to close");
     await other.locator('[data-anchor="dashboard.activity"]').getByRole("button", { name: /^Show / }).click();
     const keep = other.getByRole("alert").getByRole("button", { name: "Keep my other change (1)" });
     await keep.click();

@@ -591,6 +591,16 @@ describe("a draft made on an older layout (§21 #16)", () => {
     await expect(saveWorkspaceDraft(userId, scope, staleDraft())).rejects.toMatchObject({ code: "CONFLICT", cause: { info: { keepable: 1 } } });
   });
 
+  it("is refused as changed with what can be kept even while the applying tab's draft is still open", async () => {
+    // Tab A has committed but not yet closed its draft (completeDraft comes after): tab B's draft is stale all the same.
+    await resetDbForTests();
+    userId = await user();
+    await saveWorkspaceDraft(userId, scope, draft(false));
+    await prepareWorkspace({ userId, scope, prepareId: "prepare-a", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 });
+    await commitWorkspace({ userId, scope, prepareId: "prepare-a", operationId: "operation-a", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 });
+    await expect(saveWorkspaceDraft(userId, scope, { ...staleDraft(), draftRevision: 1 })).rejects.toMatchObject({ code: "CONFLICT", cause: { info: { keepable: 1 } } });
+  });
+
   it("re-proposes only its changes disjoint from the commit, as an unsaved preview on the current revision", async () => {
     const before = await getWorkspace(userId, scope, "tab-b");
     const stored = await counts();
