@@ -88,8 +88,10 @@ export function StatStrip({
       aria-busy={busy || undefined}
       className={cn("relative isolate overflow-hidden border-b transition-opacity", busy && "opacity-60", className)}
     >
-      {/* The cover's sunset, faint, behind the figures: warmth without a band that reads as a line. */}
-      <div aria-hidden className="cover-sunset grain pointer-events-none absolute inset-0 -z-10 opacity-15 dark:opacity-20" />
+      {/* The cover's sunset, faint, behind the figures: warmth without a band that reads as a line. The dark
+          dusk is a pastel mid tone, so it stays fainter there (muted captions keep AA, StatStrip.test.ts);
+          high contrast keeps its deep night band at 20%. */}
+      <div aria-hidden className="cover-sunset grain pointer-events-none absolute inset-0 -z-10 opacity-15 dark:opacity-10 [.dark[data-contrast=high]_&]:opacity-20" />
       {/* Hairlines whatever the columns: every cell draws its left and top line, and the list is pulled
           one pixel up and left so the outer ones fall outside the section (which clips). */}
       <dl className={cn("-ml-px -mt-px grid [&>*]:border-l [&>*]:border-t", PHONE[shown.length], COLUMNS[columns])}>
