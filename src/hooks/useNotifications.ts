@@ -92,6 +92,7 @@ export function useNotificationAlerts(): void {
     // Framed modules watching the page hear that something landed (where the bell is, nothing more).
     pageSignals.emit({ kind: "notification" });
     void utils.notifications.list.invalidate();
+    void utils.notifications.inbox.invalidate();
     void utils.client.notifications.list.query().then(list => {
       const fresh = list.filter(n => n.id > before);
       if (fresh.length === 0) return;

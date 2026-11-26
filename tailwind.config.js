@@ -197,6 +197,8 @@ module.exports = {
       addVariant("@xl", "@container region (min-width: 80rem)");
       // Below @l: a region stacked in one column (a phone, a narrow pane), where a budget replaces the row's height.
       addVariant("max-@l", "@container region (max-width: 55.99rem)");
+      // Below @xl: a list-detail region shows one pane at a time (the choice replaces the list).
+      addVariant("max-@xl", "@container region (max-width: 79.99rem)");
     },
   ],
 };

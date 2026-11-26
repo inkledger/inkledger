@@ -62,6 +62,9 @@ export function useScrollRestoration(main: RefObject<HTMLElement | null>) {
       if (!frame) frame = requestAnimationFrame(take);
     };
     const onHide = () => scrollMemory.flush();
+    // A replaced entry (a filter, a selection kept in the URL) keeps the scroll it had: taken now, or a
+    // Back to it with no scroll since would find nothing and start at the top.
+    if (type === NavigationType.Replace) take();
     document.addEventListener("scroll", onScroll, true);
     window.addEventListener("pagehide", onHide);
     return () => {
@@ -70,7 +73,7 @@ export function useScrollRestoration(main: RefObject<HTMLElement | null>) {
       if (frame) cancelAnimationFrame(frame);
       scrollMemory.flush();
     };
-  }, [location.key, main]);
+  }, [location.key, main, type]);
 
   useLayoutEffect(() => {
     if (type === NavigationType.Replace) return; // filters typed: stay where you are

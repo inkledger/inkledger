@@ -68,6 +68,10 @@
     "guard": "RequireAuth"
   },
   {
+    "path": "/notifications",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/pinboard",
     "guard": "RequireAuth"
   },
