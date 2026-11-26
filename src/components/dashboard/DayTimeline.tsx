@@ -219,7 +219,8 @@ export function DayTimeline({
             key={p.id}
             aria-hidden
             className="stripes-idle absolute bottom-6 top-3 flex justify-center rounded-md opacity-80"
-            style={{ left: `${p.left}%`, width: `${p.width}%` }}
+            // A pixel clear of the hour lines on both sides: a line on its rounded edge read as a notch.
+            style={{ left: `calc(${p.left}% + 1px)`, width: `calc(${p.width}% - 2px)` }}
           >
             {p.id.startsWith("b") && p.width > 6 && (
               <span className="pt-1.5 text-caption text-muted-foreground">
@@ -444,7 +445,7 @@ export function DayTimeline({
               key={p.id}
               aria-hidden
               className="absolute inset-y-0 rounded-sm bg-chart-break/70"
-              style={{ left: `${p.left}%`, width: `${p.width}%` }}
+              style={{ left: `calc(${p.left}% + 1px)`, width: `calc(${p.width}% - 2px)` }}
             />
           ))}
           {blocks.map(b => (
