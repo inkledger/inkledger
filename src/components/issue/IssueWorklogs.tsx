@@ -121,7 +121,7 @@ export function IssueWorklogs({
               ))}
             </div>
           )}
-          <ul className="divide-y" data-testid="issue-worklogs">
+          <ul className="hairlines-y" data-testid="issue-worklogs">
             {visibleRows.map(row => {
               if (row.kind === "other") {
                 const e = row.entry;

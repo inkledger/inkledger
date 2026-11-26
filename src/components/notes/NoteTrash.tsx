@@ -54,7 +54,7 @@ export function NoteTrash() {
           }
         />
       ) : (
-        <ul className="divide-y">
+        <ul className="hairlines-y">
           {trash.data.map(batch => {
             const needsRoot = !batch.parentActive && !!batch.parentId;
             return (

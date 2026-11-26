@@ -63,7 +63,7 @@ export function Tabs<T extends string>({
             {...surface("control", { on: selected })}
             {...item.control}
             className={cn(
-              "-mb-px inline-flex min-h-target items-center gap-1.5 border-b-2 px-3 py-1.5 text-body-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              "-mb-px inline-flex min-h-target items-center gap-1.5 border-b-2 px-3 py-1.5 text-body-sm font-medium outline-clear transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               selected ? "border-primary-strong text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
@@ -83,7 +83,7 @@ export function Tabs<T extends string>({
 export function TabPanel<T extends string>({ value, current, idBase, children, className }: { value: T; current: T; idBase: string; children: React.ReactNode; className?: string }) {
   if (value !== current) return null;
   return (
-    <div role="tabpanel" id={`${idBase}-panel-${value}`} aria-labelledby={`${idBase}-tab-${value}`} tabIndex={0} className={cn("outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", className)}>
+    <div role="tabpanel" id={`${idBase}-panel-${value}`} aria-labelledby={`${idBase}-tab-${value}`} tabIndex={0} className={cn("outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", className)}>
       {children}
     </div>
   );

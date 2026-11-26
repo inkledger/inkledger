@@ -257,7 +257,7 @@ export function RichText({
     <div className="mt-1">
       <div ref={box} className={cn("relative grid gap-2 text-body-sm", collapsed && "max-h-56 overflow-hidden")}>
         {doc.blocks.length === 0 ? <p className="text-muted-foreground">—</p> : doc.blocks.map((b, i) => block(b, i, ctx))}
-        {collapsed && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background" />}
+        {collapsed && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t/srgb from-background" />}
       </div>
       {long && (
         <button

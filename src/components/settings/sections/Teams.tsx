@@ -123,7 +123,7 @@ export function TeamsSection() {
       {teams.length === 0 ? (
         <EmptyState title={t("settings.teams.title")} message={t("settings.teams.empty")} />
       ) : (
-        <ul className="divide-y">
+        <ul className="hairlines-y">
           {teams.map(team => {
             const outside = people.filter(p => !team.members.some(m => m.userId === p.id));
             return (

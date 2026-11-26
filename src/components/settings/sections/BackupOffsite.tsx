@@ -229,7 +229,7 @@ export default function BackupOffsite({ info, canRestore }: { info: Info; canRes
           ) : copies.data.length === 0 ? (
             <p className="text-body-sm text-muted-foreground">{t("settings.backup.offsite.copiesEmpty")}</p>
           ) : (
-            <ul className="divide-y">
+            <ul className="hairlines-y">
               {copies.data.slice(0, 30).map(c => (
                 <li key={c.name} className="flex items-center gap-3 py-2 first:pt-0">
                   <span className="min-w-0 flex-1">

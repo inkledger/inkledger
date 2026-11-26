@@ -469,7 +469,7 @@ export default function Board() {
             aria-label={t("pages.board.expandLabel", { status: col.title, count: items.length })}
             aria-expanded={false}
             className={cn(
-              "flex flex-1 flex-col items-center gap-2 rounded-lg border bg-card py-3 text-body-sm font-medium transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "flex flex-1 flex-col items-center gap-2 rounded-lg border bg-card py-3 text-body-sm font-medium transition-colors hover:bg-accent/60 focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring",
               dragOver === col.id && "bg-muted/60"
             )}
           >
@@ -613,7 +613,7 @@ export default function Board() {
                   tabIndex={on ? 0 : -1}
                   onClick={() => pickLane(lane.connectionId)}
                   className={cn(
-                    "-mb-px flex items-center gap-2 rounded-t-lg border border-b-0 px-3 py-1.5 text-body-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    "-mb-px flex items-center gap-2 rounded-t-lg border border-b-0 px-3 py-1.5 text-body-sm font-medium outline-clear transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                     on ? "bg-card text-foreground" : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                   )}
                 >
@@ -681,7 +681,7 @@ export default function Board() {
                             aria-expanded
                             aria-label={t("pages.board.unmappedHide")}
                             title={t("pages.board.unmappedHide")}
-                            className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                            className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-clear hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                           >
                             <ChevronsRightLeft className="h-4 w-4" />
                           </button>
@@ -846,7 +846,7 @@ export default function Board() {
               onClick={() => pinboardPanel.set("open")}
               aria-label={t("pages.board.openPinboardLabel", { count: pinned })}
               title={t("pages.board.openPinboardTitle")}
-              className="hidden w-11 shrink-0 flex-col items-center gap-2 rounded-lg border bg-card py-3 text-body-sm font-medium outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring lg:flex"
+              className="hidden w-11 shrink-0 flex-col items-center gap-2 rounded-lg border bg-card py-3 text-body-sm font-medium outline-clear transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring lg:flex"
             >
               <Pin
                 className="h-4 w-4 -rotate-12 text-muted-foreground"

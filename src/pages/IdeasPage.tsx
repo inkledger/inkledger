@@ -148,7 +148,7 @@ export default function IdeasPage() {
     if (!isOpen(s))
       return (
         <section key={s} aria-label={t(`pages.ideas.state.${s}`)} className="flex w-11 shrink-0 flex-col" {...dropProps}>
-          <Button variant="outline" size="sm" className="h-auto min-h-24 px-0 py-3 [writing-mode:vertical-rl]" onClick={() => toggleColumn(s)} aria-label={t("pages.ideas.showColumn", { state: t(`pages.ideas.state.${s}`), count: items.length })}>
+          <Button variant="outline" size="sm" className="h-auto min-h-24 px-3 py-0 [writing-mode:vertical-rl]" onClick={() => toggleColumn(s)} aria-label={t("pages.ideas.showColumn", { state: t(`pages.ideas.state.${s}`), count: items.length })}>
             {t(`pages.ideas.state.${s}`)} · {items.length}
           </Button>
         </section>

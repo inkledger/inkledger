@@ -172,7 +172,7 @@ function StoreCard({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
         type="button"
         onClick={() => onOpen("details")}
         aria-label={t("settings.store.openDetails", { name })}
-        className="group relative block overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="group relative block overflow-hidden outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <StoreImage src={e.hero ?? e.image} className="aspect-video w-full" />
         {e.badge && (
@@ -215,7 +215,7 @@ function StoreTile({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
         type="button"
         onClick={() => onOpen("details")}
         aria-label={t("settings.store.openDetails", { name })}
-        className="group relative block overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="group relative block overflow-hidden outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <StoreImage src={e.hero ?? e.image} className="aspect-[16/10] w-full" />
         {e.badge && (

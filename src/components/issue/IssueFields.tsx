@@ -190,7 +190,7 @@ export function IssueFields({
               type="button"
               onClick={() => issueHistory.open(i.key, i.connectionId)}
               title={t("pages.issueDetail.viewHistory")}
-              className="grid rounded-sm text-left underline decoration-dotted underline-offset-4 outline-none hover:decoration-solid focus-visible:ring-2 focus-visible:ring-ring"
+              className="grid rounded-sm text-left underline decoration-dotted underline-offset-4 outline-clear hover:decoration-solid focus-visible:ring-2 focus-visible:ring-ring"
             >
               {dateTime().format(new Date(i.remoteUpdatedAt))}
               {history.data?.reason && (

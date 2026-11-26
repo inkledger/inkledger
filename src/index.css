@@ -1,5 +1,11 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/inter-tight";
+/* Tailwind (v4, CSS-first: the theme, variants and plugin below). Only the page's own sources make
+   classes, as before: index.html and src's scripts (never Markdown, JSON or the studio). */
+@import "tailwindcss" source(none);
+@source "../index.html";
+@source "./**/*.{js,ts,jsx,tsx}";
+@plugin "tailwindcss-animate";
 
 /*
  * The UI fonts' Latin faces (every text the app writes), defined after the imported ones so they
@@ -23,9 +29,279 @@
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * The theme (was tailwind.config.js). Inline: a utility writes the token's own var() (bg-card is
+ * hsl(var(--card))), so a token set again further down the page (a region, the high-contrast look)
+ * still reaches it, as it always did.
+ */
+@theme {
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+  --font-display: "Inter Tight Variable", "Inter Variable", system-ui, sans-serif;
+  /* The only type scale (rem: follows the density setting; Tailwind's text-xs/sm/base/... are banned
+     by scripts/check-design.mjs). Pair display sizes with `font-display`; see PageHeader / PanelSection. */
+  --text-display: 2.75rem;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 600;
+  --text-title: 1.75rem;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.02em;
+  --text-title--font-weight: 600;
+  --text-heading: 1.375rem;
+  --text-heading--line-height: 1.25;
+  --text-heading--letter-spacing: -0.015em;
+  --text-heading--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.45;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.35;
+  /* Text in a field on a phone: never below 16px, or iOS Safari zooms the page in on focus. */
+  --text-field: max(1rem, 16px);
+  --text-field--line-height: 1.5;
+  /* Never below 11px, whatever the density (WCAG-friendly minimum). */
+  --text-2xs: max(11px, 0.625rem);
+  --text-2xs--line-height: 1;
+  --text-2xs--font-weight: 600;
+  --text-overline: max(11px, 0.6875rem);
+  --text-overline--line-height: 1.3;
+  --text-overline--letter-spacing: 0.04em;
+  --text-overline--font-weight: 600;
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+  --default-transition-timing-function: cubic-bezier(.2,.8,.2,1);
+  --default-transition-duration: 180ms;
+  --transition-duration-fast: 120ms;
+  --transition-duration-slow: 260ms;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-page-in: page-in 260ms cubic-bezier(.2,.8,.2,1) both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes page-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
+}
+@theme inline {
+  /* Colours: each token of :root below (alpha too: bg-primary/40). */
+  --color-canvas: hsl(var(--canvas));
+  --color-qr: hsl(var(--qr));
+  --color-qr-ink: hsl(var(--qr-ink));
+  --color-overlay: hsl(var(--overlay));
+  --color-action: hsl(var(--action));
+  --color-action-foreground: hsl(var(--action-foreground));
+  --color-cover-ink: hsl(var(--cover-ink));
+  --color-cover-title: hsl(var(--cover-title));
+  --color-success: hsl(var(--success));
+  --color-success-soft: hsl(var(--success-soft));
+  --color-warning: hsl(var(--warning));
+  --color-warning-soft: hsl(var(--warning-soft));
+  --color-danger: hsl(var(--danger));
+  --color-danger-soft: hsl(var(--danger-soft));
+  --color-info: hsl(var(--info));
+  --color-info-soft: hsl(var(--info-soft));
+  --color-chart-focus: hsl(var(--chart-focus));
+  --color-chart-other: hsl(var(--chart-other));
+  --color-chart-break: hsl(var(--chart-break));
+  --color-chart-ink: hsl(var(--chart-ink));
+  --color-chart-tone-2: hsl(var(--chart-tone-2));
+  --color-chart-tone-3: hsl(var(--chart-tone-3));
+  --color-chart-tone-4: hsl(var(--chart-tone-4));
+  --color-chart-tone-5: hsl(var(--chart-tone-5));
+  --color-project-1: hsl(var(--project-1));
+  --color-project-2: hsl(var(--project-2));
+  --color-project-3: hsl(var(--project-3));
+  --color-project-4: hsl(var(--project-4));
+  --color-project-5: hsl(var(--project-5));
+  --color-project-6: hsl(var(--project-6));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-soft: hsl(var(--primary-soft));
+  --color-primary-strong: hsl(var(--primary-strong));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  /* Radius scale tied to --radius (0.75rem): panel 2xl, card xl, control lg/md, chip sm. Restrained
+     (Linear / Geist): chip 4, control 6, group 8, card 10, panel & dialog 12 at a 16px root; scales
+     with density. */
+  --radius-2xl: calc(var(--radius) + 0.25rem);
+  --radius-xl: calc(var(--radius) + 0.125rem);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-xs: calc(var(--radius) - 0.3125rem);
+  /* Two soft layers tinted with the theme's --shadow-color. (A module's light on the Dashboard adds its
+     own layers on top: src/modules/light.ts.) */
+  --shadow-xs: 0 1px 1px hsl(var(--shadow-color) / 0.04), 0 0px 0px hsl(var(--shadow-color) / 0);
+  --shadow-sm: 0 1px 1px hsl(var(--shadow-color) / 0.04), 0 1px 2px hsl(var(--shadow-color) / 0.04);
+  --shadow-md: 0 1px 2px hsl(var(--shadow-color) / 0.05), 0 4px 10px hsl(var(--shadow-color) / 0.05);
+  --shadow-lg: 0 2px 6px hsl(var(--shadow-color) / 0.06), 0 12px 28px hsl(var(--shadow-color) / 0.08);
+  --shadow-xl: 0 4px 12px hsl(var(--shadow-color) / 0.07), 0 20px 48px hsl(var(--shadow-color) / 0.12);
+  /* A finger's target (44 px, platform guidance), whatever the type density: px, not rem. */
+  --spacing-touch: 44px;
+  /* WCAG 2.2 target size (24 px), not 1.5rem: the root is 14 px. */
+  --spacing-target: 24px;
+  /* A control's height in a row, per density (--control-h below): buttons, segmented controls and
+     button groups share it, so a header's controls line up. */
+  --spacing-control: var(--control-h);
+}
+
+/* Dark: the class next-themes sets on <html>. */
+@custom-variant dark (&:is(.dark *));
+/* Hover on any pointer that hovers it, a touch screen's tap too (as the app always had it). */
+@custom-variant hover (&:hover);
+/* coarse: a touch screen (a finger, not a mouse): bigger tap areas, same look. */
+@custom-variant coarse (@media (pointer: coarse));
+/* forced: Windows contrast themes, a mark that does not rely on fill or shadow. */
+@custom-variant forced (@media (forced-colors: active));
+/* Regions (docs/design-system.md §7.1): a block lays itself out by its own width. `region` makes an
+   element the container; `@m:`, `@l:`, `@xl:` apply from 28, 56 and 80rem of it
+   (src/lib/layout/regions.ts; rem, so density moves them). `@max-l:`: below @l, a region stacked in
+   one column (a phone, a narrow pane), where a budget replaces the row's height; `@max-xl:` below @xl. */
+@custom-variant @m (@container region (min-width: 28rem));
+@custom-variant @l (@container region (min-width: 56rem));
+@custom-variant @xl (@container region (min-width: 80rem));
+@custom-variant @max-l (@container region (max-width: 55.99rem));
+/* Below @xl: a list-detail region shows one pane at a time (the choice replaces the list). */
+@custom-variant @max-xl (@container region (max-width: 79.99rem));
+@utility region {
+  container-type: inline-size;
+  container-name: region;
+}
+/* No outline, the way the app always hid one: a transparent 2px outline 2px out, so a Windows contrast
+   theme still draws it (and the page paints exactly as before; Tailwind 4's outline-hidden sets none). */
+@utility outline-clear {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+/* Hairlines between a list's items: on each item after the first, as they always were drawn
+   (Tailwind 4's divide-y/-x put them after each item but the last instead, which moves the content of
+   a fixed-width column by a pixel). */
+@utility hairlines-y {
+  & > :not([hidden]) ~ :not([hidden]) {
+    border-top-width: 1px;
+    border-bottom-width: 0px;
+  }
+}
+@utility hairlines-x {
+  & > :not([hidden]) ~ :not([hidden]) {
+    border-right-width: 0px;
+    border-left-width: 1px;
+  }
+}
+
+/*
+ * Tailwind 3's preflight where Tailwind 4's differs, so the page draws as it always did: the upgrade
+ * guide's compatibility rules (border colour, placeholder, button cursor, ring colour) and the rest of
+ * what 4 changed. `revert` hands a property back to the browser's own style, which 3 left alone.
+ */
+@layer base {
+  ::before,
+  ::after {
+    border-color: #e5e7eb;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+  :disabled {
+    cursor: default;
+  }
+  button,
+  input,
+  optgroup,
+  select,
+  textarea {
+    font-style: revert;
+    font-variant: revert;
+    font-stretch: revert;
+    font-kerning: revert;
+    font-optical-sizing: revert;
+    font-size-adjust: revert;
+    border-radius: revert;
+  }
+  input:where(:not([type="button"], [type="reset"], [type="submit"])),
+  optgroup,
+  select,
+  textarea {
+    background-color: revert;
+  }
+  [type="search"] {
+    -webkit-appearance: textfield;
+    outline-offset: -2px;
+  }
+  /* A table cell's 1px: the browser's default cell padding, a hint `revert` does not reach. */
+  td,
+  th {
+    padding: 1px;
+  }
+  dialog {
+    margin: revert;
+  }
+  option {
+    padding: revert;
+  }
+  ::-webkit-date-and-time-value {
+    min-height: revert;
+    text-align: revert;
+  }
+  ::-webkit-datetime-edit {
+    display: revert;
+  }
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: revert;
+  }
+  ::-webkit-datetime-edit,
+  ::-webkit-datetime-edit-year-field,
+  ::-webkit-datetime-edit-month-field,
+  ::-webkit-datetime-edit-day-field,
+  ::-webkit-datetime-edit-hour-field,
+  ::-webkit-datetime-edit-minute-field,
+  ::-webkit-datetime-edit-second-field,
+  ::-webkit-datetime-edit-millisecond-field,
+  ::-webkit-datetime-edit-meridiem-field {
+    padding-block: revert;
+  }
+  ::-webkit-calendar-picker-indicator {
+    line-height: revert;
+  }
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    --tw-ring-color: rgb(59 130 246 / 0.5);
+  }
+}
 
 /*
  * Palette: warm neutrals, terracotta actions, soft apricot/blush/taupe for
@@ -569,123 +845,127 @@
   }
 }
 
-/* Decorative fills, kept outside @layer so dynamic class names (cover-N) are never purged. */
-/* Soft project tones made opaque over a card (projectColors.ts `solid`). */
-.bg-project-1-solid { background-color: color-mix(in srgb, hsl(var(--project-1)) 40%, hsl(var(--card))); }
-.bg-project-2-solid { background-color: color-mix(in srgb, hsl(var(--project-2)) 40%, hsl(var(--card))); }
-.bg-project-3-solid { background-color: color-mix(in srgb, hsl(var(--project-3)) 40%, hsl(var(--card))); }
-.bg-project-4-solid { background-color: color-mix(in srgb, hsl(var(--project-4)) 40%, hsl(var(--card))); }
-.bg-project-5-solid { background-color: color-mix(in srgb, hsl(var(--project-5)) 40%, hsl(var(--card))); }
-.bg-project-6-solid { background-color: color-mix(in srgb, hsl(var(--project-6)) 40%, hsl(var(--card))); }
-.bg-rest-solid { background-color: color-mix(in srgb, hsl(var(--muted-foreground)) 10%, hsl(var(--card))); }
+@layer utilities {
+  /* Decorative fills (cover-N and the like, named at run time: a layer's rules are never purged). */
+  /* Soft project tones made opaque over a card (projectColors.ts `solid`). */
+  .bg-project-1-solid { background-color: color-mix(in srgb, hsl(var(--project-1)) 40%, hsl(var(--card))); }
+  .bg-project-2-solid { background-color: color-mix(in srgb, hsl(var(--project-2)) 40%, hsl(var(--card))); }
+  .bg-project-3-solid { background-color: color-mix(in srgb, hsl(var(--project-3)) 40%, hsl(var(--card))); }
+  .bg-project-4-solid { background-color: color-mix(in srgb, hsl(var(--project-4)) 40%, hsl(var(--card))); }
+  .bg-project-5-solid { background-color: color-mix(in srgb, hsl(var(--project-5)) 40%, hsl(var(--card))); }
+  .bg-project-6-solid { background-color: color-mix(in srgb, hsl(var(--project-6)) 40%, hsl(var(--card))); }
+  .bg-rest-solid { background-color: color-mix(in srgb, hsl(var(--muted-foreground)) 10%, hsl(var(--card))); }
 
-/*
- * Grainy warm "covers" (reference: pastel noise images on task cards).
- * A tiled SVG noise sits on top of soft radial gradients.
- */
-/* :where() keeps specificity at 0 so utilities like `absolute` still win. */
-:where(.grain) {
-  position: relative;
-}
-.grain {
-  isolation: isolate;
-}
-.grain::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0.55;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-}
-.cover-0 {
-  background:
-    radial-gradient(at 15% 25%, hsl(var(--cover-0-a)) 0, transparent 50%),
-    radial-gradient(at 80% 20%, hsl(var(--cover-0-b)) 0, transparent 48%),
-    radial-gradient(at 45% 95%, hsl(var(--cover-0-c)) 0, transparent 55%),
-    hsl(var(--cover-0-bg));
-}
-.cover-1 {
-  background:
-    radial-gradient(at 15% 25%, hsl(var(--cover-1-a)) 0, transparent 50%),
-    radial-gradient(at 80% 20%, hsl(var(--cover-1-b)) 0, transparent 48%),
-    radial-gradient(at 45% 95%, hsl(var(--cover-1-c)) 0, transparent 55%),
-    hsl(var(--cover-1-bg));
-}
-.cover-2 {
-  background:
-    radial-gradient(at 15% 25%, hsl(var(--cover-2-a)) 0, transparent 50%),
-    radial-gradient(at 80% 20%, hsl(var(--cover-2-b)) 0, transparent 48%),
-    radial-gradient(at 45% 95%, hsl(var(--cover-2-c)) 0, transparent 55%),
-    hsl(var(--cover-2-bg));
-}
-.cover-3 {
-  background:
-    radial-gradient(at 15% 25%, hsl(var(--cover-3-a)) 0, transparent 50%),
-    radial-gradient(at 80% 20%, hsl(var(--cover-3-b)) 0, transparent 48%),
-    radial-gradient(at 45% 95%, hsl(var(--cover-3-c)) 0, transparent 55%),
-    hsl(var(--cover-3-bg));
-}
-.cover-4 {
-  background:
-    radial-gradient(at 15% 25%, hsl(var(--cover-4-a)) 0, transparent 50%),
-    radial-gradient(at 80% 20%, hsl(var(--cover-4-b)) 0, transparent 48%),
-    radial-gradient(at 45% 95%, hsl(var(--cover-4-c)) 0, transparent 55%),
-    hsl(var(--cover-4-bg));
-}
-.cover-5 {
-  background:
-    radial-gradient(at 15% 25%, hsl(var(--cover-5-a)) 0, transparent 50%),
-    radial-gradient(at 80% 20%, hsl(var(--cover-5-b)) 0, transparent 48%),
-    radial-gradient(at 45% 95%, hsl(var(--cover-5-c)) 0, transparent 55%),
-    hsl(var(--cover-5-bg));
-}
-/* Sunset header for the quick stats card. */
-.cover-sunset {
-  background:
-    radial-gradient(at 20% 120%, hsl(var(--sunset-1)) 0, transparent 55%),
-    radial-gradient(at 60% 10%, hsl(var(--sunset-2)) 0, transparent 50%),
-    radial-gradient(at 95% 60%, hsl(var(--sunset-3)) 0, transparent 55%),
-    linear-gradient(160deg, hsl(var(--sunset-4)), hsl(var(--sunset-5)));
-}
+  /*
+   * Grainy warm "covers" (reference: pastel noise images on task cards).
+   * A tiled SVG noise sits on top of soft radial gradients.
+   */
+  /* :where() keeps specificity at 0 so utilities like `absolute` still win. */
+  :where(.grain) {
+    position: relative;
+  }
+  .grain {
+    isolation: isolate;
+  }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.55;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  .cover-0 {
+    background:
+      radial-gradient(at 15% 25%, hsl(var(--cover-0-a)) 0, transparent 50%),
+      radial-gradient(at 80% 20%, hsl(var(--cover-0-b)) 0, transparent 48%),
+      radial-gradient(at 45% 95%, hsl(var(--cover-0-c)) 0, transparent 55%),
+      hsl(var(--cover-0-bg));
+  }
+  .cover-1 {
+    background:
+      radial-gradient(at 15% 25%, hsl(var(--cover-1-a)) 0, transparent 50%),
+      radial-gradient(at 80% 20%, hsl(var(--cover-1-b)) 0, transparent 48%),
+      radial-gradient(at 45% 95%, hsl(var(--cover-1-c)) 0, transparent 55%),
+      hsl(var(--cover-1-bg));
+  }
+  .cover-2 {
+    background:
+      radial-gradient(at 15% 25%, hsl(var(--cover-2-a)) 0, transparent 50%),
+      radial-gradient(at 80% 20%, hsl(var(--cover-2-b)) 0, transparent 48%),
+      radial-gradient(at 45% 95%, hsl(var(--cover-2-c)) 0, transparent 55%),
+      hsl(var(--cover-2-bg));
+  }
+  .cover-3 {
+    background:
+      radial-gradient(at 15% 25%, hsl(var(--cover-3-a)) 0, transparent 50%),
+      radial-gradient(at 80% 20%, hsl(var(--cover-3-b)) 0, transparent 48%),
+      radial-gradient(at 45% 95%, hsl(var(--cover-3-c)) 0, transparent 55%),
+      hsl(var(--cover-3-bg));
+  }
+  .cover-4 {
+    background:
+      radial-gradient(at 15% 25%, hsl(var(--cover-4-a)) 0, transparent 50%),
+      radial-gradient(at 80% 20%, hsl(var(--cover-4-b)) 0, transparent 48%),
+      radial-gradient(at 45% 95%, hsl(var(--cover-4-c)) 0, transparent 55%),
+      hsl(var(--cover-4-bg));
+  }
+  .cover-5 {
+    background:
+      radial-gradient(at 15% 25%, hsl(var(--cover-5-a)) 0, transparent 50%),
+      radial-gradient(at 80% 20%, hsl(var(--cover-5-b)) 0, transparent 48%),
+      radial-gradient(at 45% 95%, hsl(var(--cover-5-c)) 0, transparent 55%),
+      hsl(var(--cover-5-bg));
+  }
+  /* Sunset header for the quick stats card. */
+  .cover-sunset {
+    background:
+      radial-gradient(at 20% 120%, hsl(var(--sunset-1)) 0, transparent 55%),
+      radial-gradient(at 60% 10%, hsl(var(--sunset-2)) 0, transparent 50%),
+      radial-gradient(at 95% 60%, hsl(var(--sunset-3)) 0, transparent 55%),
+      linear-gradient(160deg, hsl(var(--sunset-4)), hsl(var(--sunset-5)));
+  }
 
-/* Tracked but not yet logged time (timers): the only hatched data. */
-.stripes-pending {
-  background-image: repeating-linear-gradient(
-    135deg,
-    hsl(var(--chart-focus)) 0 4px,
-    hsl(var(--chart-focus) / 0.4) 4px 8px
-  );
-  background-size: 11.31px 11.31px;
-}
-.stripes-live {
-  animation: stripes-flow 1.2s linear infinite;
+  /* Tracked but not yet logged time (timers): the only hatched data. */
+  .stripes-pending {
+    background-image: repeating-linear-gradient(
+      135deg,
+      hsl(var(--chart-focus)) 0 4px,
+      hsl(var(--chart-focus) / 0.4) 4px 8px
+    );
+    background-size: 11.31px 11.31px;
+  }
+  .stripes-live {
+    animation: stripes-flow 1.2s linear infinite;
+  }
 }
 @keyframes stripes-flow {
   to {
     background-position: 11.31px 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .stripes-live {
-    animation: none;
+@layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    .stripes-live {
+      animation: none;
+    }
   }
-}
-/*
- * High contrast, stacked chart segments (.chart-seg) and legend swatches (.chart-swatch): solid fills,
- * a 2px gap of the canvas between segments and a 1px line of the foreground at 60% around each.
- */
-html[data-contrast="high"] :is(.chart-seg, .chart-swatch) { box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.6); }
-html[data-contrast="high"] .chart-seg:not(:first-child) { border-top-width: 2px; border-top-color: hsl(var(--canvas)); }
-/* Idle blocks of the day timeline. */
-.stripes-idle {
-  background-image: repeating-linear-gradient(
-    135deg,
-    hsl(var(--muted)) 0 4px,
-    hsl(var(--border)) 4px 6px
-  );
+  /*
+   * High contrast, stacked chart segments (.chart-seg) and legend swatches (.chart-swatch): solid fills,
+   * a 2px gap of the canvas between segments and a 1px line of the foreground at 60% around each.
+   */
+  html[data-contrast="high"] :is(.chart-seg, .chart-swatch) { box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.6); }
+  html[data-contrast="high"] .chart-seg:not(:first-child) { border-top-width: 2px; border-top-color: hsl(var(--canvas)); }
+  /* Idle blocks of the day timeline. */
+  .stripes-idle {
+    background-image: repeating-linear-gradient(
+      135deg,
+      hsl(var(--muted)) 0 4px,
+      hsl(var(--border)) 4px 6px
+    );
+  }
 }
 
 @keyframes shimmer {
@@ -708,68 +988,70 @@ html[data-contrast="high"] .chart-seg:not(:first-child) { border-top-width: 2px;
     transform: none;
   }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .stagger > * {
-    animation: stagger-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+@layer utilities {
+  @media (prefers-reduced-motion: no-preference) {
+    .stagger > * {
+      animation: stagger-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+    .stagger > *:nth-child(2) {
+      animation-delay: 30ms;
+    }
+    .stagger > *:nth-child(3) {
+      animation-delay: 60ms;
+    }
+    .stagger > *:nth-child(4) {
+      animation-delay: 90ms;
+    }
+    .stagger > *:nth-child(5) {
+      animation-delay: 120ms;
+    }
+    .stagger > *:nth-child(6) {
+      animation-delay: 150ms;
+    }
+    .stagger > *:nth-child(7) {
+      animation-delay: 180ms;
+    }
+    .stagger > *:nth-child(n + 8) {
+      animation-delay: 210ms;
+    }
+
+    /* List → detail: the project avatar morphs, the page cross-fades. */
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: 220ms;
+    }
+    ::view-transition-group(*) {
+      animation-duration: 320ms;
+      animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
   }
-  .stagger > *:nth-child(2) {
-    animation-delay: 30ms;
-  }
-  .stagger > *:nth-child(3) {
-    animation-delay: 60ms;
-  }
-  .stagger > *:nth-child(4) {
-    animation-delay: 90ms;
-  }
-  .stagger > *:nth-child(5) {
-    animation-delay: 120ms;
-  }
-  .stagger > *:nth-child(6) {
-    animation-delay: 150ms;
-  }
-  .stagger > *:nth-child(7) {
-    animation-delay: 180ms;
-  }
-  .stagger > *:nth-child(n + 8) {
-    animation-delay: 210ms;
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation: none !important;
+    }
   }
 
-  /* List → detail: the project avatar morphs, the page cross-fades. */
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation-duration: 220ms;
+  /* Goal reached: one light sweep across the bar (static under reduced motion). */
+  .goal-glow {
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.35);
+    transition: box-shadow 600ms ease;
   }
-  ::view-transition-group(*) {
-    animation-duration: 320ms;
-    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
-  }
-}
-
-/* Goal reached: one light sweep across the bar (static under reduced motion). */
-.goal-glow {
-  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.35);
-  transition: box-shadow 600ms ease;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .goal-glow::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      100deg,
-      transparent 30%,
-      hsl(var(--card) / 0.75) 50%,
-      transparent 70%
-    );
-    background-size: 220% 100%;
-    animation: goal-sweep 1.6s ease-out 2 both;
+  @media (prefers-reduced-motion: no-preference) {
+    .goal-glow::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        100deg,
+        transparent 30%,
+        hsl(var(--card) / 0.75) 50%,
+        transparent 70%
+      );
+      background-size: 220% 100%;
+      animation: goal-sweep 1.6s ease-out 2 both;
+    }
   }
 }
 @keyframes goal-sweep {
@@ -781,179 +1063,181 @@ html[data-contrast="high"] .chart-seg:not(:first-child) { border-top-width: 2px;
   }
 }
 
-/* ---------- Lavagna (Board): grainy paper notes held by tape ---------- */
-/* A sheet resting on the board: soft, two-layer, no movement on hover. */
-.note-shadow {
-  box-shadow:
-    0 1px 2px hsl(var(--shadow-color) / 0.12),
-    0 6px 14px -6px hsl(var(--shadow-color) / 0.22);
-}
-.note-shadow:hover {
-  box-shadow:
-    0 1px 2px hsl(var(--shadow-color) / 0.14),
-    0 10px 20px -8px hsl(var(--shadow-color) / 0.3);
-}
-.note-shadow[data-dragging] {
-  box-shadow:
-    0 2px 4px hsl(var(--shadow-color) / 0.14),
-    0 18px 30px -10px hsl(var(--shadow-color) / 0.35);
-}
-/* Washi tape: the note's colour, fine diagonal stripes, torn short edges. */
-.note-tape {
-  --tape: var(--tape-1);
-  position: absolute;
-  z-index: 2;
-  top: -9px;
-  left: 50%;
-  width: 68px;
-  height: 18px;
-  margin-left: -34px;
-  transform: rotate(-3deg);
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      135deg,
-      hsl(0 0% 100% / 0.22) 0 4px,
-      transparent 4px 9px
-    ),
-    hsl(var(--tape) / 0.88);
-  box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.18);
-  clip-path: polygon(
-    0 8%, 4% 0, 8% 10%, 12% 2%, 88% 2%, 92% 10%, 96% 0, 100% 8%,
-    100% 92%, 96% 100%, 92% 90%, 88% 98%, 12% 98%, 8% 90%, 4% 100%, 0 92%
-  );
-}
-.dark .note-tape {
-  background:
-    repeating-linear-gradient(135deg, hsl(0 0% 100% / 0.08) 0 4px, transparent 4px 9px),
-    hsl(var(--tape) / 0.9);
-}
-.note-tape[data-tone="2"] { --tape: var(--tape-2); }
-.note-tape[data-tone="3"] { --tape: var(--tape-3); }
-.note-tape[data-tone="4"] { --tape: var(--tape-4); }
-.note-tape[data-tone="5"] { --tape: var(--tape-5); }
-/* One paper for every note: warm, with the dashboard covers' grain. */
-.note-paper {
-  background:
-    radial-gradient(ellipse at 20% 0%, hsl(0 0% 100% / 0.35), transparent 60%),
-    hsl(var(--paper));
-}
-.dark .note-paper {
-  background:
-    radial-gradient(ellipse at 20% 0%, hsl(0 0% 100% / 0.04), transparent 60%),
-    hsl(var(--paper));
-}
-.note-paper.grain::after {
-  opacity: 0.35;
-}
-/* A private note hangs by a red pin; strings tie it to its issue (Strings.tsx). */
-.note-pin {
-  position: absolute;
-  z-index: 2;
-  top: 6px;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  border-radius: 50%;
-  pointer-events: none;
-  background: radial-gradient(circle at 35% 30%, hsl(0 0% 100% / 0.6), transparent 45%), hsl(var(--string));
-  box-shadow: 0 1.5px 2px hsl(var(--shadow-color) / 0.35);
-}
-.pin-string {
-  fill: none;
-  stroke: hsl(var(--string));
-  stroke-width: 2.2;
-  stroke-linecap: round;
-}
-.pin-string-shadow {
-  fill: none;
-  stroke: hsl(var(--shadow-color) / 0.22);
-  stroke-width: 2.6;
-  stroke-linecap: round;
-}
-.pin-head {
-  fill: hsl(var(--string));
-  stroke: hsl(var(--shadow-color) / 0.3);
-  stroke-width: 0.8;
-}
-.pin-shine {
-  fill: hsl(0 0% 100% / 0.55);
-}
-/* The board itself: warm paper, a little grain, a soft vignette. */
-.paper-board {
-  background:
-    radial-gradient(ellipse at 50% 40%, transparent 55%, hsl(var(--shadow-color) / 0.06) 100%),
-    hsl(var(--muted) / 0.5);
-}
-/* Scrolls without showing scrollbars (and their white corner square). */
-.no-scrollbar {
-  scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
+@layer utilities {
+  /* ---------- Lavagna (Board): grainy paper notes held by tape ---------- */
+  /* A sheet resting on the board: soft, two-layer, no movement on hover. */
+  .note-shadow {
+    box-shadow:
+      0 1px 2px hsl(var(--shadow-color) / 0.12),
+      0 6px 14px -6px hsl(var(--shadow-color) / 0.22);
+  }
+  .note-shadow:hover {
+    box-shadow:
+      0 1px 2px hsl(var(--shadow-color) / 0.14),
+      0 10px 20px -8px hsl(var(--shadow-color) / 0.3);
+  }
+  .note-shadow[data-dragging] {
+    box-shadow:
+      0 2px 4px hsl(var(--shadow-color) / 0.14),
+      0 18px 30px -10px hsl(var(--shadow-color) / 0.35);
+  }
+  /* Washi tape: the note's colour, fine diagonal stripes, torn short edges. */
+  .note-tape {
+    --tape: var(--tape-1);
+    position: absolute;
+    z-index: 2;
+    top: -9px;
+    left: 50%;
+    width: 68px;
+    height: 18px;
+    margin-left: -34px;
+    transform: rotate(-3deg);
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(
+        135deg,
+        hsl(0 0% 100% / 0.22) 0 4px,
+        transparent 4px 9px
+      ),
+      hsl(var(--tape) / 0.88);
+    box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.18);
+    clip-path: polygon(
+      0 8%, 4% 0, 8% 10%, 12% 2%, 88% 2%, 92% 10%, 96% 0, 100% 8%,
+      100% 92%, 96% 100%, 92% 90%, 88% 98%, 12% 98%, 8% 90%, 4% 100%, 0 92%
+    );
+  }
+  .dark .note-tape {
+    background:
+      repeating-linear-gradient(135deg, hsl(0 0% 100% / 0.08) 0 4px, transparent 4px 9px),
+      hsl(var(--tape) / 0.9);
+  }
+  .note-tape[data-tone="2"] { --tape: var(--tape-2); }
+  .note-tape[data-tone="3"] { --tape: var(--tape-3); }
+  .note-tape[data-tone="4"] { --tape: var(--tape-4); }
+  .note-tape[data-tone="5"] { --tape: var(--tape-5); }
+  /* One paper for every note: warm, with the dashboard covers' grain. */
+  .note-paper {
+    background:
+      radial-gradient(ellipse at 20% 0%, hsl(0 0% 100% / 0.35), transparent 60%),
+      hsl(var(--paper));
+  }
+  .dark .note-paper {
+    background:
+      radial-gradient(ellipse at 20% 0%, hsl(0 0% 100% / 0.04), transparent 60%),
+      hsl(var(--paper));
+  }
+  .note-paper.grain::after {
+    opacity: 0.35;
+  }
+  /* A private note hangs by a red pin; strings tie it to its issue (Strings.tsx). */
+  .note-pin {
+    position: absolute;
+    z-index: 2;
+    top: 6px;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle at 35% 30%, hsl(0 0% 100% / 0.6), transparent 45%), hsl(var(--string));
+    box-shadow: 0 1.5px 2px hsl(var(--shadow-color) / 0.35);
+  }
+  .pin-string {
+    fill: none;
+    stroke: hsl(var(--string));
+    stroke-width: 2.2;
+    stroke-linecap: round;
+  }
+  .pin-string-shadow {
+    fill: none;
+    stroke: hsl(var(--shadow-color) / 0.22);
+    stroke-width: 2.6;
+    stroke-linecap: round;
+  }
+  .pin-head {
+    fill: hsl(var(--string));
+    stroke: hsl(var(--shadow-color) / 0.3);
+    stroke-width: 0.8;
+  }
+  .pin-shine {
+    fill: hsl(0 0% 100% / 0.55);
+  }
+  /* The board itself: warm paper, a little grain, a soft vignette. */
+  .paper-board {
+    background:
+      radial-gradient(ellipse at 50% 40%, transparent 55%, hsl(var(--shadow-color) / 0.06) 100%),
+      hsl(var(--muted) / 0.5);
+  }
+  /* Scrolls without showing scrollbars (and their white corner square). */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 
-/* ---------- Phones: notch, home indicator, touch ---------- */
-/* Edge-to-edge (viewport-fit=cover): bars keep clear of the notch and the
-   home indicator. Extra padding on top of what the element already has. */
-.safe-top {
-  padding-top: max(0.5rem, env(safe-area-inset-top));
-  padding-left: max(0.75rem, env(safe-area-inset-left));
-  padding-right: max(0.75rem, env(safe-area-inset-right));
-}
-.safe-bottom {
-  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-}
-/* Side sheets reach the screen edges: a transparent border (the sheet's
-   background shows through) moves their content below the notch. */
-[data-slot="sheet-content"][data-side="left"],
-[data-slot="sheet-content"][data-side="right"] {
-  border-top: env(safe-area-inset-top) solid transparent;
-  border-bottom: env(safe-area-inset-bottom) solid transparent;
-}
-/* Bottom sheets: content clear of the home indicator. */
-[data-slot="sheet-content"][data-side="bottom"] {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-/* Phones and tablets: the tab bar's height, home indicator included. Every
-   bottom offset (page padding, toasts, the modules' panel edge) reads it.
-   Zero on wide screens and while the soft keyboard hides the bar. */
-:root {
-  --bottom-nav-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
-}
-/* A tab bar made compact or roomier in the workspace Studio (MobileTabBar sets the attribute). */
-:root[data-tab-density="compact"] {
-  --bottom-nav-h: calc(3rem + env(safe-area-inset-bottom, 0px));
-}
-:root[data-tab-density="expanded"] {
-  --bottom-nav-h: calc(4rem + env(safe-area-inset-bottom, 0px));
-}
-@media (min-width: 1024px) {
-  :root,
-  :root[data-tab-density] {
+  /* ---------- Phones: notch, home indicator, touch ---------- */
+  /* Edge-to-edge (viewport-fit=cover): bars keep clear of the notch and the
+     home indicator. Extra padding on top of what the element already has. */
+  .safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+  .safe-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+  /* Side sheets reach the screen edges: a transparent border (the sheet's
+     background shows through) moves their content below the notch. */
+  [data-slot="sheet-content"][data-side="left"],
+  [data-slot="sheet-content"][data-side="right"] {
+    border-top: env(safe-area-inset-top) solid transparent;
+    border-bottom: env(safe-area-inset-bottom) solid transparent;
+  }
+  /* Bottom sheets: content clear of the home indicator. */
+  [data-slot="sheet-content"][data-side="bottom"] {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Phones and tablets: the tab bar's height, home indicator included. Every
+     bottom offset (page padding, toasts, the modules' panel edge) reads it.
+     Zero on wide screens and while the soft keyboard hides the bar. */
+  :root {
+    --bottom-nav-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  /* A tab bar made compact or roomier in the workspace Studio (MobileTabBar sets the attribute). */
+  :root[data-tab-density="compact"] {
+    --bottom-nav-h: calc(3rem + env(safe-area-inset-bottom, 0px));
+  }
+  :root[data-tab-density="expanded"] {
+    --bottom-nav-h: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+  @media (min-width: 1024px) {
+    :root,
+    :root[data-tab-density] {
+      --bottom-nav-h: 0px;
+    }
+  }
+  html[data-keyboard],
+  html[data-keyboard][data-tab-density] {
     --bottom-nav-h: 0px;
   }
-}
-html[data-keyboard],
-html[data-keyboard][data-tab-density] {
-  --bottom-nav-h: 0px;
-}
-/* A module showing a control on the tab bar's edge (its mobile-dock box marked
-   data-docked): the page keeps its last row clear of it. */
-:root {
-  --dock-h: 0px;
-}
-:root:has([data-module-slot="mobile-dock"] [data-docked]) {
-  --dock-h: 3.25rem;
-}
-html[data-keyboard] {
-  --dock-h: 0px;
-}
-/* No hover on touch screens: controls that appear on hover stay visible. */
-@media (hover: none) {
-  .opacity-0[class*="group-hover:opacity-100"] {
-    opacity: 1;
+  /* A module showing a control on the tab bar's edge (its mobile-dock box marked
+     data-docked): the page keeps its last row clear of it. */
+  :root {
+    --dock-h: 0px;
+  }
+  :root:has([data-module-slot="mobile-dock"] [data-docked]) {
+    --dock-h: 3.25rem;
+  }
+  html[data-keyboard] {
+    --dock-h: 0px;
+  }
+  /* No hover on touch screens: controls that appear on hover stay visible. */
+  @media (hover: none) {
+    .opacity-0[class*="group-hover:opacity-100"] {
+      opacity: 1;
+    }
   }
 }
 
@@ -963,322 +1247,324 @@ html[data-keyboard] {
   to { transform: scaleX(1); }
 }
 
-/* Over the Dashboard's backdrop scene (an add-on) muted text sits on a veil,
-   not on a card: bring it closer to the foreground so it stays AA. */
-.group\/panel:has([data-module-slot="dashboard-backdrop"]) > main {
-  --muted-foreground: 16.3 6% 28%;
-}
-.dark .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main {
-  --muted-foreground: 16.3 5% 74%;
-}
-/* Small muted labels sitting straight on the scene (timeline axis, "Hours
-   logged today"): a soft card-coloured halo keeps them readable over bright
-   skies without veiling the whole scene. */
-.group\/panel:has([data-module-slot="dashboard-backdrop"]) > main .text-muted-foreground {
-  text-shadow:
-    0 0 2px hsl(var(--card)),
-    0 0 5px hsl(var(--card) / 0.7);
-}
-/* "Scenic" backdrop visibility: a lighter veil, so a firmer halo. */
-.group\/panel:has([data-backdrop-visibility="scenic"] [data-module-slot="dashboard-backdrop"]) > main {
-  --muted-foreground: 16.3 7% 22%;
-}
-/* Dark scenes carry neon and lit windows: a wider halo there. */
-.dark .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main .text-muted-foreground {
-  text-shadow:
-    0 0 2px hsl(var(--card)),
-    0 0 7px hsl(var(--card) / 0.95),
-    0 0 14px hsl(var(--card) / 0.8);
-}
-
-/*
- * High contrast (Settings → Appearance, or the system's "more contrast"; html[data-contrast]):
- * the palette itself is derived (src/lib/theme/derive.ts). Here only what tokens cannot say:
- * a thicker focus outline, no translucent text or hairlines, labels on solid ground.
- */
-html[data-contrast="high"] :focus-visible {
-  outline: 3px solid hsl(var(--ring));
-  outline-offset: 2px;
-}
-/* Fields (Input, Textarea, SelectTrigger, IssuePicker's trigger) and a frame's own search field (the
-   palette's: data-focus="inset"): the focus is a ring inside the field that follows its radius, in
-   every look; an outline or an outer ring stuck out over a palette's edge and its separator. 2 px,
-   3 px in high contrast, in the full ring colour (3:1 against the field). */
-[data-focus="inset"]:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 2px hsl(var(--ring));
-}
-html[data-contrast="high"] [data-focus="inset"]:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 3px hsl(var(--ring));
-}
-html[data-contrast="high"] [class*="text-foreground/"] {
-  color: hsl(var(--foreground));
-}
-html[data-contrast="high"] [class*="text-muted-foreground/"] {
-  color: hsl(var(--muted-foreground));
-}
-html[data-contrast="high"] [class*="text-primary-strong/"] {
-  color: hsl(var(--primary-strong));
-}
-html[data-contrast="high"] ::placeholder {
-  color: hsl(var(--muted-foreground));
-  opacity: 1;
-}
-html[data-contrast="high"] :is([class*="border-border/"], [class*="border-foreground/"], [class*="border-muted-foreground/"], [class*="divide-border/"] > *) {
-  border-color: hsl(var(--border));
-}
-/* The timeline's idle blocks: a sparse hatch, never faded, and the label on a solid chip. */
-html[data-contrast="high"] .stripes-idle {
-  opacity: 1;
-  background-image: repeating-linear-gradient(135deg, hsl(var(--muted)) 0 7px, hsl(var(--border)) 7px 8px);
-}
-html[data-contrast="high"] .stripes-idle > span {
-  align-self: flex-start;
-  margin-top: 0.375rem;
-  padding: 0 0.25rem;
-  border-radius: calc(var(--radius) - 4px);
-  background: hsl(var(--card));
-  color: hsl(var(--foreground));
-}
-/* Over a module's backdrop scene muted text keeps the high-contrast muted, not the veil's. */
-html[data-contrast="high"] .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main {
-  --muted-foreground: var(--foreground);
-}
-
-/* Over a module's clickable shape (host.hitArea): the page under it keeps its own cursor elsewhere. */
-html.ikl-hit-cursor,
-html.ikl-hit-cursor * {
-  cursor: pointer !important;
-}
-
-/*
- * Reduced motion, app-wide: dialogs, sheets, menus, popovers and spinners stand still. A near-zero
- * duration (not none) so exits that wait for animationend (Radix presence) still finish at once.
- */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  ::before,
-  ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+@layer utilities {
+  /* Over the Dashboard's backdrop scene (an add-on) muted text sits on a veil,
+     not on a card: bring it closer to the foreground so it stays AA. */
+  .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main {
+    --muted-foreground: 16.3 6% 28%;
   }
-}
+  .dark .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main {
+    --muted-foreground: 16.3 5% 74%;
+  }
+  /* Small muted labels sitting straight on the scene (timeline axis, "Hours
+     logged today"): a soft card-coloured halo keeps them readable over bright
+     skies without veiling the whole scene. */
+  .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main .text-muted-foreground {
+    text-shadow:
+      0 0 2px hsl(var(--card)),
+      0 0 5px hsl(var(--card) / 0.7);
+  }
+  /* "Scenic" backdrop visibility: a lighter veil, so a firmer halo. */
+  .group\/panel:has([data-backdrop-visibility="scenic"] [data-module-slot="dashboard-backdrop"]) > main {
+    --muted-foreground: 16.3 7% 22%;
+  }
+  /* Dark scenes carry neon and lit windows: a wider halo there. */
+  .dark .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main .text-muted-foreground {
+    text-shadow:
+      0 0 2px hsl(var(--card)),
+      0 0 7px hsl(var(--card) / 0.95),
+      0 0 14px hsl(var(--card) / 0.8);
+  }
 
-/* Collection (src/components/app/Collection.tsx, docs/design-system.md §7.1): a bounded grid that shows
-   `rows` rows of as many columns as its own width holds (1 below 28rem, then 2, 3, 4 from 80rem, capped
-   by data-max-cols), then "Show all N". What is past the budget is display:none: out of the tab order
-   and the accessibility tree, never clipped by a mask nor scrolled sideways. Pure CSS (container queries
-   and :nth-child), so the server renders the same and nothing is measured in JS. Generated for 1–4 rows;
-   expanded (no data-rows) every item shows. Each size's rules share one specificity, later sizes win. */
-.collection {
-  container-type: inline-size;
-  container-name: collection;
-}
-.collection-items {
-  display: grid;
-  gap: 0.5rem;
-  grid-template-columns: repeat(var(--collection-cols, 1), minmax(0, 1fr));
-}
-.collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
-.collection[data-max-cols="2"] > .collection-items { --collection-cols: 1; }
-.collection[data-max-cols="3"] > .collection-items { --collection-cols: 1; }
-.collection[data-max-cols="4"] > .collection-items { --collection-cols: 1; }
-.collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
-.collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
-.collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 2) { display: none; }
-.collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
-.collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 2) { display: none; }
-.collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
-.collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 2) { display: none; }
-.collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
-.collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
-.collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-.collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
-.collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-.collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 3) { display: none; }
-.collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-.collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 3) { display: none; }
-.collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-.collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
-.collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-.collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 4) { display: none; }
-.collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-.collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
-.collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-.collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 4) { display: none; }
-.collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-.collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
-.collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-.collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
-.collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-.collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 5) { display: none; }
-.collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-.collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
-.collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-@container collection (min-width: 28rem) {
+  /*
+   * High contrast (Settings → Appearance, or the system's "more contrast"; html[data-contrast]):
+   * the palette itself is derived (src/lib/theme/derive.ts). Here only what tokens cannot say:
+   * a thicker focus outline, no translucent text or hairlines, labels on solid ground.
+   */
+  html[data-contrast="high"] :focus-visible {
+    outline: 3px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  /* Fields (Input, Textarea, SelectTrigger, IssuePicker's trigger) and a frame's own search field (the
+     palette's: data-focus="inset"): the focus is a ring inside the field that follows its radius, in
+     every look; an outline or an outer ring stuck out over a palette's edge and its separator. 2 px,
+     3 px in high contrast, in the full ring colour (3:1 against the field). */
+  [data-focus="inset"]:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px hsl(var(--ring));
+  }
+  html[data-contrast="high"] [data-focus="inset"]:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 3px hsl(var(--ring));
+  }
+  html[data-contrast="high"] [class*="text-foreground/"] {
+    color: hsl(var(--foreground));
+  }
+  html[data-contrast="high"] [class*="text-muted-foreground/"] {
+    color: hsl(var(--muted-foreground));
+  }
+  html[data-contrast="high"] [class*="text-primary-strong/"] {
+    color: hsl(var(--primary-strong));
+  }
+  html[data-contrast="high"] ::placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 1;
+  }
+  html[data-contrast="high"] :is([class*="border-border/"], [class*="border-foreground/"], [class*="border-muted-foreground/"], [class*="divide-border/"] > *) {
+    border-color: hsl(var(--border));
+  }
+  /* The timeline's idle blocks: a sparse hatch, never faded, and the label on a solid chip. */
+  html[data-contrast="high"] .stripes-idle {
+    opacity: 1;
+    background-image: repeating-linear-gradient(135deg, hsl(var(--muted)) 0 7px, hsl(var(--border)) 7px 8px);
+  }
+  html[data-contrast="high"] .stripes-idle > span {
+    align-self: flex-start;
+    margin-top: 0.375rem;
+    padding: 0 0.25rem;
+    border-radius: calc(var(--radius) - 4px);
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
+  /* Over a module's backdrop scene muted text keeps the high-contrast muted, not the veil's. */
+  html[data-contrast="high"] .group\/panel:has([data-module-slot="dashboard-backdrop"]) > main {
+    --muted-foreground: var(--foreground);
+  }
+
+  /* Over a module's clickable shape (host.hitArea): the page under it keeps its own cursor elsewhere. */
+  html.ikl-hit-cursor,
+  html.ikl-hit-cursor * {
+    cursor: pointer !important;
+  }
+
+  /*
+   * Reduced motion, app-wide: dialogs, sheets, menus, popovers and spinners stand still. A near-zero
+   * duration (not none) so exits that wait for animationend (Radix presence) still finish at once.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Collection (src/components/app/Collection.tsx, docs/design-system.md §7.1): a bounded grid that shows
+     `rows` rows of as many columns as its own width holds (1 below 28rem, then 2, 3, 4 from 80rem, capped
+     by data-max-cols), then "Show all N". What is past the budget is display:none: out of the tab order
+     and the accessibility tree, never clipped by a mask nor scrolled sideways. Pure CSS (container queries
+     and :nth-child), so the server renders the same and nothing is measured in JS. Generated for 1–4 rows;
+     expanded (no data-rows) every item shows. Each size's rules share one specificity, later sizes win. */
+  .collection {
+    container-type: inline-size;
+    container-name: collection;
+  }
+  .collection-items {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(var(--collection-cols, 1), minmax(0, 1fr));
+  }
   .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
-  .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
-  .collection[data-max-cols="3"] > .collection-items { --collection-cols: 2; }
-  .collection[data-max-cols="4"] > .collection-items { --collection-cols: 2; }
-  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-max-cols="2"] > .collection-items { --collection-cols: 1; }
+  .collection[data-max-cols="3"] > .collection-items { --collection-cols: 1; }
+  .collection[data-max-cols="4"] > .collection-items { --collection-cols: 1; }
   .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
   .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
-  .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 3) { display: none; }
-  .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 3) { display: none; }
-  .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 2) { display: none; }
+  .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 2) { display: none; }
+  .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 2) { display: none; }
+  .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
   .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
   .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
-  .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 5) { display: none; }
-  .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
-  .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
   .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
   .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
-  .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
-  .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 7) { display: none; }
-  .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
   .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
   .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
-  .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 9) { display: none; }
-  .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 9) { display: none; }
-  .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
-}
-@container collection (min-width: 56rem) {
-  .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
-  .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
-  .collection[data-max-cols="3"] > .collection-items { --collection-cols: 3; }
-  .collection[data-max-cols="4"] > .collection-items { --collection-cols: 3; }
-  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
-  .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
-  .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
-  .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 4) { display: none; }
-  .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
-  .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
-  .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
-  .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 7) { display: none; }
-  .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
-  .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
-  .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 10) { display: none; }
-  .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 10) { display: none; }
-  .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
-  .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
-  .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 13) { display: none; }
-  .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 13) { display: none; }
-  .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
-}
-@container collection (min-width: 80rem) {
-  .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
-  .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
-  .collection[data-max-cols="3"] > .collection-items { --collection-cols: 3; }
-  .collection[data-max-cols="4"] > .collection-items { --collection-cols: 4; }
-  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
-  .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
-  .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
-  .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
-  .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
-  .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
-  .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
-  .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
-  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 9) { display: none; }
-  .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
-  .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
-  .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 10) { display: none; }
-  .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
-  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 13) { display: none; }
-  .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
-  .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
-  .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 13) { display: none; }
-  .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
-  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
-  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 17) { display: none; }
-  .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(17))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  @container collection (min-width: 28rem) {
+    .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
+    .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
+    .collection[data-max-cols="3"] > .collection-items { --collection-cols: 2; }
+    .collection[data-max-cols="4"] > .collection-items { --collection-cols: 2; }
+    .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
+    .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
+    .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 3) { display: none; }
+    .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 3) { display: none; }
+    .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
+    .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
+    .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
+    .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
+    .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 7) { display: none; }
+    .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
+    .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 9) { display: none; }
+    .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 9) { display: none; }
+    .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+  }
+  @container collection (min-width: 56rem) {
+    .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
+    .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
+    .collection[data-max-cols="3"] > .collection-items { --collection-cols: 3; }
+    .collection[data-max-cols="4"] > .collection-items { --collection-cols: 3; }
+    .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
+    .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
+    .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
+    .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 4) { display: none; }
+    .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
+    .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
+    .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 7) { display: none; }
+    .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
+    .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
+    .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 10) { display: none; }
+    .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 10) { display: none; }
+    .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
+    .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 13) { display: none; }
+    .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 13) { display: none; }
+    .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
+  }
+  @container collection (min-width: 80rem) {
+    .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
+    .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
+    .collection[data-max-cols="3"] > .collection-items { --collection-cols: 3; }
+    .collection[data-max-cols="4"] > .collection-items { --collection-cols: 4; }
+    .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
+    .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
+    .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
+    .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+    .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
+    .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
+    .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+    .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 9) { display: none; }
+    .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
+    .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
+    .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 10) { display: none; }
+    .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
+    .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 13) { display: none; }
+    .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
+    .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
+    .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 13) { display: none; }
+    .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
+    .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+    .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 17) { display: none; }
+    .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(17))) > .collection-more { display: none; }
+  }
 }
 
 /* The Issues preview's width (Splitter): read by the grid's own track only, so not inherited and a drag
@@ -1287,66 +1573,68 @@ html.ikl-hit-cursor * {
 /* The list's least width beside it (useStickyTable): the grid's track alone reads it. */
 @property --list-min { syntax: "*"; inherits: false; }
 
-/*
- * A table with frozen columns and a header that stays under the bars (useStickyTable, the Issues
- * catalogue). Its optional columns leave first when the list is too narrow for them (`data-narrow` on the
- * group); only a table still wider than its room freezes (`data-sticky`). The frozen cells stand on the
- * card, with the row's tint drawn over it (the row's own tint is translucent and the middle columns pass
- * under them); an edge, a hairline, shows only while something is under it.
- */
-[data-narrow] .sticky-table [data-opt],
-.sticky-table[data-narrow] [data-opt] { display: none; }
-.sticky-table tr[data-picked] { --row-tint: hsl(var(--primary-soft) / 0.4); }
-.sticky-table tr[aria-selected="true"] { --row-tint: hsl(var(--accent) / 0.7); }
-.sticky-table tr[data-drop-over] { --row-tint: hsl(var(--primary-soft) / 0.6); }
-.sticky-table[data-sticky] [data-stick] {
-  position: sticky;
-  z-index: 1;
-  background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)) hsl(var(--card));
+@layer utilities {
+  /*
+   * A table with frozen columns and a header that stays under the bars (useStickyTable, the Issues
+   * catalogue). Its optional columns leave first when the list is too narrow for them (`data-narrow` on the
+   * group); only a table still wider than its room freezes (`data-sticky`). The frozen cells stand on the
+   * card, with the row's tint drawn over it (the row's own tint is translucent and the middle columns pass
+   * under them); an edge, a hairline, shows only while something is under it.
+   */
+  [data-narrow] .sticky-table [data-opt],
+  .sticky-table[data-narrow] [data-opt] { display: none; }
+  .sticky-table tr[data-picked] { --row-tint: hsl(var(--primary-soft) / 0.4); }
+  .sticky-table tr[aria-selected="true"] { --row-tint: hsl(var(--accent) / 0.7); }
+  .sticky-table tr[data-drop-over] { --row-tint: hsl(var(--primary-soft) / 0.6); }
+  .sticky-table[data-sticky] [data-stick] {
+    position: sticky;
+    z-index: 1;
+    background: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent)) hsl(var(--card));
+  }
+  .sticky-table[data-sticky] [data-stick="1"] { left: var(--stick-1, 0px); }
+  .sticky-table[data-sticky] [data-stick="2"] { left: var(--stick-2, 0px); }
+  .sticky-table[data-sticky] [data-stick="3"] { left: var(--stick-3, 0px); }
+  .sticky-table[data-sticky] [data-stick="4"] { left: var(--stick-4, 0px); }
+  /* Too narrow for both ends: the end (the timer, the actions) scrolls with the middle; what names the row stays. */
+  .sticky-table[data-sticky][data-free-end] :is([data-stick="r1"], [data-stick="r2"]) { position: static; background: none; }
+  .sticky-table[data-sticky] [data-stick="r1"] { right: var(--stick-r1, 0px); }
+  .sticky-table[data-sticky] [data-stick="r2"] { right: var(--stick-r2, 0px); }
+  /* The selected row's mark: on its first cell, which covers the row's own. */
+  .sticky-table[data-sticky] tr[aria-selected="true"] > [data-stick="1"] { box-shadow: inset 2px 0 0 hsl(var(--primary)); }
+  /* A frozen cell sticks at the scroller's content edge: the room beside it (the padding kept for cast shadows) is
+     clipped sideways, or rows passing under would show in it, past the panel's padding. */
+  .sticky-table [data-slot="table-container"],
+  .sticky-table .sticky-table-bar > div {
+    clip-path: inset(0 var(--room-r, 0px) 0 var(--room-l, 0px));
+  }
+  /* The edge: a plain hairline, no fade (a pseudo-element: a cell's own border does not travel with a sticky
+     cell in a collapsed table). */
+  .sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after,
+  .sticky-table[data-sticky][data-under-end]:not([data-free-end]) [data-stick-edge="end"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    width: 0;
+    pointer-events: none;
+  }
+  .sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after {
+    right: 0;
+    border-right: 1px solid hsl(var(--border));
+  }
+  .sticky-table[data-sticky][data-under-end]:not([data-free-end]) [data-stick-edge="end"]::before {
+    left: 0;
+    border-left: 1px solid hsl(var(--border));
+  }
+  /* The header strip: no height of its own, under the page header (and the toolbar that sticks from lg). */
+  .sticky-table-bar {
+    position: sticky;
+    top: var(--page-header-h, 0px);
+    z-index: 5;
+    height: 0;
+    visibility: hidden;
+  }
+  @media (min-width: 1024px) {
+    .sticky-table-bar { top: calc(var(--page-header-h, 0px) + var(--chrome-toolbar-h, 0px)); }
+  }
+  .sticky-table[data-stuck] .sticky-table-bar { visibility: visible; }
 }
-.sticky-table[data-sticky] [data-stick="1"] { left: var(--stick-1, 0px); }
-.sticky-table[data-sticky] [data-stick="2"] { left: var(--stick-2, 0px); }
-.sticky-table[data-sticky] [data-stick="3"] { left: var(--stick-3, 0px); }
-.sticky-table[data-sticky] [data-stick="4"] { left: var(--stick-4, 0px); }
-/* Too narrow for both ends: the end (the timer, the actions) scrolls with the middle; what names the row stays. */
-.sticky-table[data-sticky][data-free-end] :is([data-stick="r1"], [data-stick="r2"]) { position: static; background: none; }
-.sticky-table[data-sticky] [data-stick="r1"] { right: var(--stick-r1, 0px); }
-.sticky-table[data-sticky] [data-stick="r2"] { right: var(--stick-r2, 0px); }
-/* The selected row's mark: on its first cell, which covers the row's own. */
-.sticky-table[data-sticky] tr[aria-selected="true"] > [data-stick="1"] { box-shadow: inset 2px 0 0 hsl(var(--primary)); }
-/* A frozen cell sticks at the scroller's content edge: the room beside it (the padding kept for cast shadows) is
-   clipped sideways, or rows passing under would show in it, past the panel's padding. */
-.sticky-table [data-slot="table-container"],
-.sticky-table .sticky-table-bar > div {
-  clip-path: inset(0 var(--room-r, 0px) 0 var(--room-l, 0px));
-}
-/* The edge: a plain hairline, no fade (a pseudo-element: a cell's own border does not travel with a sticky
-   cell in a collapsed table). */
-.sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after,
-.sticky-table[data-sticky][data-under-end]:not([data-free-end]) [data-stick-edge="end"]::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  width: 0;
-  pointer-events: none;
-}
-.sticky-table[data-sticky][data-under-start] [data-stick-edge="start"]::after {
-  right: 0;
-  border-right: 1px solid hsl(var(--border));
-}
-.sticky-table[data-sticky][data-under-end]:not([data-free-end]) [data-stick-edge="end"]::before {
-  left: 0;
-  border-left: 1px solid hsl(var(--border));
-}
-/* The header strip: no height of its own, under the page header (and the toolbar that sticks from lg). */
-.sticky-table-bar {
-  position: sticky;
-  top: var(--page-header-h, 0px);
-  z-index: 5;
-  height: 0;
-  visibility: hidden;
-}
-@media (min-width: 1024px) {
-  .sticky-table-bar { top: calc(var(--page-header-h, 0px) + var(--chrome-toolbar-h, 0px)); }
-}
-.sticky-table[data-stuck] .sticky-table-bar { visibility: visible; }

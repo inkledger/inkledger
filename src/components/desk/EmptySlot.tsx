@@ -62,7 +62,7 @@ export function EmptySlot({
       onPointerDownCapture={() => onFocusPane(id)}
       onFocusCapture={() => onFocusPane(id)}
       {...drop}
-      className="relative min-h-0 min-w-0 overflow-y-auto bg-card p-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      className="relative min-h-0 min-w-0 overflow-y-auto bg-card p-3 outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
       {/* surface: none — the slot's outline drawn on the pane, not a box standing on it. */}
       <div
@@ -110,7 +110,7 @@ export function EmptySlot({
                       type="button"
                       onClick={() => fill(i)}
                       title={t("pages.desk.slot.open", { key: i.key, summary: i.summary })}
-                      className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-body-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
+                      className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-body-sm outline-clear transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
                     >
                       <ProjectAvatar project={projectOf(i.key)} connectionId={i.connectionId} size="xs" />
                       <span className="shrink-0 font-medium">{i.key}</span>

@@ -45,7 +45,7 @@ export function Disclosure({
           aria-controls={id}
           onClick={toggle}
           {...control}
-          className="flex min-h-target w-full items-center gap-2 px-5 py-2 text-left text-body-sm font-medium outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:px-6"
+          className="flex min-h-target w-full items-center gap-2 px-5 py-2 text-left text-body-sm font-medium outline-clear hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:px-6"
         >
           <ChevronDown aria-hidden className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")} />
           <span className="min-w-0 truncate">{title}</span>

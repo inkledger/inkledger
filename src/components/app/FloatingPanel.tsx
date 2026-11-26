@@ -124,7 +124,7 @@ export function FloatingPanel({
       aria-label={label}
       tabIndex={-1}
       {...surface("dialog")}
-      className="fixed z-40 flex flex-col overflow-hidden rounded-xl border bg-card outline-none"
+      className="fixed z-40 flex flex-col overflow-hidden rounded-xl border bg-card outline-clear"
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
       onKeyDown={e => {
         if (e.defaultPrevented || !e.currentTarget.contains(e.target as Node)) return;
@@ -150,7 +150,7 @@ export function FloatingPanel({
         type="button"
         aria-label={strings.move}
         title={strings.moveHint}
-        className="flex h-5 shrink-0 cursor-move touch-none items-center justify-center text-muted-foreground outline-none hover:bg-accent/60 focus-visible:bg-accent"
+        className="flex h-5 shrink-0 cursor-move touch-none items-center justify-center text-muted-foreground outline-clear hover:bg-accent/60 focus-visible:bg-accent"
         onPointerDown={e => start("move", e)}
         onPointerMove={move}
         onPointerUp={end}
@@ -164,7 +164,7 @@ export function FloatingPanel({
         type="button"
         aria-label={strings.resize}
         title={strings.resizeHint}
-        className="absolute bottom-0 right-0 flex h-5 w-5 cursor-nwse-resize touch-none items-center justify-center rounded-tl-md text-muted-foreground outline-none hover:bg-accent/60 focus-visible:bg-accent"
+        className="absolute bottom-0 right-0 flex h-5 w-5 cursor-nwse-resize touch-none items-center justify-center rounded-tl-md text-muted-foreground outline-clear hover:bg-accent/60 focus-visible:bg-accent"
         onPointerDown={e => start("size", e)}
         onPointerMove={move}
         onPointerUp={end}

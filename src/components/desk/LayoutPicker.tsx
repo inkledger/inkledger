@@ -67,7 +67,7 @@ export function LayoutPicker({ count, value, drawn, onChange }: { count: number;
                     title={layoutLabel(id)}
                     onClick={() => onChange(id)}
                     className={cn(
-                      "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+                      "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-clear transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
                       id === value && "bg-primary-soft text-primary-strong hover:bg-primary-soft"
                     )}
                   >

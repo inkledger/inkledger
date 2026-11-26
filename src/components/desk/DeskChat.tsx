@@ -377,7 +377,7 @@ function Steps({ steps }: { steps: AgentStep[] }) {
         return (
           <li key={s.id} data-chat-step={s.status}>
             <details className="group">
-              <summary className="flex min-h-target cursor-pointer list-none items-center gap-1.5 rounded-sm text-caption text-muted-foreground coarse:min-h-touch hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-target cursor-pointer list-none items-center gap-1.5 rounded-sm text-caption text-muted-foreground coarse:min-h-touch hover:text-foreground focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 group-open:rotate-90" aria-hidden />
                 <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 <span className="min-w-0 truncate">{s.status === "running" ? `${describeCall(s.call)}…` : s.brief}</span>

@@ -40,7 +40,7 @@ function AlertsGroup() {
       ) : summary.data.alerts.length === 0 ? (
         <p className="text-body-sm text-muted-foreground">{t("settings.network.alertsNone")}</p>
       ) : (
-        <ul className="divide-y">
+        <ul className="hairlines-y">
           {summary.data.alerts.map(a => (
             <li key={a.key}>
               <ListRow
@@ -161,7 +161,7 @@ export function NetworkSection() {
                   <th className="py-2 font-medium">{t("settings.network.last")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="hairlines-y">
                 {list.data.map(r => (
                   <tr key={r.host}>
                     {/* The table scrolls sideways on a phone: a host stays whole ("jira.example.i/t" read badly). */}

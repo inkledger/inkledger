@@ -5,10 +5,12 @@ import { PANE_L_REM, PANE_M_REM } from "@/components/issue/paneSize";
 
 describe("the spatial system's region sizes", () => {
   it("are the ones Tailwind's @m/@l/@xl variants write, and a desk pane's", () => {
-    const config = readFileSync("tailwind.config.js", "utf8");
+    const css = readFileSync("src/index.css", "utf8");
     for (const [name, rem] of Object.entries(REGION_REM)) {
-      expect(config).toContain(`addVariant("@${name}", "@container region (min-width: ${rem}rem)")`);
+      expect(css).toContain(`@custom-variant @${name} (@container region (min-width: ${rem}rem));`);
     }
+    // Below @l: the region stacked in one column.
+    expect(css).toContain(`@custom-variant @max-l (@container region (max-width: ${REGION_REM.l - 0.01}rem));`);
     expect([PANE_M_REM, PANE_L_REM]).toEqual([REGION_REM.m, REGION_REM.l]);
   });
 

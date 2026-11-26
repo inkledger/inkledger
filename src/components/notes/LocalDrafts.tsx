@@ -56,7 +56,7 @@ export function LocalDrafts({
               >
                 <Link
                   to={draftPath(draft)}
-                  className="block rounded-md px-2 py-1.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block rounded-md px-2 py-1.5 hover:bg-accent focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="block truncate text-body-sm">
                     {draft.title || t("pages.notes.untitled")}

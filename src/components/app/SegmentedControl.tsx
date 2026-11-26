@@ -65,7 +65,7 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasValue && i === 0) ? 0 : -1}
             onClick={() => onChange(v)}
             className={cn(
-              "inline-flex h-[calc(var(--control-h)-6px)] items-center gap-1.5 rounded-md px-2.5 text-body-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "inline-flex h-[calc(var(--control-h)-6px)] items-center gap-1.5 rounded-md px-2.5 text-body-sm font-medium transition-colors focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring",
               active
                 ? "bg-card text-foreground shadow-xs ring-1 ring-inset ring-border"
                 : "text-muted-foreground hover:text-foreground"

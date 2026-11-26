@@ -149,7 +149,7 @@ export function DeviceAccess() {
           </Button>
         </form>
         {custom.length > 0 && (
-          <ul className="mt-2 divide-y">
+          <ul className="mt-2 hairlines-y">
             {custom.map(h => (
               <li key={h} className="flex items-center gap-3 py-1.5">
                 <Globe className="h-4 w-4 text-muted-foreground" aria-hidden />

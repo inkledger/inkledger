@@ -55,7 +55,7 @@ function LayoutSlots({ presets, issueKey, onPick, large = false }: { presets: Pr
                 aria-label={slotLabel(preset, slot)}
                 onFocus={() => setCurrent(at)}
                 onClick={() => onPick(preset, slot)}
-                className="absolute rounded-sm border border-muted-foreground/40 bg-muted outline-none transition-colors hover:border-primary-strong hover:bg-primary focus-visible:ring-2 focus-visible:ring-ring"
+                className="absolute rounded-sm border border-muted-foreground/40 bg-muted outline-clear transition-colors hover:border-primary-strong hover:bg-primary focus-visible:ring-2 focus-visible:ring-ring"
                 style={{
                   left: `calc(${rect.x * 100}% + 1.5px)`,
                   top: `calc(${rect.y * 100}% + 1.5px)`,
@@ -246,7 +246,7 @@ export function TitleGrip({ pane }: { pane: DeskPane }) {
         onPointerDown={onPointerDown}
         onPointerEnter={prefetch}
         className={cn(
-          "-ml-2 hidden h-8 w-5 shrink-0 touch-none items-center justify-center rounded-md text-muted-foreground/70 outline-none transition-colors hover:bg-accent hover:text-foreground lg:flex",
+          "-ml-2 hidden h-8 w-5 shrink-0 touch-none items-center justify-center rounded-md text-muted-foreground/70 outline-clear transition-colors hover:bg-accent hover:text-foreground lg:flex",
           drag ? "cursor-grabbing bg-primary-soft text-primary-strong" : "cursor-grab"
         )}
       >

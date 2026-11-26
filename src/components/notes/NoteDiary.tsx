@@ -272,7 +272,7 @@ export function NoteDiary() {
         <PageSpinner />
       ) : (
         <ol
-          className="grid grid-cols-[minmax(0,1fr)] divide-y"
+          className="grid grid-cols-[minmax(0,1fr)] hairlines-y"
           aria-label={t("pages.notes.diary.days")}
         >
           {days.map(d => {
@@ -327,7 +327,7 @@ export function NoteDiary() {
                         <Link
                           key={n.id}
                           to={`/notes/${n.id}`}
-                          className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-body-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                          className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-body-sm outline-clear hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <FileText
                             aria-hidden
@@ -377,7 +377,7 @@ export function NoteDiary() {
                           >
                             <Link
                               to={issuePath({ key: i.issueKey })}
-                              className="truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                              className="truncate font-medium outline-clear hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                             >
                               {i.issueKey}
                             </Link>

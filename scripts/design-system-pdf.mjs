@@ -1,11 +1,9 @@
 // docs/design-system.md printed to docs/design-system.pdf, with two plates
 // read from the code itself (never typed by hand, so they cannot drift): the
-// colour tokens of src/index.css, light and dark, and the type scale of
-// tailwind.config.js, set in the app's own fonts.
+// colour tokens of src/index.css, light and dark, and the type scale of its
+// @theme, set in the app's own fonts.
 // Usage: node scripts/design-system-pdf.mjs [out.pdf]
 import { readFileSync } from "node:fs";
-import { runInNewContext } from "node:vm";
-import { createRequire } from "node:module";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { chromiumPath } from "./chromium.mjs";
@@ -14,10 +12,14 @@ const ROOT = new URL("..", import.meta.url).pathname;
 const out = process.argv[2] ?? join(ROOT, "docs/design-system.pdf");
 const md = readFileSync(join(ROOT, "docs/design-system.md"), "utf8");
 const css = readFileSync(join(ROOT, "src/index.css"), "utf8");
-// The config is CommonJS in an ESM package: evaluated as CommonJS, its plugins required from the app.
-const twModule = { exports: {} };
-runInNewContext(readFileSync(join(ROOT, "tailwind.config.js"), "utf8"), { module: twModule, exports: twModule.exports, require: createRequire(join(ROOT, "tailwind.config.js")) });
-const tw = twModule.exports;
+// The type scale: Tailwind's --text-<name> theme variables (and their --line-height, --font-weight and
+// --letter-spacing companions) in index.css's @theme, in the order written there.
+const fontSize = {};
+for (const [, name, part, value] of css.matchAll(/^\s*--text-([a-z0-9-]+?)(?:--(line-height|font-weight|letter-spacing))?:\s*([^;]+);/gm)) {
+  const entry = (fontSize[name] ??= [undefined, {}]);
+  if (!part) entry[0] = value.trim();
+  else entry[1][{ "line-height": "lineHeight", "font-weight": "fontWeight", "letter-spacing": "letterSpacing" }[part]] = value.trim();
+}
 
 const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -110,7 +112,7 @@ const swatch = (name, value) =>
 const palette = theme =>
   GROUPS.map(([title, names]) => `<h4>${title}</h4><div class="grid">${names.map(n => swatch(n, theme[n])).join("")}</div>`).join("");
 
-const scale = Object.entries(tw.theme.extend.fontSize)
+const scale = Object.entries(fontSize)
   .map(([name, [size, opts]]) => {
     const family = ["display", "title", "heading"].includes(name) ? "f-display" : "f-text";
     const style = `font-size:calc(${size.replace(/max\((\d+)px, ([\d.]+)rem\)/, "max($1px, $2 * 14px)").replace(/([\d.]+)rem/, "($1 * 14px)")});line-height:${opts.lineHeight};font-weight:${opts.fontWeight ?? 400};letter-spacing:${opts.letterSpacing ?? 0}`;
@@ -164,7 +166,7 @@ ${body}
 <p>The default palette (base colour #B5562F), from <code>src/index.css</code>. A user's own base colour derives every value again (§3.2).</p>
 <h3>Light</h3><div class="plate">${palette(light)}</div>
 <h3 style="break-before: page">Dark</h3><div class="plate dark">${palette(dark)}</div>
-<h3 style="break-before: page">Type scale</h3><p>From <code>tailwind.config.js</code>, at the compact density (root 14 px).</p><table>${scale}</table>
+<h3 style="break-before: page">Type scale</h3><p>From <code>src/index.css</code>'s <code>@theme</code>, at the compact density (root 14 px).</p><table>${scale}</table>
 </body></html>`;
 
 const browser = await chromium.launch({ executablePath: chromiumPath() });

@@ -61,7 +61,9 @@ async function measure(page) {
       const b = box(button);
       const s = box(svg);
       // A tilted icon (the pin) has a box bigger than its glyph: only its centre is compared.
-      const tilted = getComputedStyle(svg).transform !== "none";
+      // Tailwind 4 turns it with the rotate property, not transform.
+      const tiltStyle = getComputedStyle(svg);
+      const tilted = tiltStyle.transform !== "none" || tiltStyle.rotate !== "none";
       icons.push({ name: b.name, dx: s.cx - b.cx, dy: s.cy - b.cy, tilted, ...gaps(s, b) });
     }
     const pills = [];

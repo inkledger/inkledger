@@ -84,7 +84,7 @@ function Tray({ areas, draw }: { areas: readonly SketchArea[]; draw: (region: Sk
         aria-expanded={open}
         aria-controls={bodyId}
         onClick={() => setOpen(value => !value)}
-        className="flex min-h-target w-fit items-center gap-1 rounded-sm text-caption text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
+        className="flex min-h-target w-fit items-center gap-1 rounded-sm text-caption text-muted-foreground outline-clear hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
       >
         <ChevronRight aria-hidden className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
         {t(key("popups"))}

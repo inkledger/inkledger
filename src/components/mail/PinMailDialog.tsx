@@ -225,7 +225,7 @@ function MailList({
                 type="button"
                 disabled={busy}
                 onClick={() => onChoose(m.chosen)}
-                className="w-full rounded-md p-1.5 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-md p-1.5 text-left outline-clear hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <MailCard mail={{ ...m.view, webLink: null }} />
               </button>
@@ -392,7 +392,7 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
                 type="button"
                 disabled={busy}
                 onClick={() => void go({ issueKey: i.key, connectionId: i.connectionId }, () => t("ui.mail.pinnedTo", { key: i.key }))}
-                className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-clear hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="shrink-0 text-caption font-medium text-muted-foreground tabular-nums">{i.key}</span>
                 <span className="min-w-0 truncate">{i.summary}</span>

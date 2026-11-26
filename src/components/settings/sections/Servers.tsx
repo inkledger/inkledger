@@ -81,7 +81,7 @@ export function ServersSection() {
           </Button>
         }
       >
-        <ul className="divide-y">
+        <ul className="hairlines-y">
           {(profiles?.list ?? []).map(p => (
             <ProfileRow
               key={p.url}

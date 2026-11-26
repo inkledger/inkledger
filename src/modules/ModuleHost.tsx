@@ -206,7 +206,7 @@ const FRAMED_BOX: Partial<Record<SlotId, string>> = {
   "panel-edge": "pointer-events-none absolute inset-x-0 -bottom-[10px] h-[84px] [&_*]:!pointer-events-none",
   // The sidebar's foot: when the module asks (layout.navFade) and the nav above has more below,
   // the host's fade over the nav's lower edge, in the sidebar's own colour.
-  "sidebar-footer": "relative before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:hidden before:h-9 before:bg-gradient-to-b before:from-transparent before:to-canvas data-[nav-fade]:before:block",
+  "sidebar-footer": "relative before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:hidden before:h-9 before:bg-linear-to-b/srgb before:from-transparent before:to-canvas data-[nav-fade]:before:block",
   // Above the tab bar's right end, room for a control (a player pill); it takes
   // the pointer only while the module says it shows one (dock.set), and never
   // once the module sets its shape (hit.set): the host tests that, taps around

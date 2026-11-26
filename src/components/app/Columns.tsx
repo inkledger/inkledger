@@ -50,7 +50,7 @@ export function CollapsedColumn({ title, count, tone, label, onOpen, control, ro
       {...control}
       {...surface("control")}
       className={cn(
-        "flex shrink-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+        "flex shrink-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium outline-clear transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
         !row && "sm:w-11 sm:flex-col sm:px-0 sm:py-3",
         className
       )}

@@ -588,7 +588,7 @@ function TodoRow({
         data-todo-row
         tabIndex={0}
         aria-label={x.text}
-        className="group min-w-0 rounded-md px-2 py-1.5 outline-none hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
+        className="group min-w-0 rounded-md px-2 py-1.5 outline-clear hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
         onKeyDown={e => {
           if (mode !== "view") return;
           if (
@@ -860,7 +860,7 @@ function TodoRow({
                 <Link
                   to={at}
                   title={x.summary ?? undefined}
-                  className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-clear hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <Link2 className="h-3 w-3 shrink-0" aria-hidden />
                   <span className="truncate">
@@ -873,7 +873,7 @@ function TodoRow({
               <Link
                 to={`${at}#comment-${encodeURIComponent(x.commentId)}`}
                 title={x.commentExcerpt ?? undefined}
-                className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-clear hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <MessageSquare className="h-3 w-3 shrink-0" aria-hidden />
                 <span className="truncate">{t("views.todos.fromComment")}</span>
@@ -883,7 +883,7 @@ function TodoRow({
               <Link
                 to={`${at}#note-${x.issueNoteId}`}
                 title={x.noteBody ?? undefined}
-                className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-clear hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <NotebookPen className="h-3 w-3 shrink-0" aria-hidden />
                 <span className="truncate">{t("views.todos.fromNote")}</span>

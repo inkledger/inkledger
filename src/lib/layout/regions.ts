@@ -1,7 +1,7 @@
 /**
  * The spatial system's container sizes (docs/design-system.md §7.1), in rem so that density moves them:
  * a block is `s` below `m`, `m` from 28rem, `l` from 56rem, `xl` from 80rem. The same thresholds as a
- * desk pane's (src/components/issue/paneSize.ts) and as tailwind.config.js's `@m`/`@l`/`@xl` variants
+ * desk pane's (src/components/issue/paneSize.ts) and as index.css's `@m`/`@l`/`@xl` variants
  * (checked by regions.test.ts), so a block and a pane agree on what "large" means.
  */
 export const REGION_REM = { m: 28, l: 56, xl: 80 } as const;

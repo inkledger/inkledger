@@ -87,7 +87,7 @@ export function LinkedNotesSection({
           message={t("pages.notes.noLinkedText")}
         />
       ) : (
-        <ul className="divide-y">
+        <ul className="hairlines-y">
           {notes.data.map(note => (
             <li key={note.id} className="py-2">
               <ActionRow
@@ -107,7 +107,7 @@ export function LinkedNotesSection({
               >
                 <Link
                   to={`/notes/${note.id}`}
-                  className="block truncate rounded-sm py-1 font-medium outline-none hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block truncate rounded-sm py-1 font-medium outline-clear hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {note.title || t("pages.notes.untitled")}
                 </Link>
@@ -209,12 +209,12 @@ function LinkExisting({
           ) : !candidates.length ? (
             <EmptyState title={t("pages.notes.noResults")} />
           ) : (
-            <ul className="divide-y">
+            <ul className="hairlines-y">
               {candidates.map(note => (
                 <li key={note.id}>
                   <button
                     type="button"
-                    className="w-full rounded-sm px-2 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full rounded-sm px-2 py-2 text-left hover:bg-accent focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => choose(note)}
                   >
                     <span className="block truncate font-medium">

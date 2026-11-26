@@ -16,7 +16,7 @@ export function BucketChip() {
           type="button"
           onClick={() => choose(null)}
           aria-label={t("ui.buckets.clear")}
-          className="rounded-full p-0.5 transition-colors hover:bg-primary-strong/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="rounded-full p-0.5 transition-colors hover:bg-primary-strong/10 focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>

@@ -86,7 +86,7 @@ function Choices<T extends string>({
             {...surface("control", { on: active })}
             onClick={() => onChange(o.value)}
             className={cn(
-              "grid gap-1.5 rounded-lg border bg-background p-1.5 text-caption font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "grid gap-1.5 rounded-lg border bg-background p-1.5 text-caption font-medium focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring",
               active ? "border-primary-strong bg-primary-soft text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >

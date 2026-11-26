@@ -161,7 +161,7 @@ export function PaneHeader({ issue: i, data, act, connectionId, onLogTime, contr
         <Link
           to={href}
           className={cn(
-            "shrink-0 rounded-sm text-body-sm font-semibold outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
+            "shrink-0 rounded-sm text-body-sm font-semibold outline-clear hover:underline focus-visible:ring-2 focus-visible:ring-ring",
             c.active && c.several && "text-primary-strong"
           )}
         >

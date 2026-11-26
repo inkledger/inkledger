@@ -72,7 +72,7 @@ export function PeriodPicker({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-body-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-body-sm transition-colors hover:bg-accent focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring",
                   p.value === preset && "font-medium"
                 )}
               >

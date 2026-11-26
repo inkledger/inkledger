@@ -83,7 +83,7 @@ export function ActivityTable({ rows, sort = "last", budget = 2 }: { rows: Activ
               to={issuePath({ key: r.issueKey, connectionId: r.connectionId, remoteId: r.remoteId })}
               title={last}
               {...surface("card")}
-              className="relative grid h-full content-between gap-1.5 overflow-hidden rounded-xl border bg-card p-3 pb-3.5 transition-[border-color] hover:border-foreground/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative grid h-full content-between gap-1.5 overflow-hidden rounded-xl border bg-card p-3 pb-3.5 transition-[border-color] hover:border-foreground/15 focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span className="flex min-w-0 items-center gap-2 pr-6">
                 <ProjectAvatar project={projectOf(r.issueKey)} size="xs" />

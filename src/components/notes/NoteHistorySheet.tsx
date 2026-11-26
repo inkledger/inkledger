@@ -146,7 +146,7 @@ export function NoteHistorySheet({
           ) : !versions.data?.length ? (
             <EmptyState title={t("pages.notes.noVersions")} />
           ) : (
-            <ol className="divide-y">
+            <ol className="hairlines-y">
               {versions.data.map(version => (
                 <li key={version.id} className="grid gap-2 py-4">
                   <ActionRow

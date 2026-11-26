@@ -111,7 +111,7 @@ export function Splitter({
       onDoubleClick={() => onChange(null)}
       className={cn(
         // An 8 px hit area centred on the pane's 1 px border (the visible handle at rest).
-        "group/splitter absolute inset-y-0 -left-[4.5px] z-20 w-[8px] cursor-col-resize touch-none outline-none",
+        "group/splitter absolute inset-y-0 -left-[4.5px] z-20 w-[8px] cursor-col-resize touch-none outline-clear",
         className
       )}
     >

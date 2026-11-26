@@ -110,10 +110,10 @@ const EDGE_PLACE: Record<Edge, string> = {
   right: "right-2 top-1/2 -translate-y-1/2",
 };
 const EDGE_FADE: Record<Edge, string> = {
-  up: "inset-x-0 top-0 h-8 bg-gradient-to-b",
-  down: "inset-x-0 bottom-0 h-8 bg-gradient-to-t",
-  left: "inset-y-0 left-0 w-8 bg-gradient-to-r",
-  right: "inset-y-0 right-0 w-8 bg-gradient-to-l",
+  up: "inset-x-0 top-0 h-8 bg-linear-to-b/srgb",
+  down: "inset-x-0 bottom-0 h-8 bg-linear-to-t/srgb",
+  left: "inset-y-0 left-0 w-8 bg-linear-to-r/srgb",
+  right: "inset-y-0 right-0 w-8 bg-linear-to-l/srgb",
 };
 
 type Offscreen = ReturnType<typeof offscreenByEdge<PostItData>>;
@@ -562,7 +562,7 @@ export function Pinboard({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 font-display text-body font-semibold outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 font-display text-body font-semibold outline-clear hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={t("views.board.pinboard.switch", { name: board?.name ?? t("views.board.pinboard.title"), count: notes.length })}
             >
               <span className="truncate">{board?.name ?? t("views.board.pinboard.title")}</span>{" "}
@@ -720,7 +720,7 @@ export function Pinboard({
           tabIndex={0}
           aria-label={t("views.board.pinboard.area")}
           className={cn(
-            "no-scrollbar h-full overflow-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+            "no-scrollbar h-full overflow-auto overscroll-contain outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
             panning ? "cursor-grabbing" : "cursor-grab"
           )}
           onScroll={measure}
@@ -849,7 +849,7 @@ export function Pinboard({
                 aria-label={t("views.board.pinboard.beyondLabel", { count: e.count, edge: edgeLabel(edge) })}
                 title={t("views.board.pinboard.beyond", { count: e.count, edge: edgeLabel(edge) })}
                 className={cn(
-                  "absolute z-[1000] flex items-center gap-1 rounded-full border bg-card/95 px-2 py-0.5 text-caption font-medium text-muted-foreground shadow-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  "absolute z-[1000] flex items-center gap-1 rounded-full border bg-card/95 px-2 py-0.5 text-caption font-medium text-muted-foreground shadow-sm outline-clear hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
                   EDGE_PLACE[edge]
                 )}
               >

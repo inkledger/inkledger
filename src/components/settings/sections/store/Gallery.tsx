@@ -42,7 +42,7 @@ export function Gallery({ slides }: { slides: Slide[] }) {
       onBlur={ev => !ev.currentTarget.contains(ev.relatedTarget) && setFocus(false)}
       onPointerEnter={() => setHover(true)}
       onPointerLeave={() => setHover(false)}
-      className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="rounded-xl outline-clear focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div {...surface("card", { role: "wrap" })} className="rounded-xl">
       <div {...surfaceFace()} className="relative aspect-[16/10] overflow-hidden rounded-xl border bg-muted">

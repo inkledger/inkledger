@@ -85,7 +85,7 @@ export function MonthView({
               aria-label={`${long().format(c.date)}: ${total > 0 ? formatDuration(total) : t("views.timesheet.month.noEntries")}`}
               aria-current={isToday ? "date" : undefined}
               className={cn(
-                "flex min-h-touch flex-col justify-between rounded-lg border p-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring @m:min-h-20 @m:rounded-xl @m:p-2",
+                "flex min-h-touch flex-col justify-between rounded-lg border p-1 text-left transition-colors hover:bg-accent focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring @m:min-h-20 @m:rounded-xl @m:p-2",
                 !c.inMonth && "bg-canvas text-muted-foreground",
                 isToday && "border-primary-strong/40 bg-primary-soft"
               )}

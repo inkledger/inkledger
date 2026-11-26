@@ -33,7 +33,7 @@ export function IdeaCard({ idea, onOpen, onMove, onDelete, as = "li" }: { idea: 
       draggable
       tabIndex={0}
       data-idea={idea.id}
-      className="rounded-lg border bg-card px-3 py-2 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="rounded-lg border bg-card px-3 py-2 shadow-xs focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring"
       onDragStart={e => {
         e.dataTransfer.setData("application/x-idea", String(idea.id));
         e.dataTransfer.effectAllowed = "move";

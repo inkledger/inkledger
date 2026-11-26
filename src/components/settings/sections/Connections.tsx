@@ -301,7 +301,7 @@ function AddDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open:
                     disabled={!ready}
                     {...surface("control")}
                     onClick={() => c.how && setPicked({ type: c.type, name: c.name, how: c.how, asksAddress: c.asksAddress, verified: c.status !== "experimental" })}
-                    className="flex w-full flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-55 disabled:hover:bg-transparent"
+                    className="flex w-full flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors hover:bg-accent/60 focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-55 disabled:hover:bg-transparent"
                   >
                     <span className="text-body-sm font-medium">{c.name}</span>
                     <span className="text-caption text-muted-foreground">
@@ -748,7 +748,7 @@ export function ConnectionsSection() {
       ) : list.data?.length === 0 ? (
         <p className="text-body-sm text-muted-foreground">{t("settings.connections.none")}</p>
       ) : (
-        <ul className="divide-y">
+        <ul className="hairlines-y">
           {list.data?.map(c => <ConnectionCard key={c.id} c={c} onReconnect={() => setReconnecting(c.id)} />)}
         </ul>
       )}

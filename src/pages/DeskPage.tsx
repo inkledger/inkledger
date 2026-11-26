@@ -319,7 +319,7 @@ function PhoneDesk({ ids, keys, focused, onSelect, add, children }: { ids: strin
               tabIndex={id === focused ? 0 : -1}
               onClick={() => onSelect(id)}
               className={cn(
-                "min-h-touch shrink-0 border-b-2 px-3 text-body-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                "min-h-touch shrink-0 border-b-2 px-3 text-body-sm font-medium outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 id === focused ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >

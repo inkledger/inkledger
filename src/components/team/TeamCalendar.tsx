@@ -48,7 +48,7 @@ export function TeamCalendar({ person, from, to, today, onDay }: { person: Perso
                     aria-label={cellText(person.displayName, at.bucket, at.cell)}
                     title={cellText(person.displayName, at.bucket, at.cell)}
                     className={cn(
-                      "flex h-8 w-full items-start justify-end rounded-sm p-1 text-caption tabular outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
+                      "flex h-8 w-full items-start justify-end rounded-sm p-1 text-caption tabular outline-clear focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
                       STEP_CLASS[at.cell.step],
                       at.cell.step === "off" ? "text-muted-foreground" : "text-foreground/80",
                       !future && "hover:ring-1 hover:ring-foreground/40",

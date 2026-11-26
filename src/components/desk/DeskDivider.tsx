@@ -106,7 +106,7 @@ export function DeskDivider({
       style={position}
       className={cn(
         // A 24 px hit area over the 1 px line between the panes; the handle shows on hover, drag and focus.
-        "group/divider absolute z-20 flex touch-none items-center justify-center outline-none",
+        "group/divider absolute z-20 flex touch-none items-center justify-center outline-clear",
         vertical ? "w-target cursor-col-resize" : "h-target cursor-row-resize"
       )}
     >

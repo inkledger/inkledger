@@ -331,7 +331,7 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
         tabIndex={-1}
         aria-label={parallel ? t("views.dashboard.gap.laneLabel", { n: li + 1 }) : t("views.dashboard.gap.stripLabel")}
         className={cn(
-          "relative cursor-crosshair select-none rounded-lg bg-muted outline-none",
+          "relative cursor-crosshair select-none rounded-lg bg-muted outline-clear",
           parallel ? "mt-1.5 h-12" : "h-16"
         )}
         {...surface("ground")}
@@ -399,7 +399,7 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
                 : t("views.dashboard.gap.cutLabel", { time: timeOfDay(c) })
             }
             aria-disabled={cutLocked(li, k) || undefined}
-            className="absolute -inset-y-1.5 z-10 flex w-4 -translate-x-1/2 cursor-ew-resize touch-none aria-disabled:cursor-default justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute -inset-y-1.5 z-10 flex w-4 -translate-x-1/2 cursor-ew-resize touch-none aria-disabled:cursor-default justify-center rounded-sm outline-clear focus-visible:ring-2 focus-visible:ring-ring"
             style={{ left: `${pct(c)}%` }}
             onClick={e => e.stopPropagation()}
             onPointerDown={e => {
@@ -554,7 +554,7 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
             )
           }
           className={cn(
-            "flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-2 text-left text-body-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+            "flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-2 text-left text-body-sm outline-clear transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
             !p.issueKey && "border-dashed text-muted-foreground"
           )}
           {...(p.issueKey ? surface("control") : surface("glass"))}

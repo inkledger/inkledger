@@ -25,7 +25,7 @@ const MobileTimerSheet = lazyPart(() => import("@/components/mobile/MobileTimerS
 const MobileMoreSheet = lazyPart(() => import("@/components/mobile/MobileMoreSheet").then(m => m.MobileMoreSheet));
 
 const CELL =
-  "relative flex min-h-touch min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "relative flex min-h-touch min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring";
 /** Active tab: accent text and a short bar on the top edge (as in the sidebar). */
 const ACTIVE =
   "text-primary-strong before:absolute before:-top-1 before:h-0.5 before:w-6 before:rounded-full before:bg-primary";
@@ -86,7 +86,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
   // layer and a light's shadow would fall on its face.
   const round =
     // A finger's 44 px (12 × 3.5 = 42 px at the compact root fell short of the tabs' contract).
-    "relative -top-3 flex size-touch flex-col items-center justify-center gap-0.5 rounded-full shadow-sm ring-4 ring-canvas transition-colors focus-visible:outline-none focus-visible:ring-ring";
+    "relative -top-3 flex size-touch flex-col items-center justify-center gap-0.5 rounded-full shadow-sm ring-4 ring-canvas transition-colors focus-visible:outline-clear focus-visible:ring-ring";
 
   if (!timer) {
     return (

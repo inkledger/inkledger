@@ -55,18 +55,15 @@ function* walk(dir) {
   }
 }
 
-// Theme tokens (CSS variables) must also be registered as Tailwind colours,
-// or classes like `text-primary-strong` silently generate nothing.
+// Theme tokens (CSS variables) must also be registered as Tailwind colours
+// (`--color-<token>: hsl(var(--<token>))` in index.css's @theme), or classes
+// like `text-primary-strong` silently generate nothing.
 const css = readFileSync(join(ROOT, "index.css"), "utf8");
-const twConfig = readFileSync(
-  new URL("../tailwind.config.js", import.meta.url),
-  "utf8"
-);
 const cssTokens = new Set(
   [...css.matchAll(/--([a-z][a-z0-9-]*):/g)].map(m => m[1])
 );
 const registered = new Set(
-  [...twConfig.matchAll(/token\("([a-z0-9-]+)"\)/g)].map(m => m[1])
+  [...css.matchAll(/--color-([a-z0-9-]+):\s*hsl\(var\(--\1\)\)/g)].map(m => m[1])
 );
 const COLOUR_CLASS =
   /\b(?:bg|text|border|ring|fill|stroke|from|to|via|divide|outline|decoration|caret|accent)-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)(?![a-z0-9-])/g;
@@ -81,7 +78,7 @@ for (const file of walk(ROOT)) {
       if (cssTokens.has(name) && !registered.has(name)) {
         problems++;
         console.log(
-          `${relative(process.cwd(), file)}:${i + 1}  ${m[0]}  → --${name} is not a Tailwind colour (add token("${name}") to tailwind.config.js)`
+          `${relative(process.cwd(), file)}:${i + 1}  ${m[0]}  → --${name} is not a Tailwind colour (add --color-${name}: hsl(var(--${name})) to index.css's @theme)`
         );
       }
     }

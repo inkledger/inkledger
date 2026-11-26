@@ -87,7 +87,7 @@ function Kpi({ label, value, extra, hint, onClick, pressed, control }: { label: 
       aria-pressed={pressed}
       onClick={onClick}
       {...control}
-      className={cn("grid min-w-0 content-start gap-0.5 px-5 py-3 text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", pressed && "bg-primary-soft/60")}
+      className={cn("grid min-w-0 content-start gap-0.5 px-5 py-3 text-left outline-clear hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", pressed && "bg-primary-soft/60")}
     >
       {body}
     </button>
@@ -353,7 +353,7 @@ export default function Team() {
         data-workspace-anchor="team.kpis"
         // The previous range's figures while this one loads: dimmed, as the matrix is.
         aria-busy={overview.isPlaceholderData}
-        className={cn("grid grid-cols-2 divide-border border-b transition-opacity lg:grid-cols-4 lg:divide-x max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(2n)]:border-l", overview.isPlaceholderData && "opacity-60")}
+        className={cn("grid grid-cols-2 divide-border border-b transition-opacity lg:grid-cols-4 lg:hairlines-x max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(2n)]:border-l", overview.isPlaceholderData && "opacity-60")}
       >
         {!data ? (
           Array.from({ length: 4 }, (_, i) => (

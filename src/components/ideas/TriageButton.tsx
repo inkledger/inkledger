@@ -25,7 +25,7 @@ export function TriageButton({ issueKey, connectionId }: { issueKey: string; con
   if (open.isLoading || open.isError) return null;
   if (open.data)
     return (
-      <Link to={`/ideas?open=${open.data.id}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <Link to={`/ideas?open=${open.data.id}`} className="rounded-full focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring">
         <Chip tone="info">{t("ui.ideas.inTriage")}</Chip>
       </Link>
     );
@@ -42,7 +42,7 @@ export function TriageChip({ issueKey, connectionId }: { issueKey: string; conne
   const { open } = useTriage(issueKey, connectionId);
   if (!open.data) return null;
   return (
-    <Link to={`/ideas?open=${open.data.id}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <Link to={`/ideas?open=${open.data.id}`} className="rounded-full focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring">
       <Chip tone="info">{t("ui.ideas.inTriage")}</Chip>
     </Link>
   );

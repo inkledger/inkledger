@@ -439,7 +439,7 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
                 </div>
               );
             })()}
-            <ul className="divide-y">
+            <ul className="hairlines-y">
               {gaps.map(g => (
                 <li
                   key={g.start.getTime()}

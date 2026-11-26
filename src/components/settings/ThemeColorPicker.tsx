@@ -184,7 +184,7 @@ export function ThemeColorPicker() {
               title={p.name}
               onClick={() => choose(p.hex)}
               className={cn(
-                "group flex items-center gap-2 rounded-lg border bg-background py-1.5 pl-1.5 pr-3 text-caption transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "group flex items-center gap-2 rounded-lg border bg-background py-1.5 pl-1.5 pr-3 text-caption transition-shadow hover:shadow-sm focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring",
                 active && "border-primary-strong/40 bg-primary-soft"
               )}
             >

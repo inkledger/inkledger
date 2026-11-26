@@ -81,7 +81,7 @@ export function BandChart({ points, unit, caption, className }: { points: BandPo
               y={0}
               width={step}
               height={H}
-              className="fill-transparent outline-none"
+              className="fill-transparent outline-clear"
               tabIndex={0}
               aria-label={p.title}
               onMouseEnter={() => setAt(i)}

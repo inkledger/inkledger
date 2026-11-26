@@ -376,7 +376,7 @@ function IssuePicker({ scope, pinned, busy, onPick, onFailed }: { scope: number;
                   aria-pressed={on}
                   title={on ? t("ui.outlook.pinnedMark") : undefined}
                   onClick={() => onPick(i)}
-                  className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left outline-clear hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                 >
                   <span className="max-w-[45%] shrink-0 truncate text-caption font-medium tabular-nums text-muted-foreground">{i.key}</span>
                   <span className="min-w-0 flex-1 truncate">{i.summary}</span>

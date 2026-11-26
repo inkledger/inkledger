@@ -44,7 +44,7 @@ export function ScopePicker<T extends string>({ label, value, options, onChange 
             onClick={() => onChange(option.value)}
             {...surface("control", { on: checked })}
             className={cn(
-              "flex min-h-touch min-w-0 max-w-full flex-[1_1_auto] items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-body-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              "flex min-h-touch min-w-0 max-w-full flex-[1_1_auto] items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-body-sm outline-clear transition-colors focus-visible:ring-2 focus-visible:ring-ring",
               checked ? "border-primary-strong/50 bg-primary-soft font-medium text-foreground" : "bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >

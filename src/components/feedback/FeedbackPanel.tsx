@@ -140,7 +140,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
   );
 
   const listPane = (
-    <div className={cn("min-w-0", selected !== null && "max-@xl:hidden")}>
+    <div className={cn("min-w-0", selected !== null && "@max-xl:hidden")}>
       {access.data?.manage && access.data.sharingAvailable && <SharingRow on={access.data.sharing} />}
       {list.error ? (
         <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
@@ -165,13 +165,13 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
           />
         )
       ) : (
-        <ul aria-label={t("pages.feedback.list.label")} className="divide-y px-3 py-1">
+        <ul aria-label={t("pages.feedback.list.label")} className="hairlines-y px-3 py-1">
           {list.data.map(f => (
             <li key={f.id}>
               <Link
                 to={`/feedback/${f.id}${suffix}`}
                 aria-current={f.id === selected ? "true" : undefined}
-                className={cn("block rounded-md px-2 outline-none hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring", f.id === selected && "bg-accent")}
+                className={cn("block rounded-md px-2 outline-clear hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring", f.id === selected && "bg-accent")}
               >
                 <ListRow
                   title={<span className="[overflow-wrap:anywhere]">{f.title}</span>}
@@ -204,7 +204,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
             aria-label={t("pages.feedback.list.preview")}
             className={cn(
               "relative min-h-0 min-w-0 @xl:sticky @xl:top-[calc(var(--page-header-h,0px)+var(--page-toolbar-h,0px))] @xl:max-h-[calc(100dvh-2rem-var(--page-header-h,0px)-var(--page-toolbar-h,0px))] @xl:overflow-y-auto @xl:border-l",
-              selected === null && "max-@xl:hidden"
+              selected === null && "@max-xl:hidden"
             )}
           >
             <Splitter
@@ -214,7 +214,7 @@ export function FeedbackPanel({ selected }: { selected: number | null }) {
               bounds={previewBounds}
               onChange={w => previewWidth.set(w)}
               label={t("pages.feedback.list.resizePreview")}
-              className="max-@xl:hidden"
+              className="@max-xl:hidden"
             />
             {selected === null ? (
               <EmptyState className="py-16" title={t("pages.feedback.list.preview")} message={t("pages.feedback.list.pick")} />

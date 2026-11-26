@@ -188,7 +188,7 @@ export function ReportRows({
           <option value="entries:-1">{t("views.reports.rows.sortEntries")}</option>
         </select>
       </label>
-      <ul aria-label={heading(groupBy)} className="divide-y border-t md:hidden">
+      <ul aria-label={heading(groupBy)} className="hairlines-y border-t md:hidden">
         {shown.map(r => (
           <li key={r.id ?? r.key} className="grid grid-cols-[minmax(0,1fr)] gap-2 py-3">
             <div className="flex items-center justify-between gap-3">

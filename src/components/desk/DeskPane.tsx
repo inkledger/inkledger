@@ -37,7 +37,7 @@ export function DeskPane({
       onPointerDownCapture={() => onFocusPane(id)}
       onFocusCapture={() => onFocusPane(id)}
       // Being moved: faded under the highlight of where it goes.
-      className={cn("min-h-0 min-w-0 bg-card outline-none data-[snap-dragging]:opacity-60", className)}
+      className={cn("min-h-0 min-w-0 bg-card outline-clear data-[snap-dragging]:opacity-60", className)}
     >
       <IssueBody
         variant="pane"

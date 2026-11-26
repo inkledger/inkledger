@@ -30,7 +30,7 @@ export function NoteSearchResults({
                 ? `${result.title || t("pages.notes.untitled")}, ${t("pages.notes.folder")}`
                 : undefined
             }
-            className="block rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block rounded-sm outline-clear focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="flex min-w-0 items-center gap-1.5 font-medium">
               {result.kind === "folder" ? (
@@ -66,7 +66,7 @@ export function NoteSearchResults({
                 key: result.issueKey,
                 connectionId: result.connectionId,
               })}
-              className="mt-1 inline-flex rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-1 inline-flex rounded-sm focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Chip>{result.issueKey}</Chip>
             </Link>

@@ -89,7 +89,7 @@ function DayCard({
           lit
         />
       </header>
-      <ul className="mt-1 divide-y">
+      <ul className="mt-1 hairlines-y">
         {day.issues.map(r => (
           <IssueLine key={r.id ?? r.key} row={r} />
         ))}

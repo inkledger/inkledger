@@ -30,7 +30,7 @@ export function NotificationEvents({ items, issueKey, connectionId }: { items: r
   const comments = trpc.issues.comments.useQuery(where, { enabled: items.some(n => COMMENT_KINDS.has(n.kind)), retry: false, staleTime: 60_000 });
   const history = trpc.issues.history.useQuery(where, { enabled: items.some(n => HISTORY_KINDS.has(n.kind)), retry: false, staleTime: 60_000 });
   return (
-    <ul className="grid grid-cols-[minmax(0,1fr)] divide-y">
+    <ul className="grid grid-cols-[minmax(0,1fr)] hairlines-y">
       {items.map(n => (
         <Event
           key={n.id}

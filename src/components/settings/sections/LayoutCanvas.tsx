@@ -293,7 +293,7 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
       onKeyDown={movable ? onHandleKeyDown : undefined}
       title={rules.locked ?? undefined}
       className={cn(
-        "flex size-target shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring coarse:size-touch",
+        "flex size-target shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-clear focus-visible:ring-2 focus-visible:ring-ring coarse:size-touch",
         movable ? "cursor-grab touch-none hover:text-foreground active:cursor-grabbing" : "cursor-not-allowed",
       )}
     >
@@ -311,7 +311,7 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
         aria-describedby={about.length > 0 ? aboutId : undefined}
         onClick={onSelect}
         title={usage ? undefined : block}
-        className={cn("flex min-h-target min-w-0 flex-1 basis-20 items-center self-stretch rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch", !edit && "px-1.5")}
+        className={cn("flex min-h-target min-w-0 flex-1 basis-20 items-center self-stretch rounded-sm text-left outline-clear focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch", !edit && "px-1.5")}
       >
         <span id={labelId} className="min-w-0 flex-1 truncate text-body-sm">{block}</span>
       </button>

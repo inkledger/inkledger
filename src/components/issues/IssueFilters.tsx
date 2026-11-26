@@ -27,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { ToggleChip } from "@/components/app/ToggleChip";
 import { t, numberFormat } from "@/i18n";
 
@@ -74,7 +73,7 @@ function Toggle({
 }) {
   return (
     <ToggleChip size="sm" pressed={pressed} onClick={onClick}>
-      <Icon className={cn("h-3.5 w-3.5", pressed && "fill-current/20")} />
+      <Icon className="h-3.5 w-3.5" />
       {label}
       {count !== undefined && (
         <span className="tabular opacity-70">{numberFormat().format(count)}</span>
@@ -260,7 +259,7 @@ export function IssueFilters({
                 onClick={item.clear}
                 aria-label={t("views.issues.filters.remove", { filter: item.label })}
                 {...surface("chip")}
-                className="inline-flex min-h-target items-center gap-1 rounded-full border bg-primary-soft px-2.5 text-caption font-medium text-primary-strong outline-none transition-colors hover:bg-primary-soft/70 focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
+                className="inline-flex min-h-target items-center gap-1 rounded-full border bg-primary-soft px-2.5 text-caption font-medium text-primary-strong outline-clear transition-colors hover:bg-primary-soft/70 focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
               >
                 {item.label}
                 <X className="h-3 w-3" aria-hidden />

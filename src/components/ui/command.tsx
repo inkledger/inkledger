@@ -35,7 +35,7 @@ function CommandInput({
         // Focus: an inset ring following its radius (index.css), never an outline over the frame's edge.
         data-focus="inset"
         className={cn(
-          "placeholder:text-muted-foreground flex h-full w-full rounded-md bg-transparent px-2 text-field outline-none md:text-body-sm disabled:cursor-not-allowed disabled:opacity-50",
+          "placeholder:text-muted-foreground flex h-full w-full rounded-md bg-transparent px-2 text-field outline-clear md:text-body-sm disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         {...props}
@@ -109,7 +109,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-body-sm outline-none select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-body-sm outline-clear select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

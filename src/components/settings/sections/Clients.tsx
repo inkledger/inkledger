@@ -140,7 +140,7 @@ export function ClientsSection() {
       {clients.length === 0 ? (
         <p className="text-body-sm text-muted-foreground">{t("settings.clients.none")}</p>
       ) : (
-        <ul className="divide-y">
+        <ul className="hairlines-y">
           {clients.map(c => (
             <li key={c.id} className="flex items-center gap-3 py-2">
               <div className="min-w-0 flex-1">

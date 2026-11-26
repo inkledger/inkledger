@@ -79,7 +79,7 @@ export function FolderView({ folder, items, search }: { folder: NoteTreeItem; it
       {children.length === 0 ? (
         <EmptyState art="inbox" title={t("pages.notes.folderEmpty")} message={t("pages.notes.folderEmptyText")} />
       ) : (
-        <ul className="grid grid-cols-[minmax(0,1fr)] divide-y rounded-md border">
+        <ul className="grid grid-cols-[minmax(0,1fr)] hairlines-y rounded-md border">
           {children.map(item => {
             const Icon = item.kind === "folder" ? Folder : FileText;
             return (
@@ -110,7 +110,7 @@ export function FolderView({ folder, items, search }: { folder: NoteTreeItem; it
                 ) : (
                   <Link
                     to={`/notes/${item.id}${search}`}
-                    className="flex min-h-touch min-w-0 items-center gap-2 px-3 py-2 text-body-sm hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    className="flex min-h-touch min-w-0 items-center gap-2 px-3 py-2 text-body-sm hover:bg-accent/60 focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   >
                     <Icon aria-hidden className={item.kind === "folder" ? "h-4 w-4 shrink-0 text-primary" : "h-4 w-4 shrink-0 text-muted-foreground"} />
                     <span className="min-w-0 flex-1 truncate">{untitled(item.title)}</span>

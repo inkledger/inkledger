@@ -66,7 +66,7 @@ const Row = memo(function Row({
           tabIndex={activeCol === -1 ? 0 : -1}
           aria-label={`${t("pages.team.openPerson", { name: p.displayName })}${row.note ? ` (${row.note})` : ""}`}
           {...flowControlProps("team.matrix.person")}
-          className="flex h-7 w-28 min-w-0 items-center gap-2 rounded-md px-1 text-left outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring sm:w-44"
+          className="flex h-7 w-28 min-w-0 items-center gap-2 rounded-md px-1 text-left outline-clear hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring sm:w-44"
         >
           <span aria-hidden className="w-5 shrink-0 text-right text-caption text-muted-foreground tabular max-sm:hidden">{rank}</span>
           <span aria-hidden className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong">
@@ -91,7 +91,7 @@ const Row = memo(function Row({
               aria-disabled={future || undefined}
               aria-label={kind === "day" || future ? label : t("pages.team.zoom", { label })}
               className={cn(
-                "relative mx-auto flex h-6 w-full items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "relative mx-auto flex h-6 w-full items-center justify-center rounded-sm outline-clear focus-visible:ring-2 focus-visible:ring-ring",
                 WIDTH[kind],
                 STEP_CLASS[c.step],
                 !future && "hover:ring-1 hover:ring-foreground/40",

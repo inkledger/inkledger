@@ -133,7 +133,7 @@ export function PeriodBars({
                   "relative h-full min-w-0 flex-1",
                   long ? "rounded-sm" : "rounded-md",
                   target > 0 ? "bg-muted" : "bg-muted/60",
-                  tooltips && "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                  tooltips && "outline-clear focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 )}
               >
                 <div className={cn("absolute inset-0 flex flex-col-reverse overflow-hidden", long ? "rounded-sm" : "rounded-md")}>

@@ -65,13 +65,13 @@ export function MobileTimerSheet({
             {t("ui.layout.timersHint")}
           </SheetDescription>
         </div>
-        <ul className="min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain border-y bg-card">
+        <ul className="min-h-0 flex-1 hairlines-y overflow-y-auto overscroll-contain border-y bg-card">
           {sorted.map((timer, i) => (
             <li key={issueId(timer)} className="grid gap-1.5 px-4 py-3">
               <Link
                 to={issuePath({ key: timer.issueKey, connectionId: timer.connectionId })}
                 onClick={() => onOpenChange(false)}
-                className="flex min-w-0 items-baseline gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-w-0 items-baseline gap-2 rounded-sm focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="shrink-0 text-body-sm font-semibold tabular">{timer.issueKey}</span>
                 <span className="truncate text-body-sm text-muted-foreground">

@@ -124,7 +124,7 @@ function Stat({ item, variant }: { item: StatItem; variant: "compact" | "default
             title={item.hint}
             onClick={item.onClick}
             {...item.control}
-            className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="absolute inset-0 outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           />
         )}
       </dd>

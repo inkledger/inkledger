@@ -311,7 +311,7 @@ export default function NotificationsPage() {
           style={{ "--notifications-preview-w": width === null ? undefined : `${width}px` } as CSSProperties}
           className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(360px,var(--notifications-preview-w,50cqw),min(60vw,100cqw_-_420px))]"
         >
-          <div className={cn("min-w-0 p-3 md:p-4", detail && current && "max-@xl:hidden")}>
+          <div className={cn("min-w-0 p-3 md:p-4", detail && current && "@max-xl:hidden")}>
             {state === "unread" && (
               <div className="mb-4 grid grid-cols-[minmax(0,1fr)] gap-4 empty:hidden">
                 <AlertList />
@@ -367,7 +367,7 @@ export default function NotificationsPage() {
               bounds={previewBounds}
               onChange={w => previewWidth.set(w)}
               label={t("pages.notifications.resizePreview")}
-              className="max-@xl:hidden"
+              className="@max-xl:hidden"
             />
             {current ? (
               <Preview
@@ -439,7 +439,7 @@ function GroupRow({
           data-row-select
           aria-pressed={selected}
           onClick={onSelect}
-          className="flex min-h-target min-w-0 flex-1 items-center gap-3 rounded-lg p-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
+          className="flex min-h-target min-w-0 flex-1 items-center gap-3 rounded-lg p-2.5 text-left outline-clear focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
         >
           <span className="relative shrink-0">
             <span className={cn("flex h-9 w-9 items-center justify-center rounded-lg", style.tone)} aria-hidden {...surface("picture")}>
@@ -602,7 +602,7 @@ function Preview({
             aria-expanded={details}
             aria-controls={`notification-details-${g.key}`}
             onClick={() => setDetails(v => !v)}
-            className="flex min-h-target w-full items-center gap-2 border-b px-4 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring coarse:min-h-touch"
+            className="flex min-h-target w-full items-center gap-2 border-b px-4 py-2 text-left outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring coarse:min-h-touch"
           >
             <SectionLabel as="h3" className="flex-1 px-0">{t("pages.notifications.details")}</SectionLabel>
             <ChevronDown className={cn("h-4 w-4 text-muted-foreground", details && "rotate-180")} aria-hidden />
@@ -645,7 +645,7 @@ function KeysHint() {
     [[t("pages.notifications.keys.esc")], t("pages.notifications.keys.back")],
   ];
   return (
-    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption text-muted-foreground coarse:hidden max-@xl:hidden">
+    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption text-muted-foreground coarse:hidden @max-xl:hidden">
       {pairs.map(([keys, label]) => (
         <span key={label} className="inline-flex items-center gap-1 whitespace-nowrap">
           {keys.map(k => <Kbd key={k}>{k}</Kbd>)}

@@ -89,7 +89,7 @@ export function BackButton({ fallback = null }: { fallback?: React.ReactNode }) 
       type="button"
       onClick={back.go}
       title={t("ui.nav.backTo", { label: back.label, keys: BACK_KEYS })}
-      className="-ml-1.5 mb-1 inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-body-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+      className="-ml-1.5 mb-1 inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-body-sm font-medium text-muted-foreground outline-clear transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ChevronLeft className="h-4 w-4" aria-hidden />
       {back.label}

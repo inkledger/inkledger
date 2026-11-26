@@ -520,7 +520,7 @@ export default function Issues() {
                   />
                 ))}
               </IssueTable>
-              <ul className="divide-y border-t md:hidden">
+              <ul className="hairlines-y border-t md:hidden">
                 {pinnedShown.map((i, idx) => (
                   <IssueCard
                     key={issueId(i)}
@@ -607,7 +607,7 @@ export default function Issues() {
                       />
                     ))}
                   </IssueTable>
-                  <ul className="divide-y border-t md:hidden">
+                  <ul className="hairlines-y border-t md:hidden">
                     {issues.map(i => (
                       <IssueCard key={issueId(i)} issue={i} onLog={openLog} selected={selected === issueId(i)} {...pickFor(i)} />
                     ))}

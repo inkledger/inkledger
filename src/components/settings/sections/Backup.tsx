@@ -176,7 +176,7 @@ export function BackupSection() {
         {files.length === 0 ? (
           <p className="text-body-sm text-muted-foreground">{t("settings.backup.empty")}</p>
         ) : (
-          <ul className="divide-y">
+          <ul className="hairlines-y">
             {files.map(f => (
               <li key={f.name} className="flex items-center gap-3 py-2 first:pt-0">
                 <span className="min-w-0 flex-1">

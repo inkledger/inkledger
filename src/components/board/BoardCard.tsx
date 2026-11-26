@@ -135,7 +135,7 @@ export function BoardCard({
       onDragEnd={onDragEnd}
       // The card is the target: its key's link stretches over the whole card (a 15 px key was the only
       // way in on a touch screen); the menu and ▶ sit above it.
-      className="relative cursor-grab rounded-xl border bg-card p-2.5 text-body-sm shadow-sm transition-[border-color] duration hover:border-foreground/15 hover:shadow-sm active:cursor-grabbing"
+      className="relative cursor-grab rounded-xl border bg-card p-2.5 text-body-sm shadow-sm transition-[border-color] hover:border-foreground/15 hover:shadow-sm active:cursor-grabbing"
     >
       <div className="flex items-start gap-1.5">
         <p className="line-clamp-2 min-w-0 flex-1 [overflow-wrap:anywhere] text-body-sm font-semibold leading-snug">
@@ -205,7 +205,7 @@ export function BoardCard({
           {...flowControlProps("board.card.open")}
           // The card is what drags (to a column, the pinboard, the desk), never the link over it.
           draggable={false}
-          className="rounded-xl after:absolute after:inset-0 after:rounded-xl after:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+          className="rounded-xl after:absolute after:inset-0 after:rounded-xl after:content-[''] hover:text-foreground hover:underline focus-visible:outline-clear focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
           {issue.key}
         </Link>

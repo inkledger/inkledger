@@ -32,7 +32,7 @@ export function AlertList({ onOpen }: { onOpen?: () => void }) {
                 dismiss.mutate({ id: a.id });
                 onOpen?.();
               }}
-              className="min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-w-0 flex-1 rounded-md outline-clear focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span className="block text-body-sm [overflow-wrap:anywhere]">{alertMessage(a)}</span>
               <span className="mt-0.5 block truncate text-caption text-muted-foreground">{alertAgo(a.createdAt)}</span>

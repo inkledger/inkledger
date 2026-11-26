@@ -271,7 +271,7 @@ export function BucketsSection() {
       {buckets.length === 0 ? (
         <p className="text-body-sm text-muted-foreground">{t("settings.buckets.none")}</p>
       ) : (
-        <ul className="divide-y">
+        <ul className="hairlines-y">
           {buckets.map((b, i) => (
             <li key={b.id} className="flex items-center gap-3 py-2">
               <div className="min-w-0 flex-1">

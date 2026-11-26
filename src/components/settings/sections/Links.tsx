@@ -71,7 +71,7 @@ export function LinksSection() {
       </form>
       {error && <p className="mt-1 text-caption text-danger">{error}</p>}
 
-      <ul className="mt-4 divide-y">
+      <ul className="mt-4 hairlines-y">
         {trackers.map(s => (
           <li key={s.host} className="flex items-center gap-3 py-2">
             <Globe className="h-4 w-4 text-muted-foreground" aria-hidden />

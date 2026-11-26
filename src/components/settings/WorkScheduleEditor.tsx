@@ -357,7 +357,7 @@ export function WorkScheduleEditor() {
           title={t("settings.schedule.history", { count: versions.length })}
           keywords={t("settings.schedule.historyKeywords")}
         >
-          <ul className="divide-y text-body-sm">
+          <ul className="hairlines-y text-body-sm">
             {[...versions].reverse().map(v => (
               <li
                 key={v.validFrom}
@@ -370,7 +370,7 @@ export function WorkScheduleEditor() {
                     setViewing(viewing === v.validFrom ? null : v.validFrom)
                   }
                   className={cn(
-                    "rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
+                    "rounded-sm text-left underline-offset-2 outline-clear hover:underline focus-visible:ring-2 focus-visible:ring-ring",
                     viewing === v.validFrom && "font-semibold"
                   )}
                 >
@@ -418,7 +418,7 @@ export function WorkScheduleEditor() {
           keywords={t("settings.schedule.ownDaysKeywords")}
         >
           <p className="mb-2 text-caption text-muted-foreground">{t("settings.schedule.ownDaysHint")}</p>
-          <ul className="divide-y text-body-sm">
+          <ul className="hairlines-y text-body-sm">
             {ownDays.map(([key, hours]) => {
               const day = parseDayKey(key);
               if (!day) return null;

@@ -77,7 +77,7 @@ function EventDiff({ e }: { e: AuditEventView }) {
           <th className="py-1 font-medium">{t("settings.audit.after")}</th>
         </tr>
       </thead>
-      <tbody className="divide-y">
+      <tbody className="hairlines-y">
         {rows.map(r => (
           <tr key={r.field}>
             <td className="py-1 pr-3 align-top font-medium">{r.field}</td>

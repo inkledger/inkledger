@@ -367,7 +367,7 @@ export function SsoSection() {
         {providers.length === 0 ? (
           <EmptyState title={t("settings.sso.title")} message={t("settings.sso.empty")} />
         ) : (
-          <ul className="divide-y">
+          <ul className="hairlines-y">
             {providers.map(p => (
               <li key={p.id} className="grid gap-3 py-3 first:pt-0">
                 <div className="flex items-center gap-3">

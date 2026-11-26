@@ -130,7 +130,7 @@ export function DayHoursHandles({
     onLostPointerCapture: up,
     onKeyDown: key(handle),
   });
-  const ring = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const ring = "outline-clear focus-visible:ring-2 focus-visible:ring-ring";
 
   if (!draft.enabled) return null;
   const start = minutesOf(draft.start);

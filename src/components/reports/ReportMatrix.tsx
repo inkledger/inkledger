@@ -71,7 +71,7 @@ export function ReportMatrix({ days, issues, targetFor }: { days: ReportDay[]; i
                     <span className="flex min-w-0 items-center gap-2">
                       <ProjectAvatar project={projectOf(row.key)} size="xs" />
                       <span className="grid min-w-0">
-                        <Link data-cell={`${r},0`} tabIndex={tab(r, 0)} onFocus={() => setActive([r, 0])} to={issuePath({ key: row.key, connectionId: row.connectionId, remoteId: row.remoteId })} className="truncate font-medium underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <Link data-cell={`${r},0`} tabIndex={tab(r, 0)} onFocus={() => setActive([r, 0])} to={issuePath({ key: row.key, connectionId: row.connectionId, remoteId: row.remoteId })} className="truncate font-medium underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring">
                           {head}
                         </Link>
                         {tail && <span className="truncate text-caption text-muted-foreground">{tail}</span>}
@@ -89,7 +89,7 @@ export function ReportMatrix({ days, issues, targetFor }: { days: ReportDay[]; i
                         tabIndex={tab(r, c + 1)}
                         onFocus={() => setActive([r, c + 1])}
                         aria-label={`${head}, ${dateFormat({ weekday: "long" }).format(d)} ${dayMonth(d)}: ${seconds > 0 ? formatDuration(seconds) : t("views.reports.days.none")}`}
-                        className={cn("whitespace-nowrap border-b px-0.5 py-1.5 text-center tabular outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", targetFor(d) === 0 && "bg-muted/40", seconds === 0 && "text-muted-foreground/50")}
+                        className={cn("whitespace-nowrap border-b px-0.5 py-1.5 text-center tabular outline-clear focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", targetFor(d) === 0 && "bg-muted/40", seconds === 0 && "text-muted-foreground/50")}
                       >
                         {seconds > 0 ? formatSeconds(seconds, { days: false }) : "·"}
                       </td>

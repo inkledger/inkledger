@@ -171,7 +171,7 @@ export function ManageBadge({
           title={badge.label || undefined}
           data-store-badge
           className={cn(
-            "inline-flex h-6 w-24 min-w-0 shrink-0 items-center justify-between gap-1 rounded-sm px-2 text-caption font-medium outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring",
+            "inline-flex h-6 w-24 min-w-0 shrink-0 items-center justify-between gap-1 rounded-sm px-2 text-caption font-medium outline-clear transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring",
             TONES[badge.tone]
           )}
         >

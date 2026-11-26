@@ -190,7 +190,7 @@ function Choice({ icon: Icon, title, detail, label, disabled, assign, onPick }: 
       data-idle-assign={assign ? "" : undefined}
       onClick={onPick}
       {...surface("control")}
-      className="flex w-full items-start gap-3 rounded-lg border bg-card px-3 py-2.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+      className="flex w-full items-start gap-3 rounded-lg border bg-card px-3 py-2.5 text-left outline-clear transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       <span className="grid min-w-0">

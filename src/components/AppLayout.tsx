@@ -186,7 +186,7 @@ function RailTip({
 // One row for both widths: the icon keeps its place while the width
 // animates, the label only shows open. Nothing moves on toggling.
 const ROW =
-  "relative flex h-8 w-full shrink-0 items-center gap-3 [@media(max-height:820px)]:h-7 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "relative flex h-8 w-full shrink-0 items-center gap-3 [@media(max-height:820px)]:h-7 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring";
 const ICON = "h-[18px] w-[18px] shrink-0";
 /** The sidebar's quick actions in its foot, the toggle last. */
 const SIDEBAR_QUICK: ReadonlySet<string> = new Set(["shell.theme", "shell.screensaver", "shell.sync", "shell.sidebar"]);
@@ -238,7 +238,7 @@ const NavTile = memo(function NavTile({ to, name, Icon, collapsed, count, countT
         {...surface("nav", { current: true, edge: false })}
         {...(routeControlId(to) ? flowControlProps(routeControlId(to)!) : {})}
         className={cn(
-          "relative flex flex-col items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "relative flex flex-col items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring",
           "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
           // Closed: a 28 px icon (WCAG's 24 px met as it is; a wider area would cover its neighbour).
           // Open on a short screen (as the rows, max-height 820px): tighter, so the sidebar still never scrolls.
@@ -444,7 +444,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
           onClick={() => togglePinboard(pathname, true)}
           {...flowControlProps("shell.pinboard.toggle")}
           className={cn(
-            "absolute right-1.5 top-1/2 flex size-target -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring",
+            "absolute right-1.5 top-1/2 flex size-target -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-clear transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring",
             panelOpen && "text-primary-strong"
           )}
         >
@@ -531,7 +531,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
    */
   const quickPlacements = actionPlacements.filter(placement => SIDEBAR_QUICK.has(placement.anchorId));
   const QUICK = cn(
-    "relative flex items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+    "relative flex items-center justify-center rounded-md text-muted-foreground outline-clear transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
     // Open: a finger's 44 px on touch screens, the look unchanged, with room between the tiles so no
     // tile's area covers its neighbour. Closed (the 2×2 block), the 28 px tiles meet WCAG's 24 px as they are.
     !collapsed && "coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-['']",
@@ -770,7 +770,7 @@ export function AppLayout() {
         <header ref={phoneHeader} {...surface("glass")} className="safe-top sticky top-0 z-30 flex items-center gap-4 border-b bg-canvas/90 px-3 py-1.5 backdrop-blur lg:hidden">
           <Link
             to="/"
-            className="flex items-center gap-2 rounded-lg py-1 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-2 rounded-lg py-1 pr-2 focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring"
           >
             <BrandMark className="h-8 w-8" />
             <span className="font-display font-semibold">{BRAND_SHORT}</span>

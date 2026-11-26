@@ -29,7 +29,7 @@ import { screensaver } from "@/lib/flag";
 import { isPlaced, placementsFor } from "@/lib/workspace/utils";
 
 const TILE =
-  "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 text-caption font-medium text-muted-foreground transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 text-caption font-medium text-muted-foreground transition-colors active:bg-accent focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
  * "More" from the tab bar: the sections not in the bar, the pinboard and the
@@ -151,7 +151,7 @@ export function MobileMoreSheet({
             <SidebarFavorites onNavigate={() => onOpenChange(false)} />
           </div>
 
-          <div className="grid divide-y rounded-xl border bg-card" {...surface("card")}>
+          <div className="grid hairlines-y rounded-xl border bg-card" {...surface("card")}>
             <button
               type="button"
               onClick={() => sync.mutate()}

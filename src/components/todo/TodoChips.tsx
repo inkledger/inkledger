@@ -44,7 +44,7 @@ import { randomUUID } from "@/lib/randomId";
  */
 
 const chip =
-  "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 outline-clear hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring";
 const quiet = "bg-muted text-muted-foreground";
 
 /** The day: today, tomorrow, next Monday, a day picked, or none. Late shows red. */
@@ -377,7 +377,7 @@ function Clear({ label, onClick }: { label: string; onClick: () => void }) {
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="ml-0.5 rounded-sm p-0.5 text-muted-foreground opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+      className="ml-0.5 rounded-sm p-0.5 text-muted-foreground opacity-60 outline-clear hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
     >
       <X className="h-3 w-3" aria-hidden />
     </button>

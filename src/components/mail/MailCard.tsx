@@ -182,7 +182,7 @@ export function MailSubject({ mail, className }: { mail: Pick<MailView, "id" | "
       {hasCopy && (
         <button
           type="button"
-          className="inline-flex shrink-0 items-center rounded-sm text-current opacity-70 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex shrink-0 items-center rounded-sm text-current opacity-70 outline-clear hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t("ui.mail.copy.open")}
           title={mail.goneAt ? t("ui.mail.copy.gone") : t("ui.mail.copy.saved")}
           onClick={() => setViewing(true)}

@@ -240,7 +240,7 @@ export function DayTimeline({
             {...flowControlProps("dashboard.timeline.gap")}
             title={t("views.dashboard.timeline.holeTitle", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
             aria-label={t("views.dashboard.timeline.holeLabel", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
-            className="absolute bottom-6 top-3 z-10 flex min-w-target items-start justify-center overflow-hidden rounded-md border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 outline-none transition-colors hover:border-primary-strong/70 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+            className="absolute bottom-6 top-3 z-10 flex min-w-target items-start justify-center overflow-hidden rounded-md border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 outline-clear transition-colors hover:border-primary-strong/70 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
             // A short hole still takes a 24 px tap (min-w-target: WCAG 2.2 target size).
             style={{ left: `${g.left}%`, width: `${g.width}%` }}
           >
@@ -266,7 +266,7 @@ export function DayTimeline({
               title={label}
               aria-label={label}
               className={cn(
-                "absolute bottom-6 top-3 z-[5] flex min-w-target items-start justify-center overflow-hidden rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
+                "absolute bottom-6 top-3 z-[5] flex min-w-target items-start justify-center overflow-hidden rounded-md outline-clear transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
                 p.entry.kind === "vacation"
                   ? "border border-primary-strong/20 bg-primary-soft/80 text-primary-strong"
                   : "border-2 border-dashed border-foreground/35 bg-card/75 text-foreground/75 hover:border-primary-strong/60 hover:bg-primary-soft/50"
@@ -292,7 +292,7 @@ export function DayTimeline({
               title={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
               // Above a module drawn on the track (the tree), and its clicks never the module's (modules/hit.ts).
               data-above-modules
-              className="absolute bottom-7 z-30 flex size-target items-center justify-center rounded-full border bg-card text-primary-strong outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
+              className="absolute bottom-7 z-30 flex size-target items-center justify-center rounded-full border bg-card text-primary-strong outline-clear transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
               // At the hole's right end (its size, 24 px, inside it), but never left of the track: a narrow hole at
               // the start of the day put it past the edge, where the track's clip cut it in half (3 Nov).
               style={{ left: `max(2px, calc(${h.left + h.width}% - 26px))` }}
@@ -356,7 +356,7 @@ export function DayTimeline({
                 onClick={() => onPending?.(b)}
                 {...surface("glass")}
                 className={cn(
-                  "stripes-pending absolute z-10 flex min-w-target rounded-md text-left outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
+                  "stripes-pending absolute z-10 flex min-w-target rounded-md text-left outline-clear transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
                   b.lanes === 1 && "bottom-6 top-3"
                 )}
                 style={style}
@@ -389,7 +389,7 @@ export function DayTimeline({
               {...surface("bar")}
               {...flowControlProps("dashboard.timeline.issueOpen")}
               className={cn(
-                "absolute z-10 flex rounded-md outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring",
+                "absolute z-10 flex rounded-md outline-clear transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring",
                 b.lanes === 1 && "bottom-6 top-3",
                 b.color.solid
               )}
@@ -523,7 +523,7 @@ export function DayTimeline({
                 {...surface("glass")}
                 onClick={() => onGap(g)}
                 {...flowControlProps("dashboard.timeline.gap")}
-                className="flex min-h-touch w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 px-3 text-body-sm outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-touch w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 px-3 text-body-sm outline-clear transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {/* Named in words; the short form shown is for the eye (a label must contain what is shown). */}
                 <span className="sr-only">
@@ -548,7 +548,7 @@ export function DayTimeline({
                 {...surface("glass")}
                 onClick={() => onPending(e)}
                 data-workspace-control="dashboard.timeline.pendingLog"
-                className="stripes-pending flex min-h-touch w-full min-w-0 items-center justify-between gap-3 rounded-lg px-3 text-body-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="stripes-pending flex min-h-touch w-full min-w-0 items-center justify-between gap-3 rounded-lg px-3 text-body-sm outline-clear focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="sr-only">
                   {t("views.dashboard.timeline.pendingLabel", { key: e.issueKey, duration: formatDurationLong(e.seconds) })}

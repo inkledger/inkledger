@@ -28,7 +28,7 @@ export function ParkedTray({ parked, onUnpark, onRemove }: { parked: DeskPane[];
                 type="button"
                 onClick={() => onUnpark(id)}
                 title={summary ? `${pane.key}: ${summary}` : undefined}
-                className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md pl-1.5 pr-2 text-body-sm font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md pl-1.5 pr-2 text-body-sm font-medium outline-clear hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ProjectAvatar project={projectOf(pane.key)} connectionId={pane.connectionId} size="xs" className="size-5" />
                 {pane.key}
@@ -40,7 +40,7 @@ export function ParkedTray({ parked, onUnpark, onRemove }: { parked: DeskPane[];
                 onClick={() => onRemove(id)}
                 aria-label={t("pages.desk.removeParked", { key: pane.key })}
                 title={t("pages.desk.removeParked", { key: pane.key })}
-                className="flex h-full w-7 items-center justify-center rounded-r-md border-l text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-full w-7 items-center justify-center rounded-r-md border-l text-muted-foreground outline-clear hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
               </button>

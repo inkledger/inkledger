@@ -18,8 +18,7 @@ A printable version with live colour swatches and the type scale is in `docs/des
 | An AI agent | All of it, §11 first | Never invent a token, size or colour |
 
 **Sources of truth.** When this document and the code disagree, the code wins: fix the document.
-- `src/index.css`: tokens and base styles.
-- `tailwind.config.js`: the scale and how tokens map to classes.
+- `src/index.css`: tokens and base styles; its `@theme` is the scale and how tokens map to classes (Tailwind 4, CSS-first).
 - `src/components/ui/*`: low-level primitives (shadcn/Radix).
 - `src/components/app/*`: the app's own building blocks.
 - `scripts/check-design.mjs`: the enforced rules.
@@ -50,7 +49,7 @@ Colours are CSS variables holding HSL triples (`--primary: 16.5 71.7% 78%`). Tai
 | Hex in components (`#B5562F`) | A token class (`text-primary-strong`) |
 | Tailwind's palette (`bg-red-500`, `text-gray-600`) | A semantic token (`bg-danger-soft text-danger`) |
 | `bg-white`, `text-black` | `bg-card`, `text-foreground` |
-| A new CSS variable used directly | Register it in `tailwind.config.js` with `token("name")`, or the class generates nothing (the lint checks this) |
+| A new CSS variable used directly | Register it in `src/index.css`'s `@theme inline` as `--color-name: hsl(var(--name))`, or the class generates nothing (the lint checks this) |
 
 ### 3.2 The palette is derived
 
@@ -281,7 +280,7 @@ Grounded in Material 3 (window classes, canonical layouts), Apple HIG (split vie
 
 **Container first: regions.** A block lays itself out by its own width, not the window's.
 - The sizes are in rem, so density moves them: `@s` < 28rem ≤ `@m` < 56rem ≤ `@l` < 80rem ≤ `@xl`. They are the same thresholds as a desk pane's.
-- `max-@l:` applies below `@l`, where a row is stacked in one column. A list that fits a row's height there gets a count budget instead (My issues: two per column, then "Show all N →").
+- `@max-l:` applies below `@l`, where a row is stacked in one column. A list that fits a row's height there gets a count budget instead (My issues: two per column, then "Show all N →").
 - Viewport breakpoints are only for the shell (sidebar, phone tab bar).
 
 **Three page layouts, nothing ad hoc.**

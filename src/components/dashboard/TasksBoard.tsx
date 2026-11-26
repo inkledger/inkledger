@@ -55,7 +55,7 @@ function TaskCard({
       to={issuePath(issue)}
       {...surface("card")}
       {...flowControlProps("dashboard.tasks.issueOpen")}
-      className="block rounded-xl border bg-card p-2.5 transition-[border-color] duration hover:border-foreground/15 hover:shadow-sm"
+      className="block rounded-xl border bg-card p-2.5 transition-[border-color] hover:border-foreground/15 hover:shadow-sm"
     >
       <p className="line-clamp-2 [overflow-wrap:anywhere] text-body-sm font-semibold leading-snug">
         {issue.summary}
@@ -122,7 +122,7 @@ export function TasksBoard({
                       {...flowControlProps("dashboard.tasks.collapse")}
                       aria-label={t("views.dashboard.tasks.collapseColumn", { title: col.title })}
                       title={t("views.dashboard.tasks.collapse", { title: col.title })}
-                      className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-clear hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <ChevronsRightLeft className="h-4 w-4" />
                     </button>
@@ -166,14 +166,14 @@ function ColumnCards({ issues, total, title }: { issues: TaskColumn["issues"]; t
   return (
     <div className="flex min-h-0 flex-col gap-2 @l:group-data-[fill]/row:flex-1">
       {/* In a row, as many as its height holds; stacked (below @l, no height to fit), the first two each. */}
-      <ul ref={list} aria-label={title} className="stagger cast-room-x cast-room-y grid gap-2 [--room-b:0.25rem] [--room-x:0.5rem] max-@l:[&>li:nth-child(n+3)]:hidden">
+      <ul ref={list} aria-label={title} className="stagger cast-room-x cast-room-y grid gap-2 [--room-b:0.25rem] [--room-x:0.5rem] @max-l:[&>li:nth-child(n+3)]:hidden">
         {issues.map(issue => (
           <li key={issueId(issue)}>
             <TaskCard issue={issue} />
           </li>
         ))}
       </ul>
-      <Link ref={more} to="/board" {...flowControlProps("dashboard.tasks.more")} className={cn("-my-1 justify-self-start py-1 text-body-sm font-medium text-primary-strong underline-offset-4 hover:underline", issues.length > STACKED_FIRST && "max-@l:!inline")}>
+      <Link ref={more} to="/board" {...flowControlProps("dashboard.tasks.more")} className={cn("-my-1 justify-self-start py-1 text-body-sm font-medium text-primary-strong underline-offset-4 hover:underline", issues.length > STACKED_FIRST && "@max-l:!inline")}>
         {t("ui.collection.showAll", { count: total })} →
       </Link>
     </div>

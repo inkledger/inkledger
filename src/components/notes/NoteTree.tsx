@@ -392,7 +392,7 @@ export function NoteTree({
               {...surface("nav", { current: true, edge: false })}
               data-drop={drop?.id === node.id ? drop.zone : undefined}
               className={cn(
-                "group relative flex min-h-9 min-w-0 cursor-pointer items-center rounded-md text-body-sm outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch",
+                "group relative flex min-h-9 min-w-0 cursor-pointer items-center rounded-md text-body-sm outline-clear hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch",
                 active && "bg-primary-soft text-primary-strong",
                 drop?.id === node.id && drop.zone === "into" && "ring-2 ring-primary"
               )}

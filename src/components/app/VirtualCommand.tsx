@@ -153,7 +153,7 @@ export function VirtualCommand({
           onChange={e => onQueryChange(e.target.value)}
           onKeyDown={onKeyDown}
           className={cn(
-            "flex h-full w-full rounded-md bg-transparent px-2 text-field outline-none placeholder:text-muted-foreground md:text-body-sm disabled:cursor-not-allowed disabled:opacity-50"
+            "flex h-full w-full rounded-md bg-transparent px-2 text-field outline-clear placeholder:text-muted-foreground md:text-body-sm disabled:cursor-not-allowed disabled:opacity-50"
           )}
         />
       </div>
@@ -206,7 +206,7 @@ export function VirtualCommand({
                   onPointerMove={() => !selected && setActive({ query, n: row.n })}
                   onClick={() => choose(row.n, false)}
                   className={cn(
-                    "relative flex cursor-default items-center gap-2 rounded-sm px-2 text-body-sm outline-none select-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='text-'])]:text-muted-foreground",
+                    "relative flex cursor-default items-center gap-2 rounded-sm px-2 text-body-sm outline-clear select-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='text-'])]:text-muted-foreground",
                     dialog ? "py-3 [&_svg]:h-5 [&_svg]:w-5" : "py-1.5 [&_svg:not([class*='size-'])]:size-4"
                   )}
                 >

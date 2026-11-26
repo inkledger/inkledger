@@ -30,7 +30,7 @@ export function RepositoriesSection() {
         ) : projects.data.length === 0 ? (
           <p className="text-body-sm text-muted-foreground">{t("settings.repositories.noProjects")}</p>
         ) : (
-          <ul className="grid grid-cols-[minmax(0,1fr)] divide-y">
+          <ul className="grid grid-cols-[minmax(0,1fr)] hairlines-y">
             {projects.data.map(p => (
               <li key={p.id} className="py-3 first:pt-0 last:pb-0">
                 <ProjectRepos id={p.id} name={`${p.key} · ${p.name}`} saved={p.paths} />

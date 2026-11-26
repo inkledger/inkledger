@@ -90,7 +90,7 @@ export function IssuePicker({
             aria-expanded={open}
             data-focus="inset"
             className={cn(
-              "flex h-control w-full min-w-0 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-left text-body-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring dark:bg-input/30",
+              "flex h-control w-full min-w-0 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-left text-body-sm shadow-xs outline-clear transition-[color,box-shadow] focus-visible:border-ring dark:bg-input/30",
               !selected && "text-muted-foreground"
             )}
           >

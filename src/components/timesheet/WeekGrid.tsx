@@ -122,7 +122,7 @@ function Grid({ days, todayKey, targetFor, locked, selected, busy, onToggle, onT
                 <span className="flex min-w-0 items-center gap-2">
                   <ProjectAvatar project={projectOf(row.key)} size="xs" />
                   <span className="grid min-w-0">
-                    <Link data-cell={`${r},0`} tabIndex={tab(r, 0)} onFocus={() => setActive([r, 0])} to={issuePath({ key: row.key, connectionId: row.connectionId, remoteId: row.remoteId })} className="truncate font-medium underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <Link data-cell={`${r},0`} tabIndex={tab(r, 0)} onFocus={() => setActive([r, 0])} to={issuePath({ key: row.key, connectionId: row.connectionId, remoteId: row.remoteId })} className="truncate font-medium underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-clear focus-visible:ring-2 focus-visible:ring-ring">
                       {row.key}
                     </Link>
                     {row.summary && <span className="truncate text-caption text-muted-foreground">{row.summary}</span>}
@@ -217,7 +217,7 @@ function Cell({ cell, tabIndex, onFocus, issueKey, day, entries, locked, selecte
   onAdd?: (date: Date) => void;
 }) {
   const label = `${weekday().format(day.date)} ${dayMonth(day.date)}`;
-  const base = "flex h-9 w-full items-center justify-center gap-1 rounded-md tabular outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
+  const base = "flex h-9 w-full items-center justify-center gap-1 rounded-md tabular outline-clear transition-colors focus-visible:ring-2 focus-visible:ring-ring";
   if (entries.length === 0)
     return (
       <button
@@ -258,7 +258,7 @@ function Cell({ cell, tabIndex, onFocus, issueKey, day, entries, locked, selecte
         <p className="px-1 text-caption text-muted-foreground">
           {issueKey} · {label}
         </p>
-        <ul className="grid divide-y">
+        <ul className="grid hairlines-y">
           {entries.map(w => (
             <li key={w.id}>
               <EntryRow w={w} locked={locked} selected={selected} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
@@ -360,7 +360,7 @@ function DayStrip({ days, byDay, todayKey, targetFor, locked, selected, busy, on
               aria-label={`${weekday().format(d.date)} ${dayMonth(d.date)}: ${formatDuration(dayTotals[i] ?? 0)}`}
               onClick={() => setChosen(i)}
               className={cn(
-                "grid min-h-touch place-items-center rounded-lg border py-1 text-caption outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                "grid min-h-touch place-items-center rounded-lg border py-1 text-caption outline-clear transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                 on ? "border-primary-strong/50 bg-primary-soft text-primary-strong" : "bg-card text-muted-foreground",
                 targetFor(d.date) === 0 && !on && "bg-muted/40"
               )}
@@ -401,7 +401,7 @@ function DayStrip({ days, byDay, todayKey, targetFor, locked, selected, busy, on
         {target > 0 && <Meter value={total} max={Math.max(target, total, 1)} size="xs" tone={goalTone(pct)} label={t("views.timesheet.week.goalOf", { label })} valueNow={pct} />}
       </div>
       {entries.length > 0 && (
-        <ul className="divide-y border-t">
+        <ul className="hairlines-y border-t">
           {entries.map(w => (
             <li key={w.id}>
               <EntryRow w={w} locked={locked} selected={selected} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} showKey />

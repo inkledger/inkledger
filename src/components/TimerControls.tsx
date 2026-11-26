@@ -526,7 +526,7 @@ export function ActiveTimerRailPlayer({ extra }: { extra?: React.ReactNode }) {
           aria-label={label}
           title={label}
           {...surface("control")}
-          className="mx-auto flex w-12 flex-col items-center gap-1 rounded-md border bg-background py-1.5 outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          className="mx-auto flex w-12 flex-col items-center gap-1 rounded-md border bg-background py-1.5 outline-clear transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
         >
           <TimerRing running={running} />
           <span className="text-2xs font-medium text-muted-foreground tabular">{hms.slice(0, -3)}</span>
