@@ -37,7 +37,7 @@ export const PAGES = [
   ["info", "/info"],
   ...SETTINGS.map(s => [`settings-${s}`, `/settings/${s}`]),
   ["settings-store-compact", "/settings/store", async page => { await page.getByRole("radio", { name: /^(Compatte|Compact)$/ }).click(); }],
-  ["settings-store-sheet", "/settings/store", async page => { await page.locator('[data-store-item="tune"]').getByRole("button", { name: /^(Dettagli|Details)$/ }).first().click(); await page.locator('[role="dialog"]').first().waitFor(); }],
+  ["settings-store-sheet", "/settings/store", async page => { await page.locator('[data-store-item="tune"]').getByRole("button", { name: /^(Dettagli|Details)/ }).first().click(); await page.locator('[role="dialog"]').first().waitFor(); }],
 ];
 
 /** Runs in the page: what is wrong with its layout. */
@@ -173,7 +173,8 @@ export function scanLayout() {
     }
   }
   // (d) rows of controls: one height.
-  const UNIT = 'button, a[data-slot="button"], [role="radiogroup"], [data-surface="card"], input:not([type=checkbox]):not([type=radio]), [role="combobox"]';
+  // A switch is a toggle of its own size, not a push button: it isn't held to the row's height.
+  const UNIT = 'button:not([role="switch"]), a[data-slot="button"], [role="radiogroup"], [data-surface="card"], input:not([type=checkbox]):not([type=radio]), [role="combobox"]';
   for (const row of root.querySelectorAll('[role="toolbar"], [data-slot="page-actions"], [data-slot$="-footer"]')) {
     if (!visible(row)) continue;
     const units = [];
