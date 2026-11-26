@@ -110,10 +110,11 @@ describe("module hit areas", () => {
     const button = { closest: (s: string) => (s.includes("data-above-modules") || s.includes("data-page-layer") || s.includes("button") ? {} : null) };
     const overlay = (s: string) => (s === "[data-page-overlay]" ? {} : null);
     const inPage = (s: string) => (s === "[data-page-layer]" ? {} : null);
+    // The panel's edge strip: no rule for controls there, the marks keep their points.
     const edge = () => null;
     const cases = [
       [header, overlay, true],
-      [header, edge, true],
+      [header, edge, false],
       [header, inPage, false],
       [banner, overlay, false],
       [button, overlay, false],
