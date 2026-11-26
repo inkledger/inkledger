@@ -217,6 +217,10 @@ describe("the Store by permission: offers, per-person licences, assignments", ()
     const a = await as(ann);
     await expect(a.modules.setEnabled({ id: "hello", enabled: false })).resolves.toEqual({ enabled: false });
     await a.modules.storageSet({ moduleId: "hello", key: "city", value: "Rome", from: "settings" });
+    // Audited: the switch and the setting; what the module writes as it runs is no event.
+    await a.modules.storageSet({ moduleId: "hello", key: "progress", value: 1 });
+    expect((await events("modules.setEnabled")).filter((e) => e.actor_user_id === ann).map((e) => [e.outcome, JSON.parse(e.after ?? "{}") as unknown])).toEqual([["ok", { id: "hello", enabled: false }]]);
+    expect((await events("modules.configure")).map((e) => [e.actor_user_id, JSON.parse(e.after ?? "{}") as unknown])).toEqual([[ann, { id: "hello", key: "city" }]]);
     await expect(a.store.myLicence({ product: "inkledger.hello" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     // Again: whoever holds one is skipped (nobody is charged twice).
     expect(await m.store.assign({ product: "inkledger.hello", kind: "request", teamId: team, people: [{ userId: ann, email: "ann@example.com" }] })).toMatchObject({ started: [], skipped: [ann] });
@@ -275,5 +279,19 @@ describe("the Store by permission: offers, per-person licences, assignments", ()
     await (await as(manager)).modules.removeLicense({ id: anns.licence_id });
     expect(await grantsOf(ann)).toEqual([]);
     expect(await grantsOf(ugo)).toEqual(["hello"]);
+  });
+
+  it("grants from before the ledger take a licence each (backfill), so moving one never copies it", async () => {
+    const { addLicense } = await import("../modules/registry");
+    await addLicense(license("inkledger.hello", "L-legacy"));
+    const eve = await member(["useModules"], ["hello"]);
+    const fred = await member(["useModules"]);
+    const { backfillSeats } = await import("./seats");
+    await backfillSeats();
+    await backfillSeats();
+    expect(await q("SELECT licence_id FROM module_licences WHERE holder_user_id = ?", eve)).toEqual([{ licence_id: "L-legacy" }]);
+    await (await as(manager)).store.reassign({ licence: "L-legacy", userId: fred });
+    expect(await grantsOf(eve)).toEqual([]);
+    expect(await grantsOf(fred)).toEqual(["hello"]);
   });
 });

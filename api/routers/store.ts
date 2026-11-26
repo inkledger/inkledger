@@ -261,7 +261,8 @@ export const storeRouter = createRouter({
       if (r.next) after.push(r.next);
       if (r.installed) {
         // Whoever polls, the licence goes to the person it was got for.
-        if (r.licenceId) await seat(ctx, p.product, r.licenceId, p);
+        // A seat that can't be recorded (its person already holds one meanwhile) never blocks the poll: the licence stays, free.
+        if (r.licenceId) await seat(ctx, p.product, r.licenceId, p).catch((e: unknown) => console.error("[store] seat", e));
         if (mine(p)) installed.push(p.product);
       }
     }

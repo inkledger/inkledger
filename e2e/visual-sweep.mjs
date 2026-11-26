@@ -118,9 +118,13 @@ export function scanLayout() {
   // A box of its own drawn over the other at that point (a sticky column's ground, a header): covered, not overlapping.
   // A frozen cell is such a box itself (the middle's cells pass under it).
   const covered = (top, under, p) => {
-    // From the text's own box: a chip with a fill of its own laid over a picture covers it (its text can't overflow onto
-    // what it covers without leaving its own box, which the point test below then sees).
-    for (let e = top; e && !e.contains(under); e = e.parentElement) {
+    // From the text's own box when it is laid over the other (positioned: a chip with a fill of its own on a picture);
+    // its text can't overflow onto what it covers without leaving its own box, which the point test below then sees.
+    const laidOver = (() => {
+      for (let e = top; e && !e.contains(under); e = e.parentElement) if (["absolute", "fixed", "sticky"].includes(getComputedStyle(e).position)) return true;
+      return false;
+    })();
+    for (let e = laidOver ? top : top.parentElement; e && !e.contains(under); e = e.parentElement) {
       if (!filled(getComputedStyle(e).backgroundColor)) continue;
       const r = e.getBoundingClientRect();
       if (p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom) return true;

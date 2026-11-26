@@ -2,6 +2,9 @@ import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { STORE_PATH, type StoreItem } from "@contracts/store";
 import { restUser } from "../context";
+import { mayRunModule, type Account } from "../queries/accounts";
+import { listModules } from "../modules/registry";
+import { mayAcquire } from "./seats";
 import { fetchCatalog } from "./client";
 import { LruCache } from "../lib/lruCache";
 import { env } from "../lib/env";
@@ -61,13 +64,21 @@ function sourceOf(item: StoreItem, slot: string): string | undefined {
   return /^\d$/.test(slot) ? item.gallery?.[Number(slot)]?.src : undefined;
 }
 
+/** Whether the account sees this catalogue item: the whole catalogue, an offer, or a module it holds. */
+async function seesItem(user: Account, product: string): Promise<boolean> {
+  if (await mayAcquire(user, product)) return true;
+  const m = (await listModules()).find((x) => x.product === product);
+  return !!m && mayRunModule(user, m.id);
+}
+
 export function registerStoreRoutes(app: Hono<{ Bindings: HttpBindings }>) {
   app.get(`${STORE_PATH}/media/:id/:slot`, async (c) => {
-    // The catalogue's pictures, for who may browse it (acquireModules; a granted module's user sees none).
-    const who = await restUser(c.req.raw, "acquireModules");
+    // A catalogue item's pictures, for who sees that item: the whole catalogue, or it offered to them or held by them.
+    const who = await restUser(c.req.raw, "useModules");
     if (!("user" in who)) return c.json({ error: who.error }, who.status);
     try {
       const item = (await fetchCatalog()).find((i) => i.id === c.req.param("id"));
+      if (item && !(await seesItem(who.user, item.product))) return c.json({ error: "Not allowed" }, 403);
       const src = item ? sourceOf(item, c.req.param("slot")) : undefined;
       const image = src ? await fetchImage(src) : null;
       if (!image) return c.json({ error: "Not Found" }, 404);

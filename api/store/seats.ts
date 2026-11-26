@@ -155,3 +155,28 @@ export async function ownLicences(userId: number): Promise<string[]> {
     .where(and(eq(moduleLicences.holderUserId, userId), eq(moduleLicences.payerKind, "user"), eq(moduleLicences.payerId, userId)));
   return rows.map((r) => r.product).sort();
 }
+
+/**
+ * Grants made before the ledger existed: each grantee takes one licence of the product, in a
+ * fixed order (licence id, account id), so a licence already in use never reads as free (a
+ * reassignment would copy it). Grantees beyond the licences there are stay as they were. Idempotent.
+ */
+export async function backfillSeats() {
+  const byProduct = new Map<string, string[]>();
+  for (const l of await validLicenses()) byProduct.set(l.product, [...(byProduct.get(l.product) ?? []), l.id]);
+  if (byProduct.size === 0) return;
+  const people = await getDb().select({ id: users.id, grants: users.moduleGrants }).from(users).where(and(sql`${users.role} <> 'admin'`, isNull(users.disabledAt)));
+  for (const [product, ids] of byProduct) {
+    const moduleId = await moduleIdOf(product);
+    const ledger = await ledgerOf(product);
+    const holders = new Set(ledger.flatMap((l) => (l.holderUserId === null ? [] : [l.holderUserId])));
+    const free = ledger.filter((l) => l.holderUserId === null).map((l) => l.id).filter((id) => ids.includes(id)).sort();
+    const waiting = people.filter((p) => !holders.has(p.id) && grantsOf({ moduleGrants: p.grants }).includes(moduleId)).map((p) => p.id).sort((a, b) => a - b);
+    for (let i = 0; i < Math.min(free.length, waiting.length); i++) {
+      await getDb()
+        .insert(moduleLicences)
+        .values({ licenceId: free[i], product, holderUserId: waiting[i], payerKind: "user", payerId: null, boughtBy: null })
+        .onConflictDoUpdate({ target: moduleLicences.licenceId, set: { holderUserId: waiting[i] } });
+    }
+  }
+}

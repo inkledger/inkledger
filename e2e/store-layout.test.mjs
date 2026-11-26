@@ -87,7 +87,6 @@ test("switching a module on or off moves nothing on the page (no layout shift)",
   const app = await start({ seed: store.seed, viewport: { width: 1440, height: 900 }, env: { RATE_LIMIT: "off", ...store.env } });
   try {
     const { page, base } = app;
-    await page.emulateMedia({ reducedMotion: "reduce" });
     const boxes = () =>
       page.evaluate(() =>
         [...document.querySelectorAll("[data-store-item], [data-store-item] [data-store-action], [data-store-item] [data-store-badge]")].map(el => {
@@ -97,7 +96,16 @@ test("switching a module on or off moves nothing on the page (no layout shift)",
           const r = el.getBoundingClientRect();
           const y = s ? r.y - s.getBoundingClientRect().y + s.scrollTop : r.y + window.scrollY;
           return [el.closest("[data-store-item]")?.getAttribute("data-store-item"), el.tagName, r.x, y, r.width, r.height].join(" ");
-        }),
+        }).concat(
+          // The list's own place in its scroller, and the scroller's position: a jump of the whole list or a scroll shows here.
+          (() => {
+            const list = document.querySelector("[data-store-layout], [data-store-granted]");
+            let s = list?.parentElement;
+            while (s && !["auto", "scroll"].includes(getComputedStyle(s).overflowY)) s = s.parentElement;
+            const r = list?.getBoundingClientRect();
+            return [`list LIST 0 ${s?.scrollTop ?? window.scrollY} ${r ? r.y - (s?.getBoundingClientRect().y ?? 0) : 0} 0`];
+          })(),
+        ),
       );
     const near = (a, b) =>
       a.length === b.length &&
@@ -105,22 +113,30 @@ test("switching a module on or off moves nothing on the page (no layout shift)",
         const x = line.split(" "), y = b[i].split(" ");
         return x.slice(0, 2).join() === y.slice(0, 2).join() && x.slice(2).every((v, k) => Math.abs(Number(v) - Number(y[k + 2])) <= 0.5);
       });
-    for (const layout of ["large", "compact"]) {
-      for (const width of [1440, 390]) {
+    for (const [layout, width, motion] of [["large", 1440, "reduce"], ["large", 390, "reduce"], ["compact", 1440, "reduce"], ["compact", 390, "reduce"], ["compact", 1440, "no-preference"], ["large", 390, "no-preference"]]) {
+      {
+        await page.emulateMedia({ reducedMotion: motion });
         await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
         await open(page, base, layout);
         for (const id of ["tune", "hello"]) {
           const toggle = page.locator(`[data-store-item="${id}"] [role=switch]`);
-          await toggle.scrollIntoViewIfNeeded();
+          // In the middle of the view (a phone's tab bar must not cover it, or the click itself would scroll).
+          // Settled there: the page's own scroll restoring after the load may still land (that is the load, not the switch).
+          for (let i = 0; i < 3; i++) {
+            await toggle.evaluate(el => el.scrollIntoView({ block: "center" }));
+            await page.waitForTimeout(300);
+          }
           for (const step of ["off", "on"]) {
             const before = await boxes();
             await page.evaluate(() => {
               window.__shifts = [];
               // The Store's own shifts (a module switched on may draw elsewhere, the sidebar's footer: not the Store moving).
-              const inStore = e => (e.sources ?? []).some(s => s.node && document.querySelector("#store-modules")?.contains(s.node));
+              const store = document.querySelector("#store-modules");
+              const inStore = e => (e.sources ?? []).some(s => s.node && (store?.contains(s.node) || s.node.contains(store)));
               new PerformanceObserver(l => window.__shifts.push(...l.getEntries().filter(inStore).map(e => e.value))).observe({ type: "layout-shift", buffered: false });
             });
-            await toggle.click();
+            // Clicked in place (the pointer path would scroll around a toast still covering it: that is the test moving, not the page).
+            await toggle.evaluate(el => el.click());
             await page.waitForFunction(([want]) => document.querySelector(`[data-store-item] [role=switch][data-state="${want}"]`) !== null, [step === "off" ? "unchecked" : "checked"]);
             await page.waitForTimeout(700);
             const after = await boxes();

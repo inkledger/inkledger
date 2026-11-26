@@ -224,7 +224,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | A secondary part folded under its title | `Disclosure` (title and count; content drawn only while open) | Always-open blocks of detail |
 | Text with actions on a row | `ActionRow` (content `minmax(0,1fr)`, actions `shrink-0`) | Ad-hoc flex rows |
 | A button | `Button`: variants `default` (the one main action), `outline`, `ghost`, `secondary`, `link`, `destructive`; sizes `sm`, `default`, `lg`, `icon`, `icon-sm`, `icon-lg` | Raw `<button>` with its own styling |
-| A small label | `Chip`: tone `neutral`, `info`, `success`, `warning` or `danger`; variant `soft` for alerts, `dot` for status in lists | Coloured spans |
+| A small label | `Chip`: tone `neutral`, `info`, `success`, `warning` or `danger`; variant `soft` for alerts, `dot` for status in lists; `wrap` for a status sentence that may be longer than its box (it wraps inside it instead of running past it) | Coloured spans |
 | Two to five exclusive choices | `SegmentedControl` (one radio group, arrows move) | A row of toggled buttons |
 | Text typed in a field | `Input` / `Textarea` (their type is `text-field`: never under 16 px on a phone, where iOS would zoom in) | A field's own smaller text size |
 | A choice from a list | `Select` (Radix, themed) | `<select>` or `<datalist>` (they ignore the theme; datalist is refused) |

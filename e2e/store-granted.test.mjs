@@ -113,7 +113,7 @@ test("a member with a module granted sees only it in the Store, switches it and 
 });
 
 test("a member who may acquire modules browses the catalogue and requests one, but manages nothing", async () => {
-  const catalog = { v: 1, items: ["hello", "tune"].map(id => ({ id, product: `inkledger.${id}`, version: "1.0.0", hostApi: { min: 1, max: 1 }, name: { en: id === "tune" ? "Tune" : "Hello", it: id }, tagline: { en: "A module.", it: "Un modulo." }, mode: "request", price: { amount: 0, currency: "EUR" }, methods: { card: true, bitcoin: "soon" } })) };
+  const catalog = { v: 1, items: ["hello", "tune"].map(id => ({ id, product: `inkledger.${id}`, version: "1.0.0", hostApi: { min: 1, max: 1 }, name: { en: id === "tune" ? "Tune" : "Hello", it: id }, tagline: { en: "A module.", it: "Un modulo." }, mode: "request", price: { amount: 0, currency: "EUR" }, methods: { card: true, bitcoin: "soon" }, image: `https://img.invalid/${id}.webp` })) };
   const store = createServer((req, res) => {
     res.writeHead(req.url === "/catalog" ? 200 : 404, { "content-type": "application/json" });
     res.end(JSON.stringify(req.url === "/catalog" ? catalog : { error: "nope" }));
@@ -168,7 +168,7 @@ test("a member who may acquire modules browses the catalogue and requests one, b
 });
 
 test("Ugo, a member, sees only the module assigned to him and the one offered to his team", async () => {
-  const catalog = { v: 1, items: ["hello", "tune", "svg"].map(id => ({ id, product: `inkledger.${id}`, version: "1.0.0", hostApi: { min: 1, max: 1 }, name: { en: id === "tune" ? "Tune" : id === "hello" ? "Hello" : "Svg", it: id }, tagline: { en: "A module.", it: "Un modulo." }, mode: "request", price: { amount: 0, currency: "EUR" }, methods: { card: true, bitcoin: "soon" } })) };
+  const catalog = { v: 1, items: ["hello", "tune", "svg"].map(id => ({ id, product: `inkledger.${id}`, version: "1.0.0", hostApi: { min: 1, max: 1 }, name: { en: id === "tune" ? "Tune" : id === "hello" ? "Hello" : "Svg", it: id }, tagline: { en: "A module.", it: "Un modulo." }, mode: "request", price: { amount: 0, currency: "EUR" }, methods: { card: true, bitcoin: "soon" }, image: `https://img.invalid/${id}.webp` })) };
   const store = createServer((req, res) => {
     res.writeHead(req.url === "/catalog" ? 200 : 404, { "content-type": "application/json" });
     res.end(JSON.stringify(req.url === "/catalog" ? catalog : { error: "nope" }));

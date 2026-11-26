@@ -121,12 +121,18 @@ export function Distribution({ entry, locale }: { entry: StoreEntry; locale: Loc
 function PendingRow({ product, name, forId, kind, status, onDone }: { product: string; name: string; forId: number; kind: "request" | "paid"; status: string; onDone: () => void }) {
   const [code, setCode] = useState("");
   const claim = trpc.store.claimPaid.useMutation({ onSuccess: () => (toast.success(t("settings.store.dist.claimed", { name })), onDone()), onError: e => toastError(e) });
+  const dismiss = trpc.store.dismiss.useMutation({ onSuccess: onDone, onError: e => toastError(e) });
   return (
     <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-body-sm">
       <span className="min-w-0 truncate text-muted-foreground">
         {t("settings.store.dist.waiting", { name })} · {t(kind === "paid" ? "settings.store.dist.waitingPaid" : "settings.store.dist.waitingRequest")}
         {status !== "pending" ? ` · ${status}` : ""}
       </span>
+      {status !== "pending" && (
+        <Button variant="ghost" size="sm" onClick={() => dismiss.mutate({ product, for: forId })}>
+          {t("settings.store.dismiss")}
+        </Button>
+      )}
       {kind === "paid" && status === "pending" && (
         <form
           className="flex items-center gap-2"
@@ -163,6 +169,7 @@ function GiveDialog({ entry, locale, dist, mode: initial, onClose, onDone }: { e
   const assign = trpc.store.assign.useMutation({
     onSuccess: r => {
       toast.success(t("settings.store.dist.assigned", { count: r.started.length, skipped: r.skipped.length }));
+      for (const f of r.failed) toastError(new Error(`${dist.people.find(p => p.id === f.userId)?.name ?? "?"}: ${f.message}`));
       onDone();
       const pay = r.started.flatMap(s => (s.url ? [{ userId: s.userId, url: s.url }] : []));
       if (pay.length) setLinks(pay);

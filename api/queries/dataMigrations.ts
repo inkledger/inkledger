@@ -87,6 +87,14 @@ export const DATA_MIGRATIONS: DataMigration[] = [
         .where(sql`${users.role} <> 'admin' AND ${users.permissions}::jsonb ? 'useModules' AND ${users.moduleGrants} = '[]'`);
     },
   },
+  {
+    // Licences are one person's now (module_licences, 0057): the grants from before each take a licence of their module.
+    id: "module-seats-backfill",
+    run: async () => {
+      const { backfillSeats } = await import("../store/seats");
+      await backfillSeats();
+    },
+  },
 ];
 
 const DONE_KEY = "data-migrations.done";
