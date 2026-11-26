@@ -74,15 +74,16 @@ export function Action({
       onSettings={hasSettings ? () => onOpen("settings") : undefined}
     />
   );
-  // Two fixed lines, never overflowing their card: the switch and the badge, then what can be done or the status
-  // (its text wraps). Toggling swaps content inside them, nothing mounts or moves.
-  const both = (cta: ReactNode) => (
+  // The status (if any) above, the action row last: in every card the switch, the badge and the button sit on the
+  // card's bottom line, one baseline per row of cards. Toggling swaps content inside them, nothing mounts or moves.
+  const both = (cta: ReactNode, status?: ReactNode) => (
     <span data-store-action className="ml-auto flex min-w-0 max-w-full flex-col items-end gap-1.5">
-      <span className="flex min-w-0 max-w-full items-center justify-end gap-2">
+      {status && <span className="flex min-w-0 max-w-full justify-end">{status}</span>}
+      <span data-store-action-row className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
         <ModuleSwitch moduleId={e.id} name={nameOf(e, locale)} installed={e.installed} />
         {manage}
+        {cta}
       </span>
-      {cta && <span className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">{cta}</span>}
     </span>
   );
 
@@ -97,14 +98,10 @@ export function Action({
   }
   if (e.pending) {
     return both(
-      <>
-        <Chip tone="danger" wrap>
-          {e.pending.status === "declined" ? t("settings.store.declined") : t("settings.store.failed", { reason: e.pending.reason ?? "?" })}
-        </Chip>
-        <Button variant="ghost" size={size} onClick={() => dismiss.mutate({ product: e.product })}>
-          {t("settings.store.dismiss")}
-        </Button>
-      </>
+      <Button variant="ghost" size={size} onClick={() => dismiss.mutate({ product: e.product })}>
+        {t("settings.store.dismiss")}
+      </Button>,
+      <Status tone="danger" text={e.pending.status === "declined" ? t("settings.store.declined") : t("settings.store.failed", { reason: e.pending.reason ?? "?" })} />
     );
   }
   // Not installable in this browser: a disabled button, and an "i" that says why.
@@ -141,13 +138,22 @@ export function Action({
   }
   // The installed build is the newest this inkledger runs; a newer one waits for an inkledger update.
   if (e.licensed && e.installed?.state === "active" && e.needsNewerHost) {
-    return both(<Chip variant="dot" tone="neutral" wrap>{t("settings.store.newerNeedsHost")}</Chip>);
+    return both(null, <Status dot tone="neutral" text={t("settings.store.newerNeedsHost")} />);
   }
   // Active, or licensed but refused: the badge says it and manages it. Someone who doesn't manage the Store
   // owns it only with a licence of their own (licensed is theirs): installed for others, it's still to get.
   if ((access.manage && e.installed?.state === "active") || e.licensed) return both(null);
-  if (!e.supported) return both(<Chip variant="dot" tone="warning" wrap>{t("settings.store.unsupported")}</Chip>);
+  if (!e.supported) return both(null, <Status dot tone="warning" text={t("settings.store.unsupported")} />);
   return both(<ModeButton entry={e} locale={locale} size={size} priceOnButton={priceOnButton} onOpen={onOpen} />);
+}
+
+/** A card's status line: at most two lines (the whole text in its title), above the action row. */
+function Status({ text, tone, dot = false }: { text: string; tone: "neutral" | "warning" | "danger"; dot?: boolean }) {
+  return (
+    <Chip tone={tone} variant={dot ? "dot" : "soft"} wrap title={text}>
+      <span className="line-clamp-2 [overflow-wrap:anywhere]">{text}</span>
+    </Chip>
+  );
 }
 
 /** What the catalog's mode offers to someone without a licence: ask, buy, or wait. */

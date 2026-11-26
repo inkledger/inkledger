@@ -51,6 +51,15 @@ function cardProblems() {
     rows.set(top, [...(rows.get(top) ?? []), r.height]);
   }
   for (const [top, hs] of rows) if (Math.max(...hs) - Math.min(...hs) > 1) out.push(`row at ${top}: cards of unequal height ${hs.map(Math.round).join("/")}`);
+  // One baseline per row of cards: every action row (switch, badge, button) ends at the same height.
+  const bottoms = new Map();
+  for (const card of cards) {
+    const row = card.querySelector("[data-store-action-row]");
+    if (!row) continue;
+    const top = Math.round(card.getBoundingClientRect().top);
+    bottoms.set(top, [...(bottoms.get(top) ?? []), row.getBoundingClientRect().bottom]);
+  }
+  for (const [top, bs] of bottoms) if (Math.max(...bs) - Math.min(...bs) > 0.5) out.push(`row at ${top}: action rows not on one line ${bs.map(b => b.toFixed(1)).join("/")}`);
   return [...new Set(out)];
 }
 

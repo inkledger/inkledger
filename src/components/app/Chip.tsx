@@ -28,6 +28,7 @@ export function Chip({
   variant = "soft",
   className,
   wrap = false,
+  title,
   children,
 }: {
   tone?: Tone;
@@ -35,12 +36,15 @@ export function Chip({
   className?: string;
   /** Long text (a status sentence): wraps inside its box instead of running past it. */
   wrap?: boolean;
+  /** The whole text, when what shows may be cut (a clamped status). */
+  title?: string;
   children: React.ReactNode;
 }) {
   const dot = variant === "dot";
   return (
     <span
       {...surface("chip")}
+      title={title}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-sm px-1.5 text-caption font-medium",
         wrap ? "min-h-5 max-w-full py-0.5 [overflow-wrap:anywhere]" : "h-5 whitespace-nowrap",

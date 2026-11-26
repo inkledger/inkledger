@@ -59,7 +59,7 @@ export function StoreSection() {
 function StoreCatalogSection() {
   const locale = useLocale();
   const utils = trpc.useUtils();
-  const { manage } = useStoreAccess();
+  const { manage, acquire: acquireAll } = useStoreAccess();
   const catalog = trpc.store.catalog.useQuery(undefined, { retry: false });
   const local = trpc.modules.list.useQuery();
   const [open, setOpen] = useState<{ product: string; view: StoreView } | null>(null);
@@ -151,7 +151,8 @@ function StoreCatalogSection() {
         )}
       </SettingsGroup>
 
-      <OffSwitch />
+      {/* The device-wide off switch is for who gets modules themselves (not a member's offered-only Store, as before). */}
+      {(manage || acquireAll) && <OffSwitch />}
 
       <Sheet open={current !== undefined} onOpenChange={o => !o && setOpen(null)}>
         <SheetContent className="w-full gap-0 p-0 sm:max-w-2xl">
@@ -186,7 +187,7 @@ function StoreCard({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
           <span className="text-caption text-muted-foreground tabular">{t("settings.store.version", { version: e.version })}</span>
         </p>
         <p className="text-body-sm text-muted-foreground">{loc(e.tagline, locale)}</p>
-        <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
+        <div className="mt-auto flex flex-wrap items-end gap-2 pt-3">
           {/* A paid module's button already shows the price; one already owned needs none. */}
           {e.mode === "paid" || e.licensed ? (
             <span className="mr-auto" />
@@ -227,7 +228,7 @@ function StoreTile({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
         <p className="truncate text-body-sm font-medium" title={name}>
           {name}
         </p>
-        <div className="mt-auto flex flex-wrap items-center gap-1.5">
+        <div className="mt-auto flex flex-wrap items-end gap-1.5">
           {e.mode === "paid" || e.licensed ? (
             <span className="mr-auto" />
           ) : (

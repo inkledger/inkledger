@@ -217,6 +217,20 @@ test("Ugo, a member, sees only the module assigned to him and the one offered to
     await page.mouse.move(0, 0);
     await page.waitForTimeout(500);
     assert.deepEqual(await axeSerious(page), []);
+    // STORE_SHOTS=<dir>: Ugo's Store in both layouts, light and dark high contrast.
+    if (process.env.STORE_SHOTS) {
+      mkdirSync(process.env.STORE_SHOTS, { recursive: true });
+      for (const [scheme, contrast, look] of [["light", "no-preference", "light"], ["dark", "more", "dark-high"]]) {
+        await page.emulateMedia({ colorScheme: scheme, contrast });
+        for (const layout of ["large", "compact"]) {
+          await page.evaluate(l => localStorage.setItem("ikl-store-layout", l), layout);
+          await page.goto(base + "/settings/store");
+          await tune.waitFor();
+          await page.waitForTimeout(600);
+          await page.screenshot({ path: join(process.env.STORE_SHOTS, `member-ugo-${look}-${layout}.png`) });
+        }
+      }
+    }
     assert.deepEqual(refused, [], "nothing refused");
     assert.deepEqual(app.errors, [], "no page errors");
   } finally {
