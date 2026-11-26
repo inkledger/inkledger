@@ -424,6 +424,12 @@ const CASES: Case[] = [
   { proc: "outbox.discard", fields: ["id"], call: (c, a) => c.outbox.discard({ id: a.outbox }), expect: "noLeak" },
   { proc: "notifications.dismiss", fields: ["id"], call: (c, a) => c.notifications.dismiss({ id: a.notification }), expect: "noLeak" },
   { proc: "notifications.dismissMany", fields: ["ids"], call: (c, a) => c.notifications.dismissMany({ ids: [a.notification] }), expect: "noLeak" },
+  { proc: "notifications.markRead", fields: ["ids"], call: (c, a) => c.notifications.markRead({ ids: [a.notification], read: true }), expect: "noLeak" },
+  { proc: "notifications.restore", fields: ["ids"], call: async (c, a) => {
+      // Done first, so the owner has something to bring back (Bob's dismiss of Ann's is refused the same way).
+      await c.notifications.dismiss({ id: a.notification });
+      return c.notifications.restore({ ids: [a.notification] });
+    }, expect: "noLeak", sees: (v) => json(v) === JSON.stringify({ restored: 1 }) },
 
   // Private notes on issues
   { proc: "issueNotes.update", fields: ["id"], call: (c, a) => c.issueNotes.update({ id: a.issueNote, body: "mine" }) },

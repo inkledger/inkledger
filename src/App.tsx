@@ -29,6 +29,7 @@ const load = {
   board: () => withEnglish(import("@/pages/Board")),
   pinboard: () => withEnglish(import("@/pages/PinboardPage")),
   todos: () => withEnglish(import("@/pages/TodosPage")),
+  notifications: () => withEnglish(import("@/pages/NotificationsPage")),
   ideas: () => withEnglish(import("@/pages/IdeasPage")),
   notes: () => withEnglish(import("@/pages/NotesPage")),
   reports: () => withEnglish(import("@/pages/Reports")),
@@ -53,6 +54,7 @@ const FIRST: [RegExp, keyof typeof load][] = [
   [/^\/board/, "board"],
   [/^\/pinboard/, "pinboard"],
   [/^\/todos/, "todos"],
+  [/^\/notifications/, "notifications"],
   [/^\/ideas/, "ideas"],
   [/^\/notes/, "notes"],
   [/^\/reports/, "reports"],
@@ -110,6 +112,7 @@ const Timesheet = page(() => load.timesheet().then(m => m.default));
 const Board = page(() => load.board().then(m => m.default));
 const PinboardPage = page(() => load.pinboard().then(m => m.default));
 const TodosPage = page(() => load.todos().then(m => m.default));
+const NotificationsPage = page(() => load.notifications().then(m => m.default));
 const IdeasPage = page(() => load.ideas().then(m => m.default));
 const NotesPage = page(() => load.notes().then(m => m.default));
 const Reports = page(() => load.reports().then(m => m.default));
@@ -131,6 +134,7 @@ const PAGES: Record<keyof typeof load, { load: () => Promise<unknown> }[]> = {
   board: [Board],
   pinboard: [PinboardPage],
   todos: [TodosPage],
+  notifications: [NotificationsPage],
   ideas: [IdeasPage],
   notes: [NotesPage],
   reports: [Reports],
@@ -235,6 +239,7 @@ export default function App() {
               <Route path="/board" element={<ObservedPage surfaceId="board"><Board /></ObservedPage>} />
               <Route path="/pinboard" element={<PinboardPage />} />
               <Route path="/todos" element={<TodosPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/ideas" element={<IdeasPage />} />
               <Route path="/notes" element={<NotesPage />} />
               <Route path="/notes/new" element={<NotesPage />} />

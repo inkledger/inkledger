@@ -2,7 +2,7 @@ import { notificationsInBucket } from "../queries/buckets";
 import { notificationOnLiveConnection } from "../queries/liveConnections";
 import { isClosed } from "@contracts/categories";
 import { z } from "zod";
-import { and, desc, eq, inArray, isNull, lt, notInArray, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, notInArray, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueAt } from "../queries/issueAt";
@@ -187,14 +187,30 @@ async function dismissWhere(userId: number, where: SQL | undefined): Promise<{ d
   return { dismissed: res.length };
 }
 
-/** What list and count show: known kinds, issue not hidden (or not in the catalog). */
-const visible = (userId: number) =>
+/** Known kinds, issue not hidden (or not in the catalog), on a live connection: dismissed or not. */
+const shown = (userId: number) =>
   and(
-    undismissed(userId),
+    eq(notifications.userId, userId),
     inArray(notifications.kind, [...NOTIFICATION_KINDS]),
     sql`coalesce(${issues.hidden}, 0) = 0`,
     notificationOnLiveConnection,
   );
+
+/** What list and count show: the shown ones not dismissed yet. */
+const visible = (userId: number) => and(undismissed(userId), shown(userId));
+
+/**
+ * The tracker's id of what a notification is about, read from its dedupe: the comment of "commented"
+ * (c1:commented:KEY:10042) and the changelog entry of "status" (c1:status:KEY:3301), so the page shows that
+ * one; null for the rest (an inbox thread, a sync's diff).
+ */
+export function eventRef(dedupe: string): string | null {
+  const m = /^c\d+:(?:commented|status):[^:]+:([^:]+)$/.exec(dedupe);
+  return m ? m[1] : null;
+}
+
+/** Rows the notifications page reads at most per state (open, done). */
+const INBOX_LIMIT = 500;
 
 const joinIssue = issueAt(notifications.userId, notifications.connectionId, notifications.issueKey);
 
@@ -238,6 +254,68 @@ export const notificationsRouter = createRouter({
   }),
 
   /**
+   * The notifications page: the open ones (read or not) or the done ones (dismissed, kept 30 days),
+   * newest first, up to 500, with when each was read and dismissed. Read / unread is local: the
+   * tracker's inbox is read on dismiss only (it can't be unread there).
+   */
+  inbox: protectedProcedure
+    .input(z.object({ done: z.boolean() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await getDb()
+        .select({
+          id: notifications.id,
+          kind: notifications.kind,
+          issueKey: notifications.issueKey,
+          connectionId: notifications.connectionId,
+          detail: notifications.detail,
+          createdAt: notifications.createdAt,
+          readAt: notifications.readAt,
+          dismissedAt: notifications.dismissedAt,
+          dedupe: notifications.dedupe,
+          summary: issues.summary,
+          status: issues.status,
+          projectKey: issues.projectKey,
+        })
+        .from(notifications)
+        .leftJoin(issues, joinIssue)
+        .where(
+          and(
+            input.done ? and(shown(ctx.user.id), isNotNull(notifications.dismissedAt)) : visible(ctx.user.id),
+            await notificationsInBucket(ctx.user.id, ctx.deviceId),
+          ),
+        )
+        .orderBy(desc(notifications.createdAt), desc(notifications.id))
+        .limit(INBOX_LIMIT);
+      return rows.flatMap(({ kind, connectionId, dedupe, ...r }) =>
+        isNotificationKind(kind) && connectionId !== null ? [{ ...r, connectionId, kind, ref: eventRef(dedupe) }] : [],
+      );
+    }),
+
+  /** Read or unread again, in the app only (opened in the preview, "u"): the user's own, open or done. */
+  markRead: protectedProcedure
+    .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(200), read: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const res = await getDb()
+        .update(notifications)
+        .set({ readAt: input.read ? new Date() : null })
+        .where(and(eq(notifications.userId, ctx.user.id), inArray(notifications.id, input.ids)))
+        .returning({ id: notifications.id });
+      return { changed: res.length };
+    }),
+
+  /** Done ones back among the open ones (read: they were seen). Not unread on the tracker. */
+  restore: protectedProcedure
+    .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(200) }))
+    .mutation(async ({ ctx, input }) => {
+      const res = await getDb()
+        .update(notifications)
+        .set({ dismissedAt: null })
+        .where(and(eq(notifications.userId, ctx.user.id), isNotNull(notifications.dismissedAt), inArray(notifications.id, input.ids)))
+        .returning({ id: notifications.id });
+      return { restored: res.length };
+    }),
+
+  /**
    * Alerts for this account, undismissed, newest first: its connections that stopped
    * working, and for those who run the server, a failed backup, a licence not renewed,
    * the certificate (ops/alerts.ts). Apart from `list`, which stays about issues.
@@ -255,11 +333,11 @@ export const notificationsRouter = createRouter({
     });
   }),
 
-  /** Undismissed count and newest id (the client notices new ones by id). */
+  /** Unread undismissed count (the badge) and the newest undismissed id, read or not (the client notices new ones by id). */
   count: protectedProcedure.query(async ({ ctx }) => {
     const row = (await getDb()
       .select({
-        count: sql<number>`count(*)`,
+        count: sql<number>`count(*) filter (where ${notifications.readAt} is null)`,
         latestId: sql<number | null>`max(${notifications.id})`,
       })
       .from(notifications)

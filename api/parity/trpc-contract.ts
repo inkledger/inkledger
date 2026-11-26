@@ -241,7 +241,10 @@ export interface FrozenIn {
   "notifications.dismiss": { id: number };
   "notifications.dismissAll": void;
   "notifications.dismissMany": { ids: number[] };
+  "notifications.inbox": { done: boolean };
   "notifications.list": void;
+  "notifications.markRead": { ids: number[]; read: boolean };
+  "notifications.restore": { ids: number[] };
   "outbox.discard": { id: number };
   "outbox.list": void;
   "outbox.retry": void;
@@ -533,7 +536,7 @@ export interface FrozenOut {
   "issues.edit": { assignees: string[]; key: string; labels: string[]; title: null | string };
   "issues.favorites": { category: string; connectionId: number; dueDate: null | string; favorite: number; favoriteRank: number; hidden: number; isMine: boolean; issueType: string; key: string; priority: string; priorityRank: null | number; projectKey: string; relevantAt: null | number; remoteId: string; remoteUpdated: null | string; seenAt: null | number; status: string; statusCategory: string; summary: string; unread: boolean; watching: number }[];
   "issues.get": { activityAt: null | number; assigneeId: string; assigneeName: null | string; category: string; components: string[]; connectionId: number; containerId: null | number; dueDate: null | string; favorite: number; favoriteRank: number; goneAt: Date | null; goneReason: null | string; hidden: number; id: number; issueType: string; key: string; labels: string[]; lastCommentAt: null | number; othersActivityAt: null | number; priority: string; priorityRank: null | number; projectAvatarUrl: null | string; projectKey: string; projectName: string; raw: null | string; remote: boolean; remoteCreatedAt: null | number; remoteId: string; remoteUpdated: null | string; remoteUpdatedAt: null | number; reporterName: null | string; seenAt: null | number; status: string; statusCategory: string; statusChangedAt: null | number; statusId: null | string; summary: string; syncedAt: Date; timeEstimateSeconds: null | number; timeSpentSeconds: null | number; url: string; userId: number; watching: number };
-  "issues.history": { events: ({ at: number; author: null | string; excerpt: string; kind: "comment" } | { at: number; author: null | string; items: { field: string; from: null | string; to: null | string }[]; kind: "change" } | { at: number; author: null | string; kind: "created" })[]; reason: null | string };
+  "issues.history": { events: ({ at: number; author: null | string; excerpt: string; kind: "comment" } | { at: number; author: null | string; items: { field: string; from: null | string; key: string; to: null | string }[]; kind: "change" } | { at: number; author: null | string; kind: "created" })[]; reason: null | string };
   "issues.import": { imported: string };
   "issues.labelOptions": string[];
   "issues.list": { counts: { done: number; hidden: number; unassigned: number; watching: number }; issues: { activityAt: null | number; assigneeId: string; assigneeName: null | string; category: string; components: string; connectionId: number; containerId: null | number; dueDate: null | string; favorite: number; favoriteRank: number; goneAt: Date | null; goneReason: null | string; hidden: number; id: number; isMine: boolean; issueType: string; key: string; labels: string[]; lastCommentAt: null | number; mySpentSeconds: number; othersActivityAt: null | number; priority: string; priorityRank: null | number; projectAvatarUrl: null | string; projectKey: string; projectName: string; remoteCreatedAt: null | number; remoteId: string; remoteUpdated: null | string; remoteUpdatedAt: null | number; reporterName: null | string; seenAt: null | number; status: string; statusCategory: string; statusChangedAt: null | number; statusId: null | string; summary: string; syncedAt: Date; timeEstimateSeconds: null | number; timeSpentSeconds: null | number; unread: boolean; url: string; userId: number; watching: number }[]; labels: string[]; page: number; pageSize: number; projects: { key: string; name: string }[]; query: { unsupported: string[]; warnings: { at: string; code: "badValue" | "emptyValue" | "unbalanced" | "unknownField"; dropped?: true | undefined }[] }; statuses: string[]; total: number; totalPages: number };
@@ -640,7 +643,10 @@ export interface FrozenOut {
   "notifications.dismiss": { dismissed: number };
   "notifications.dismissAll": { dismissed: number };
   "notifications.dismissMany": { dismissed: number };
+  "notifications.inbox": { connectionId: number; createdAt: Date; detail: string; dismissedAt: Date | null; id: number; issueKey: string; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "status" | "unassigned" | "watch_added" | "watch_removed"; projectKey: null | string; readAt: Date | null; ref: null | string; status: null | string; summary: null | string }[];
   "notifications.list": { connectionId: number; createdAt: Date; detail: string; id: number; issueKey: string; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "status" | "unassigned" | "watch_added" | "watch_removed"; priority: null | string; projectKey: null | string; status: null | string; statusCategory: null | string; summary: null | string }[];
+  "notifications.markRead": { changed: number };
+  "notifications.restore": { restored: number };
   "outbox.discard": { ok: boolean };
   "outbox.list": { attempts: number; comment: string; createdAt: Date; id: number; issueKey: string; issueSummary: null | string; kind: string; lastError: string; remoteId: string; started: Date; timeSpentSeconds: number }[];
   "outbox.retry": { failed: number; remaining: number; synced: number };

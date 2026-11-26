@@ -407,6 +407,13 @@
       "when": 1795685035183,
       "tag": "0057_module_offers_licences",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795692754719,
+      "tag": "0058_notification_read",
+      "breakpoints": true
     }
   ]
 }

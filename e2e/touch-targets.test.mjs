@@ -97,8 +97,8 @@ test("a dialog's and a sheet's close button is a 24 px target where the icon alw
     await dialog.waitFor();
     assert.ok((await size(dialog)) >= 24, "dialog close ≥ 24 px");
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: /^Notifications/ }).first().click();
-    const sheet = page.getByRole("dialog", { name: "Notifications" });
+    await page.getByRole("button", { name: "Close the day", exact: true }).first().click();
+    const sheet = page.getByRole("dialog").first();
     await sheet.waitFor();
     assert.ok((await size(sheet)) >= 24, "sheet close ≥ 24 px");
   }));

@@ -1,24 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { inFloat, isDialogOpen, isTyping } from "@/lib/dom";
 import { hotkeySequence } from "@/lib/hotkeySequence";
 
+/** A control of its own (not a row's own choosing button, `data-row-select`: Enter there opens the row). */
 const isControl = (t: EventTarget | null) =>
-  t instanceof HTMLElement && t.closest("button, a, [role=button]") !== null;
+  t instanceof HTMLElement && t.closest("button, a, [role=button]") !== null && t.closest("[data-row-select]") === null;
 
 export type ListKeyActions = Partial<
-  Record<"open" | "peek" | "s" | "h" | "t" | "c" | "b" | "m" | "x", (key: string) => void>
+  Record<"open" | "peek" | "escape" | "s" | "h" | "t" | "c" | "b" | "m" | "x" | "e" | "u", (key: string) => void>
 >;
+
+/** A selection the page owns (kept in the URL, say) instead of the hook's own state. */
+export type ListSelection = { selected: string | null; onSelect: (key: string | null) => void };
 
 /**
  * Linear-style list keys: j / k move a selection over `keys`, Enter opens, Space peeks (a quick look),
  * single letters act on the selected row. Runs before the global shortcuts
- * (capture phase) so "t" means "timer on this row" while a row is selected.
+ * (capture phase) so "t" means "timer on this row" while a row is selected. Esc drops the
+ * selection, or runs `escape` when given. `control` hands the selection to the page.
  */
-export function useListKeyboard(keys: string[], actions: ListKeyActions) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const state = useRef({ keys, actions, selected });
-  useEffect(() => {
-    state.current = { keys, actions, selected };
+export function useListKeyboard(keys: string[], actions: ListKeyActions, control?: ListSelection) {
+  const [own, setOwn] = useState<string | null>(null);
+  const selected = control ? control.selected : own;
+  const setSelected = control ? control.onSelect : setOwn;
+  const state = useRef({ keys, actions, selected, setSelected });
+  // Before the browser hands over the next key (a layout effect, not a passive one): a key pressed right
+  // after the selection was drawn acts on the row drawn as selected, never on the one before.
+  useLayoutEffect(() => {
+    state.current = { keys, actions, selected, setSelected };
   });
 
   useEffect(() => {
@@ -34,7 +43,7 @@ export function useListKeyboard(keys: string[], actions: ListKeyActions) {
         return;
       // "g t", "g b"…: the global sequence wins over row actions.
       if (hotkeySequence.pending()) return;
-      const { keys: list, actions: act, selected: sel } = state.current;
+      const { keys: list, actions: act, selected: sel, setSelected: select } = state.current;
       const at = sel ? list.indexOf(sel) : -1;
       const handle = (fn: () => void) => {
         e.preventDefault();
@@ -44,18 +53,20 @@ export function useListKeyboard(keys: string[], actions: ListKeyActions) {
       if (e.key === "j" || e.key === "ArrowDown") {
         if (e.key === "ArrowDown" && at < 0) return;
         handle(() =>
-          setSelected(list[Math.min(list.length - 1, at + 1)] ?? null)
+          select(list[Math.min(list.length - 1, at + 1)] ?? null)
         );
       } else if (e.key === "k" || e.key === "ArrowUp") {
         if (e.key === "ArrowUp" && at < 0) return;
-        handle(() => setSelected(list[Math.max(0, at - 1)] ?? null));
+        handle(() => select(list[Math.max(0, at - 1)] ?? null));
       } else if (e.key === "Escape" && sel) {
-        handle(() => setSelected(null));
+        const escape = act.escape;
+        handle(() => (escape ? escape(sel) : select(null)));
       } else if (sel && at >= 0) {
         // Enter and Space on a focused control activate the control, not the row.
         if ((e.key === "Enter" || e.key === " ") && isControl(e.target)) return;
         const name = e.key === "Enter" ? "open" : e.key === " " ? "peek" : e.key;
-        const fn = act[name as keyof ListKeyActions];
+        // Only the letters: "escape" is Esc's, not a key named so.
+        const fn = name === "escape" ? undefined : act[name as keyof ListKeyActions];
         if (fn) handle(() => fn(sel));
       }
     };

@@ -48,7 +48,8 @@ export type HistoryEvent =
       kind: "change";
       at: number;
       author: string | null;
-      items: { field: string; from: string | null; to: string | null }[];
+      /** `key`: the tracker's own field name, lower case ("status", "assignee"), for code that looks for one */
+      items: { field: string; key: string; from: string | null; to: string | null }[];
     }
   | { kind: "comment"; at: number; author: string | null; excerpt: string }
   | { kind: "created"; at: number; author: string | null };
@@ -87,6 +88,7 @@ export function buildTimeline(raw: {
         const long = FIELD_KEYS[i.field!.toLowerCase()] === "server.history.fields.description";
         return {
           field,
+          key: i.field!.toLowerCase(),
           // A description diff is unreadable here: say it changed.
           from: long ? null : short(i.fromString),
           to: long ? (i.toString ? t("server.history.updated") : null) : short(i.toString),

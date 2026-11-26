@@ -487,8 +487,9 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
     );
     else if (anchorId === "shell.notifications") content = (
       <RailTip collapsed={collapsed} label={t("ui.layout.notificationsTip")}>
-        <button type="button" onClick={() => notificationCenter.set(true)} data-anchor="notifications" {...flowControlProps("shell.notifications.open")} aria-label={collapsed || inbox > 0 ? inbox > 0 ? t("ui.layout.notificationsUnseen", { count: inbox }) : t("ui.layout.notifications") : undefined} className={row}>
-          <Bell className={icon} aria-hidden /><span className={label}>{t("ui.layout.notifications")}</span>{inbox > 0 && <span aria-hidden><CountChip count={inbox} collapsed={collapsed} /></span>}
+        <button type="button" onClick={() => notificationCenter.set(true)} data-anchor="notifications" {...flowControlProps("shell.notifications.open")} aria-label={collapsed ? inbox > 0 ? t("ui.layout.notificationsUnseen", { count: inbox }) : t("ui.layout.notifications") : undefined} className={row}>
+          {/* Open, the name is the visible text with the count said after it (an aria-label would no longer contain the chip's digits: WCAG 2.5.3). */}
+          <Bell className={icon} aria-hidden /><span className={label}>{t("ui.layout.notifications")}</span>{!collapsed && inbox > 0 && <span className="sr-only">, {t("settings.notifications.unread", { count: inbox })}</span>}{inbox > 0 && <span aria-hidden><CountChip count={inbox} collapsed={collapsed} /></span>}
         </button>
       </RailTip>
     );

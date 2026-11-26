@@ -432,6 +432,46 @@ describe("notifications, incremental sync, watchers", () => {
     await expect(caller.notifications.createTest({ kind: "due", issueKey: "nope" })).rejects.toThrow();
   });
 
+  it("eventRef: the comment or changelog id a notification is about, else null", async () => {
+    const { eventRef } = await import("./notifications");
+    expect(eventRef("c1:commented:AB-1:10042")).toBe("10042");
+    expect(eventRef("c3:status:AB-1:3301")).toBe("3301");
+    expect(eventRef("c1:inbox:thread-9:1700000000")).toBeNull();
+    expect(eventRef("c1:assigned:AB-1:1700000000")).toBeNull();
+  });
+
+  it("inbox: open and done apart; read / unread is local and only unread ones are counted; done ones come back", async () => {
+    await freshStart({ mine: [jiraIssue("AB-1"), jiraIssue("AB-2")] });
+    await caller.notifications.createTest({ kind: "commented", issueKey: "AB-1" });
+    await caller.notifications.createTest({ kind: "mentioned", issueKey: "AB-2" });
+    const open = await caller.notifications.inbox({ done: false });
+    expect(open.map((n) => [n.kind, n.issueKey, n.readAt, n.dismissedAt])).toEqual([
+      ["mentioned", "AB-2", null, null],
+      ["commented", "AB-1", null, null],
+    ]);
+    const [mention, comment] = open;
+    const calls = vi.mocked(fetch).mock.calls.length;
+    const latest = (await caller.notifications.count()).latestId;
+    expect(await caller.notifications.markRead({ ids: [comment.id, mention.id], read: true })).toEqual({ changed: 2 });
+    expect(vi.mocked(fetch).mock.calls.length).toBe(calls);
+    // Read ones leave the badge, not the newest id (reading the newest must not make a later one look old).
+    expect(await caller.notifications.count()).toEqual({ count: 0, latestId: latest });
+    await caller.notifications.markRead({ ids: [mention.id], read: false });
+    expect((await caller.notifications.count()).count).toBe(1);
+    expect((await caller.notifications.inbox({ done: false })).find((n) => n.id === comment.id)?.readAt).toBeInstanceOf(Date);
+    // Someone else's ids change nothing.
+    expect(await other.notifications.markRead({ ids: [mention.id], read: true })).toEqual({ changed: 0 });
+    expect(await other.notifications.restore({ ids: [mention.id] })).toEqual({ restored: 0 });
+    await caller.notifications.markRead({ ids: [comment.id], read: false });
+    expect((await caller.notifications.count()).count).toBe(2);
+    await caller.notifications.dismiss({ id: mention.id });
+    expect((await caller.notifications.inbox({ done: false })).map((n) => n.id)).toEqual([comment.id]);
+    expect((await caller.notifications.inbox({ done: true })).map((n) => n.id)).toEqual([mention.id]);
+    expect(await caller.notifications.restore({ ids: [mention.id] })).toEqual({ restored: 1 });
+    expect((await caller.notifications.inbox({ done: true }))).toEqual([]);
+    expect((await caller.notifications.inbox({ done: false })).map((n) => n.id)).toEqual([mention.id, comment.id]);
+  });
+
   describe("what others did: comments and status changes (Jira has no inbox)", () => {
     const someone = { accountId: "tester" };
     const me = { accountId: "acc-1" };

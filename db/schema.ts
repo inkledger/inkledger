@@ -1667,6 +1667,8 @@ export const notifications = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
     dismissedAt: ms("dismissed_at"),
+    /** Seen in the app (opened in the preview, or marked read): local only, the tracker's inbox is read on dismiss */
+    readAt: ms("read_at"),
   },
   (t) => [
     uniqueIndex("uq_notifications_user_dedupe").on(t.userId, t.dedupe),

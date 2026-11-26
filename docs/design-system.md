@@ -288,7 +288,7 @@ Grounded in Material 3 (window classes, canonical layouts), Apple HIG (split vie
 | Layout | For | Rule |
 | --- | --- | --- |
 | Overview (bento) | Dashboard, Team | Regions in rows of one height. |
-| List-detail | Issues, Notes, Settings | Two panes from `@xl`. On a narrower container a choice replaces the list and Back returns. The selection stays highlighted. An empty selection shows a placeholder. |
+| List-detail | Issues, Notes, Settings, Notifications | Two panes from `@xl`. On a narrower container a choice replaces the list and Back returns. The selection stays highlighted. An empty selection shows a placeholder. |
 | Supporting pane | Issue detail, a Team person, a report drill-in | About 70/30 from `@l`. Below that, the supporting part goes under the main one or into a sheet. |
 
 **Collections are bounded, and nothing is hidden for good.**

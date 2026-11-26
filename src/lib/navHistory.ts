@@ -12,6 +12,7 @@ const MAX = 200;
 export function pageLabel(pathname: string): string {
   const issue = /^\/issues\/([^/]+)$/.exec(pathname);
   if (issue) return decodeOr(issue[1]);
+  if (pathname === "/notifications") return t("ui.layout.notifications");
   return navEntryFor(pathname)?.label ?? t("ui.nav.back");
 }
 

@@ -16,7 +16,7 @@ export const screensaver = createFlag();
 export const pinMailDialog = createFlag();
 /** "New issue" dialog (key i, palette, Issues page). */
 export const createIssueDialog = createFlag();
-/** Notification center (right-side panel, like macOS). */
+/** "Open the notifications" from anywhere (the bell, "n", a toast, More on phones): leads to their page. */
 export const notificationCenter = createFlag();
 /** The floating pinboard widget, opened from the sidebar, "p" or the palette. */
 export const pinboardFloat = createFlag();
