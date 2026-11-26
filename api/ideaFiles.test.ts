@@ -24,7 +24,7 @@ describe("idea pictures", () => {
   let app: typeof import("./boot").default;
   let caller: ReturnType<typeof import("./router").appRouter.createCaller>;
 
-  const upload = (ideaId: number, bytes: Uint8Array, name = "shot.png", type = "image/png") => {
+  const upload = (ideaId: number, bytes: Uint8Array<ArrayBuffer>, name = "shot.png", type = "image/png") => {
     const form = new FormData();
     form.append("file", new File([bytes], name, { type }));
     return app.request(`/api/ideas/${ideaId}/files`, { method: "POST", body: form, headers: { cookie } });
