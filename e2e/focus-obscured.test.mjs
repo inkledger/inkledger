@@ -13,8 +13,19 @@ async function sweep(page) {
   const covered = [];
   for (let step = 0; step < STEPS; step += 1) {
     await page.keyboard.press("Tab");
-    // The page brings a covered control out a frame after the focus lands (useFocusClearOfBars).
-    await page.waitForTimeout(80);
+    // The page brings a covered control out a frame after the focus lands (useFocusClearOfBars): wait until
+    // nothing scrolls any more (three still frames), not for a guessed time — a loaded CI runner is late.
+    await page.evaluate(() => new Promise(done => {
+      const tops = () => [scrollY, ...[...document.querySelectorAll("main, [data-surface-stage]")].map(el => el.scrollTop)].join(",");
+      let last = "", still = 0, frames = 0;
+      const tick = () => {
+        const now = tops();
+        still = now === last ? still + 1 : 0;
+        last = now;
+        if (still >= 3 || ++frames > 120) done(); else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }));
     const result = await page.evaluate(() => {
       const element = document.activeElement;
       if (!element || element === document.body) return null;
