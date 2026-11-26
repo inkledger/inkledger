@@ -241,7 +241,10 @@ export interface FrozenIn {
   "notifications.dismiss": { id: number };
   "notifications.dismissAll": void;
   "notifications.dismissMany": { ids: number[] };
+  "notifications.inbox": { done: boolean };
   "notifications.list": void;
+  "notifications.markRead": { ids: number[]; read: boolean };
+  "notifications.restore": { ids: number[] };
   "outbox.discard": { id: number };
   "outbox.list": void;
   "outbox.retry": void;
@@ -640,7 +643,10 @@ export interface FrozenOut {
   "notifications.dismiss": { dismissed: number };
   "notifications.dismissAll": { dismissed: number };
   "notifications.dismissMany": { dismissed: number };
+  "notifications.inbox": { connectionId: number; createdAt: Date; detail: string; dismissedAt: Date | null; id: number; issueKey: string; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "status" | "unassigned" | "watch_added" | "watch_removed"; projectKey: null | string; readAt: Date | null; status: null | string; summary: null | string }[];
   "notifications.list": { connectionId: number; createdAt: Date; detail: string; id: number; issueKey: string; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "status" | "unassigned" | "watch_added" | "watch_removed"; priority: null | string; projectKey: null | string; status: null | string; statusCategory: null | string; summary: null | string }[];
+  "notifications.markRead": { changed: number };
+  "notifications.restore": { restored: number };
   "outbox.discard": { ok: boolean };
   "outbox.list": { attempts: number; comment: string; createdAt: Date; id: number; issueKey: string; issueSummary: null | string; kind: string; lastError: string; remoteId: string; started: Date; timeSpentSeconds: number }[];
   "outbox.retry": { failed: number; remaining: number; synced: number };

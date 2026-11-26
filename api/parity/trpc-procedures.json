@@ -944,8 +944,20 @@
     "type": "mutation"
   },
   {
+    "path": "notifications.inbox",
+    "type": "query"
+  },
+  {
     "path": "notifications.list",
     "type": "query"
+  },
+  {
+    "path": "notifications.markRead",
+    "type": "mutation"
+  },
+  {
+    "path": "notifications.restore",
+    "type": "mutation"
   },
   {
     "path": "outbox.discard",
