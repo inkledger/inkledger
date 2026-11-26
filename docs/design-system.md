@@ -62,7 +62,7 @@ The user picks one base colour (Settings → Appearance, stored as `settings.the
 `src/lib/theme/derive.test.ts` checks the contrast of every pair that matters, for many base colours: AA text, and focus rings ≥ 3:1. A colour change that breaks contrast fails the unit tests.
 
 **Variant and contrast** (Settings → Appearance; `settings.theme_variant`, `settings.theme_contrast`) are derived from the same base colour, orthogonal to light/dark:
-- **Soft** (`standard | soft`): low glare, Solarized-inspired. Surfaces are parchment (light) or blue slate (dark), leaning at most 12° towards the base hue and kept under the hue rule's 0.03 chroma floor, so they read as a tint, never an accent. Accents follow the base as usual. Contrast never below AA (text 4.5:1, focus ring and field borders 3:1).
+- **Soft** (`standard | soft`): low glare, Solarized-inspired. Surfaces are parchment (light) or warm umber charcoal (dark, never blue: a quieter tint of the warm neutrals, under 0.015 chroma, with less lightness contrast than standard dark), leaning at most 12° towards the base hue and kept under the hue rule's 0.03 chroma floor, so they read as a tint, never an accent. Accents follow the base as usual. Contrast never below AA (text 4.5:1, focus ring and field borders 3:1).
 - **High contrast** (`normal | high | system`; `system` follows `prefers-contrast: more`): AAA. Body, accented and state text 7:1, muted text above 7:1, hairlines, field borders, data bars and the focus ring 3:1; the focus outline is 3 px. Soft and high contrast combine.
 - State colours (`success`, `warning`, `danger`, `info`) keep their own fixed hues in every look (they carry meaning); soft and high contrast re-solve their lightness.
 - `index.html` sets `html[data-variant]` and the resolved `html[data-contrast]` before the first paint; `pnpm theme:tokens` also writes the default colour's high-contrast tokens (`:root[data-contrast="high"]`, `.dark[data-contrast="high"]`).
@@ -360,7 +360,7 @@ These conventions are in `docs/dev/ux-patterns.md`, each with its e2e test. The 
   - The colour sits on a washi-tape strip (`--tape-1..5`), with a tiny static tilt.
   - Titles use the display font.
   - No hover movement.
-- **Covers** (focus mode, avatars, illustrations): grainy, with the sunset band derived from the theme.
+- **Covers** (focus mode, avatars, illustrations): grainy, with the sunset band derived from the theme. In dark they are a pastel dusk (about 0.24 deeper than light, never muddy brown) read with a dark tonal ink, as in light: the ink is solved to AA on every stop, and only where it can't reach it are the deepest stops lifted (the band remapped, its order kept), never darkened. High contrast keeps its own deeper night with a pale title (AAA).
 - **The Outlook add-in's pane** is a page of the app's build: `outlook.html` and `src/outlook/`.
   - It uses the same components, tokens, fonts, theme colour and language as the app, and nothing hand-styled.
   - Outlook's panes are narrow (320–480 px), so a section puts its selector and its short action button on one row; nothing may need a sideways scroll.

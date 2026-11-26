@@ -95,11 +95,17 @@ export const CONTRAST_TARGETS: Record<ThemeContrast, { text: number; muted: numb
   // standard, and axe's enhanced check passes too); every mark 3:1.
   high: { text: 7.1, muted: 8.5, ui: 3.1 },
 };
-/** The soft variant's surfaces: parchment (light) and blue slate (dark), leaning ≤ 12° towards the base. */
+/**
+ * The soft variant's surfaces: parchment (light) and warm umber charcoal (dark), leaning ≤ 12°
+ * towards the base. The umber sits by the default base's warm neutrals, so a dark soft ground
+ * never turns blue, whatever the base.
+ */
 export const SOFT_PAPER_H = 82;
-export const SOFT_SLATE_H = 236;
+export const SOFT_UMBER_H = 55;
 /** Under the hue rule's noise floor (0.03): a surface tint, never an accent. */
 export const SOFT_SURFACE_C = 0.026;
+/** Dark soft: a quieter tint still (a dark ground shows chroma more than parchment does). */
+export const SOFT_UMBER_C = 0.012;
 
 const tri = (c: Oklch) => toHslTriplet(oklchToRgb({ ...c, h: wrap(c.h) }));
 
@@ -197,9 +203,7 @@ function deriveStandard(baseHex: string): Palette {
     : Math.min(MAX_CHROMA, Math.max(MIN_CHROMA, base.c));
   // Decorative colours (charts, covers) are calmer on cool hues, where
   // equal OKLCH chroma reads as louder, "screen-blue" saturation.
-  const cool = h > 170 && h < 300;
-  const deco = (chroma: number) =>
-    Math.min(PASTEL_DECO_C, cool ? chroma * 0.72 : chroma);
+  const deco = decoFor(h);
 
   // ---- light ----
   // Pastel rule: fills stay soft (low chroma, high lightness) and carry a
@@ -347,58 +351,32 @@ function deriveStandard(baseHex: string): Palette {
     dark[`--project-${i + 1}`] = tone({ ...col, l: col.l - 0.14, c: col.c * 0.85 });
   });
 
-  // ---- covers: six grainy pastel variants + a dawn band ----
-  // Tone-on-tone: every stop stays within MAX_HUE_DRIFT of the base hue;
-  // variety comes from lightness and chroma, never from a hue jump
-  // (big jumps turn warm bases pink/lilac).
-  const offsets: [number, number, number][] = [
-    [-6, 8, 4],
-    [8, -4, 10],
-    [0, 10, -6],
-    [-8, 4, 12],
-    [6, -8, 0],
-    [10, 2, -10],
-  ];
-  // Dark covers are a dusk too, with a pale ink: mid-tone tiles left the banner
-  // initials near 3.8:1 with either a dark or a pale ink.
-  const coverStops: { light: Oklch[]; dark: Oklch[] } = { light: [], dark: [] };
-  offsets.forEach(([a, b, d], i) => {
-    const stops: [string, Oklch][] = [
-      [`--cover-${i}-a`, { l: 0.8 + (i % 3) * 0.03, c: deco(0.075), h: h + a }],
-      [`--cover-${i}-b`, { l: 0.86, c: deco(0.06), h: h + b }],
-      [`--cover-${i}-c`, { l: 0.92, c: deco(0.035), h: h + d }],
-      [`--cover-${i}-bg`, { l: 0.89, c: deco(0.045), h }],
-    ];
-    for (const [name, col] of stops) {
-      const night = { ...col, l: col.l - 0.42, c: col.c * 0.7 };
-      light[name] = tone(col);
-      dark[name] = tone(night);
-      coverStops.light.push(col);
-      coverStops.dark.push(night);
-    }
-  });
-  // Pastel "dawn" band (reference sunset, softened): light stops, dark title ink.
-  const sunset: [string, Oklch][] = [
-    ["--sunset-1", { l: 0.76, c: deco(0.07), h: h - 4 }],
-    ["--sunset-2", { l: 0.93, c: deco(0.035), h: h + 10 }],
-    ["--sunset-3", { l: 0.83, c: deco(0.075), h }],
-    ["--sunset-4", { l: 0.88, c: deco(0.055), h: h + 8 }],
-    ["--sunset-5", { l: 0.79, c: deco(0.07), h: h - 2 }],
-  ];
-  // Dark: a dusk band with a pale title, deep enough for AA (a mid-tone band
-  // left the dark title near 3:1 on the sign-in cover and the brand mark).
-  const dusk = (col: Oklch): Oklch => ({ ...col, l: col.l - 0.42, c: col.c * 0.75 });
-  for (const [name, col] of sunset) {
-    light[name] = tone(col);
-    dark[name] = tone(dusk(col));
-  }
+  // ---- covers: six grainy pastel variants + a dawn band (coverArt) ----
+  // Dark covers and band are a pastel dusk (about −0.24 L), read with a dark ink as in light.
+  // At −0.24 no single ink reaches AA on every stop (a dark one tops out near 3.7:1 on the
+  // deepest, a pale one near 2.7:1 on the palest), so the ink is chosen first and the art fits
+  // it: only the deepest stops are lifted, and the band keeps its order by being remapped,
+  // never darkened (darker, the dusk turns muddy brown).
+  const art = coverArt(h, deco);
   const band = (cols: Oklch[]) => cols.map(col => oklchToRgb({ ...col, c: limit(col.c) }));
+  const darkTitleC = textC * 0.6;
+  const darkInkC = 0.03;
+  const coverDusk = duskFor(art.covers.map(([, col]) => col), 0.7, { l: DUSK_INK_L, c: limit(darkInkC), h }, limit);
+  const sunsetDusk = duskFor(art.sunset.map(([, col]) => col), 0.75, { l: DUSK_INK_L, c: limit(darkTitleC), h }, limit);
+  art.covers.forEach(([name, col], i) => {
+    light[name] = tone(col);
+    dark[name] = tone(coverDusk[i]);
+  });
+  art.sunset.forEach(([name, col], i) => {
+    light[name] = tone(col);
+    dark[name] = tone(sunsetDusk[i]);
+  });
   const titleOn = (cols: Oklch[], dark: boolean, chroma: number) =>
-    tone({ l: solveAgainst(h, limit(chroma), band(cols), CONTRAST_TARGETS.normal.text, dark ? 0.95 : 0.3, dark ? 1 : 0), c: chroma, h });
-  light["--cover-title"] = titleOn(sunset.map(([, col]) => col), false, textC * 0.8);
-  light["--cover-ink"] = titleOn(coverStops.light, false, 0.035);
-  dark["--cover-ink"] = titleOn(coverStops.dark, true, 0.03);
-  dark["--cover-title"] = titleOn(sunset.map(([, col]) => dusk(col)), true, textC * 0.35);
+    tone({ l: solveAgainst(h, limit(chroma), band(cols), CONTRAST_TARGETS.normal.text, dark ? 0.24 : 0.3, 0), c: chroma, h });
+  light["--cover-title"] = titleOn(art.sunset.map(([, col]) => col), false, textC * 0.8);
+  light["--cover-ink"] = titleOn(art.covers.map(([, col]) => col), false, 0.035);
+  dark["--cover-ink"] = titleOn(coverDusk, true, darkInkC);
+  dark["--cover-title"] = titleOn(sunsetDusk, true, darkTitleC);
 
   // ---- chart tones: lightness steps of chart-focus, for a chart split by issue type ----
   Object.assign(light, chartTones(light["--chart-focus"], light["--chart-other"], false));
@@ -407,6 +385,78 @@ function deriveStandard(baseHex: string): Palette {
   return { light, dark, base: baseHex.toUpperCase() };
 }
 
+
+/** Decorative colours (charts, covers) are calmer on cool hues, where equal OKLCH chroma reads as louder, "screen-blue" saturation. */
+const decoFor = (h: number) => {
+  const cool = h > 170 && h < 300;
+  return (chroma: number) => Math.min(PASTEL_DECO_C, cool ? chroma * 0.72 : chroma);
+};
+
+/**
+ * The covers' light stops (six grainy pastel variants) and the pastel "dawn" band (reference sunset,
+ * softened). Tone-on-tone: every stop stays within MAX_HUE_DRIFT of the base hue; variety comes from
+ * lightness and chroma, never from a hue jump (big jumps turn warm bases pink/lilac).
+ */
+function coverArt(h: number, deco: (chroma: number) => number): { covers: [string, Oklch][]; sunset: [string, Oklch][] } {
+  const offsets: [number, number, number][] = [
+    [-6, 8, 4],
+    [8, -4, 10],
+    [0, 10, -6],
+    [-8, 4, 12],
+    [6, -8, 0],
+    [10, 2, -10],
+  ];
+  const covers = offsets.flatMap(([a, b, d], i): [string, Oklch][] => [
+    [`--cover-${i}-a`, { l: 0.8 + (i % 3) * 0.03, c: deco(0.075), h: h + a }],
+    [`--cover-${i}-b`, { l: 0.86, c: deco(0.06), h: h + b }],
+    [`--cover-${i}-c`, { l: 0.92, c: deco(0.035), h: h + d }],
+    [`--cover-${i}-bg`, { l: 0.89, c: deco(0.045), h }],
+  ]);
+  const sunset: [string, Oklch][] = [
+    ["--sunset-1", { l: 0.76, c: deco(0.07), h: h - 4 }],
+    ["--sunset-2", { l: 0.93, c: deco(0.035), h: h + 10 }],
+    ["--sunset-3", { l: 0.83, c: deco(0.075), h }],
+    ["--sunset-4", { l: 0.88, c: deco(0.055), h: h + 8 }],
+    ["--sunset-5", { l: 0.79, c: deco(0.07), h: h - 2 }],
+  ];
+  return { covers, sunset };
+}
+
+/** The dark ink's lightness on the dusk covers: a deep tonal umber, not black. */
+const DUSK_INK_L = 0.14;
+/** The dusk's lightness shift and how much of the light stops' spread it keeps. */
+const DUSK_SHIFT_L = 0.24;
+const DUSK_SPREAD = 0.75;
+/** What the dusk stops are solved to against the ink: AA with room for triplet rounding. */
+const DUSK_TARGET = MIN_CONTRAST + 0.15;
+
+/**
+ * Dark stops for a set of light pastel ones: a dusk about DUSK_SHIFT_L deeper, in the same order,
+ * light enough that `ink` reaches DUSK_TARGET on every one. Where the plain shift would leave the
+ * deepest stops under that, the whole set is remapped up from the lightness the ink needs (its
+ * spread kept at DUSK_SPREAD), so tones never merge and nothing gets darker than the shift.
+ */
+function duskFor(cols: Oklch[], chromaK: number, ink: Oklch, limit: (chroma: number) => number): Oklch[] {
+  const inkRgb = oklchToRgb(ink);
+  const night = cols.map(col => ({ ...col, c: col.c * chromaK }));
+  const lowest = Math.min(...cols.map(col => col.l));
+  // The lightness at which each stop, at its own hue and chroma, reaches the target against the ink.
+  const need = night.map(col => {
+    const ok = (l: number) => contrast(inkRgb, oklchToRgb({ ...col, l, c: limit(col.c) })) >= DUSK_TARGET;
+    let a = 0;
+    let b = 1;
+    for (let i = 0; i < 30; i++) {
+      const mid = (a + b) / 2;
+      if (ok(mid)) b = mid;
+      else a = mid;
+    }
+    return b;
+  });
+  const shifted = night.map(col => col.l - DUSK_SHIFT_L);
+  if (shifted.every((l, i) => l >= need[i])) return night.map((col, i) => ({ ...col, l: shifted[i] }));
+  const from = Math.max(...night.map((col, i) => need[i] - (col.l - lowest) * DUSK_SPREAD));
+  return night.map(col => ({ ...col, l: Math.min(0.95, Math.max(col.l - DUSK_SHIFT_L, from + (col.l - lowest) * DUSK_SPREAD)) }));
+}
 
 /** Lightness at which (h, c) reaches `ratio` against every one of `bgs` (searching from `from` towards `towards`). */
 function solveAgainst(h: number, c: number, bgs: Rgb[], ratio: number, from: number, towards: number): number {
@@ -471,9 +521,9 @@ function deriveLook(baseHex: string, standard: Palette, look: ThemeLook): Palett
   const target = CONTRAST_TARGETS[look.contrast];
 
   const scheme = (dark: boolean, from: ThemeVars): ThemeVars => {
-    // Soft surfaces are parchment or slate (a tint under the hue rule's floor); standard ones keep the base hue.
-    const sh = soft ? lean(dark ? SOFT_SLATE_H : SOFT_PAPER_H, neutral ? null : h) : h;
-    const S = SOFT_SURFACE_C;
+    // Soft surfaces are parchment or umber charcoal (a tint under the hue rule's floor); standard ones keep the base hue.
+    const sh = soft ? lean(dark ? SOFT_UMBER_H : SOFT_PAPER_H, neutral ? null : h) : h;
+    const S = dark ? SOFT_UMBER_C : SOFT_SURFACE_C;
     const surf = (l: number, chroma: number): Oklch => (soft ? { l, c: chroma, h: sh } : { l, c: limit(chroma), h });
     const pick = (std: number, sf: number) => (soft ? sf : std);
     const [canvasL, cardL, popoverL, mutedL, accentL] = dark
@@ -551,20 +601,21 @@ function deriveLook(baseHex: string, standard: Palette, look: ThemeLook): Palett
         const was = rgbToOklch(parseTriplet(from[name]));
         vars[name] = tri({ l: solveAgainst(was.h, was.c, onCard, ratio, was.l, dark ? 1 : 0), c: was.c, h: was.h });
       }
-      // The cover title reaches AAA on every stop of the band; in dark the band goes a step deeper for it.
-      const stops = [1, 2, 3, 4, 5].map(i => {
-        const was = rgbToOklch(parseTriplet(from[`--sunset-${i}`]));
-        return dark ? { ...was, l: was.l - 0.1 } : was;
-      });
+      // The cover title reaches AAA on every stop of the band. In dark, high contrast keeps its own
+      // night (the user-approved look, pinned by high-contrast.snapshot.json): the light stops 0.42
+      // deeper, then a step deeper still, with a pale title — not the normal looks' pastel dusk.
+      const art = coverArt(h, decoFor(h));
+      const deep = (col: Oklch, chromaK: number): Oklch => {
+        const was = rgbToOklch(parseTriplet(T({ ...col, l: col.l - 0.42, c: col.c * chromaK })));
+        return { ...was, l: was.l - 0.1 };
+      };
+      const stops = dark ? art.sunset.map(([, col]) => deep(col, 0.75)) : [1, 2, 3, 4, 5].map(i => rgbToOklch(parseTriplet(from[`--sunset-${i}`])));
       if (dark) stops.forEach((col, i) => (vars[`--sunset-${i + 1}`] = T(col)));
       const titleC = dark ? textC * 0.3 : textC * 0.6;
       vars["--cover-title"] = T({ l: solveAgainst(h, limit(titleC), stops.map(rgb), target.text, dark ? 0.97 : 0.2, dark ? 1 : 0), c: titleC, h });
       // The covers' ink (banner initials) likewise reaches AAA on every cover stop.
       const coverNames = [0, 1, 2, 3, 4, 5].flatMap(i => ["a", "b", "c", "bg"].map(s => `--cover-${i}-${s}`));
-      const tiles = coverNames.map(name => {
-        const was = rgbToOklch(parseTriplet(from[name]));
-        return dark ? { ...was, l: was.l - 0.1 } : was;
-      });
+      const tiles = dark ? art.covers.map(([, col]) => deep(col, 0.7)) : coverNames.map(name => rgbToOklch(parseTriplet(from[name])));
       if (dark) tiles.forEach((col, i) => (vars[coverNames[i]] = T(col)));
       const inkC = dark ? 0.03 : 0.035;
       vars["--cover-ink"] = T({ l: solveAgainst(h, limit(inkC), tiles.map(rgb), target.text, dark ? 0.97 : 0.2, dark ? 1 : 0), c: inkC, h });

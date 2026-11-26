@@ -27,6 +27,7 @@ import {
 } from "./derive";
 
 import { themeCss } from "./apply";
+import HIGH_CONTRAST_SNAPSHOT from "./high-contrast.snapshot.json";
 
 const rgbOf = (triplet: string) => {
   const [h, s, l] = triplet.replace(/%/g, "").split(" ").map(Number);
@@ -301,6 +302,13 @@ describe("contrast matrix: every base colour × scheme × variant × contrast", 
     expect(failures.slice(0, 20)).toEqual([]);
   });
 
+  it("the high-contrast looks stay exactly as approved (default base)", () => {
+    // light-high and dark-high were signed off as they are: any change to a derived token,
+    // added or dropped, fails here. Regenerate the snapshot only on an explicit new sign-off.
+    const hc = derivePalette(DEFAULT_BASE, { variant: "standard", contrast: "high" });
+    expect({ light: hc.light, dark: hc.dark }).toEqual(HIGH_CONTRAST_SNAPSHOT);
+  });
+
   it("high contrast promises AAA, soft never falls under AA", () => {
     // With the 0.05 the matrix allows for rounding, each target still lands on or over the promise.
     expect(CONTRAST_TARGETS.high.text - 0.05).toBeGreaterThanOrEqual(7);
@@ -332,13 +340,29 @@ describe("contrast matrix: every base colour × scheme × variant × contrast", 
     }
   });
 
-  it("soft surfaces are parchment in light and blue slate in dark", () => {
+  it("soft surfaces are parchment in light and warm umber charcoal in dark", () => {
     const { light, dark } = derivePalette("#808080", { variant: "soft", contrast: "normal" });
     const card = (t: string) => rgbToOklch(rgbOf(t));
     expect(card(light["--card"]).h).toBeGreaterThan(60);
     expect(card(light["--card"]).h).toBeLessThan(100);
-    expect(card(dark["--card"]).h).toBeGreaterThan(210);
-    expect(card(dark["--card"]).h).toBeLessThan(260);
+    expect(card(dark["--card"]).h).toBeGreaterThan(35);
+    expect(card(dark["--card"]).h).toBeLessThan(75);
+  });
+
+  it("dark soft is warm, quiet and calmer than standard dark, whatever the base", () => {
+    // Never a blue ground: the umber leans at most 12° towards the base, so a blue base still lands warm.
+    for (const hex of [DEFAULT_BASE, "#2F6DB5", "#1E9C9C", "#7B3FB5", "#3FA34D", "#808080", ...THEME_PRESETS.map(p => p.hex)]) {
+      const std = derivePalette(hex).dark;
+      const soft = derivePalette(hex, { variant: "soft", contrast: "normal" }).dark;
+      for (const s of ["--canvas", "--card", "--popover", "--muted", "--accent"]) {
+        const o = rgbToOklch(rgbOf(soft[s]));
+        expect(o.h, `${hex} ${s} hue`).toBeGreaterThan(30);
+        expect(o.h, `${hex} ${s} hue`).toBeLessThan(80);
+        expect(o.c, `${hex} ${s} chroma`).toBeLessThan(0.02);
+      }
+      const ratio = (v: typeof std) => contrast(rgbOf(v["--foreground"]), rgbOf(v["--card"]));
+      expect(ratio(soft), `${hex} glare`).toBeLessThan(ratio(std));
+    }
   });
 });
 
