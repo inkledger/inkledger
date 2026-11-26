@@ -21,6 +21,9 @@ test("FlowMap is opt-in, exports only aggregates and deletes all derived data", 
     await (await collectionSwitch(page)).click();
     await page.waitForFunction(() => document.querySelector('[role="checkbox"][aria-label="Collect interaction maps"]')?.getAttribute("aria-checked") === "true");
     await page.goto(base + "/");
+    // The collector's code comes after the page (a lazy chunk): until it is in, a full page load away would take
+    // the held clicks with it. Wait for it, not for a guessed time (a loaded CI machine fetches it late).
+    await page.waitForFunction(() => performance.getEntriesByType("resource").some(e => /\/assets\/collector-[^/]+\.js/.test(e.name)));
     await page.getByRole("button", { name: "Customize dashboard", exact: true }).click();
     await page.keyboard.press("Escape");
     // Exposures count after a second on screen; leaving the page then sends them (pagehide beacon).
