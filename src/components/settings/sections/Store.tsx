@@ -1,7 +1,8 @@
 import { readStored, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
-import { FileKey, Grid3x3, LayoutGrid, Store } from "lucide-react";
+import { Grid3x3, LayoutGrid, Store } from "lucide-react";
+import { FileKey } from "@/components/app/icons";
 import { toast } from "sonner";
 import type { ModuleListEntry } from "@contracts/modules";
 import { LICENSE_FILE_EXTENSION, type StoreEntry } from "@contracts/store";

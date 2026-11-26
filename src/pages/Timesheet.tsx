@@ -9,8 +9,6 @@ import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { useBlockPlacement } from "@/hooks/useBlockPlacement";
 import { useToday } from "@/hooks/useToday";
 import {
-  CalendarDays,
-  CalendarRange,
   Download,
   Lock,
   LockOpen,
@@ -18,6 +16,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { CalendarDays, CalendarRange } from "@/components/app/icons";
 import { useUrlFields } from "@/hooks/useUrlState";
 import { day, flag, oneOf, text, type Fields } from "@/lib/urlCodecs";
 import { toast } from "sonner";

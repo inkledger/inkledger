@@ -1,7 +1,8 @@
 import { toastError } from "@/lib/errorText";
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Bitcoin, Check, CreditCard, KeyRound, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Bitcoin, Check, KeyRound, ShoppingBag } from "lucide-react";
+import { CreditCard } from "@/components/app/icons";
 import type { PaymentMethod, StoreEntry } from "@contracts/store";
 import { trpc } from "@/lib/trpc";
 import { openExternal } from "@/lib/native";

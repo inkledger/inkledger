@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { MousePointerClick, PencilLine, Route, Sparkles, TriangleAlert } from "lucide-react";
+import { MousePointerClick, PencilLine, Sparkles, TriangleAlert } from "lucide-react";
+import { Route } from "@/components/app/icons";
 import { ToggleChip } from "@/components/app/ToggleChip";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LAYERS, type Layer, type LayerState } from "@/lib/workspace/layers";

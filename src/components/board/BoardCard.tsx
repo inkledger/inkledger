@@ -9,13 +9,12 @@ import { trpc } from "@/lib/trpc";
 import { reachable, type BoardColumn } from "@/lib/boardTargets";
 import { Link } from "react-router";
 import {
-  CalendarDays,
-  Clock3,
   Columns2,
   ListChecks,
   MoveRight,
   Star,
 } from "lucide-react";
+import { CalendarDays, Clock3 } from "@/components/app/icons";
 import { useOpenBesideAction } from "@/hooks/useOpenBeside";
 import { PinMenuItems } from "@/components/issue/PinMenu";
 import { formatDate, parseDayKey } from "@contracts/time";

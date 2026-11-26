@@ -7,7 +7,6 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  GitBranch,
   GitCommitHorizontal,
   ListChecks,
   MoreHorizontal,
@@ -15,6 +14,7 @@ import {
   Star,
   TerminalSquare,
 } from "lucide-react";
+import { GitBranch } from "@/components/app/icons";
 import { trpc } from "@/lib/trpc";
 import { AGENT_LINK_MINUTES } from "@contracts/issueCopy";
 import { formatDuration } from "@contracts/time";

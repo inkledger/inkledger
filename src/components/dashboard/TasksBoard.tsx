@@ -3,10 +3,10 @@ import { useRef } from "react";
 import { Link } from "react-router";
 import { useFitToHeight } from "@/lib/layout/fit";
 import {
-  CalendarDays,
   ChevronsRightLeft,
   Plus,
 } from "lucide-react";
+import { CalendarDays } from "@/components/app/icons";
 import { formatDate, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone, type Tone } from "@/lib/jira";
 import { projectOf } from "@/lib/projectColors";

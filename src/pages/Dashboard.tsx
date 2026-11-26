@@ -5,13 +5,12 @@ import { realSecondsByDay } from "@contracts/placement";
 import { Fragment, cloneElement, isValidElement, useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { useToday } from "@/hooks/useToday";
 import {
-  CalendarDays,
-  CalendarRange,
   Plus,
   Settings2,
   Sun,
   Sunset,
 } from "lucide-react";
+import { CalendarDays, CalendarRange } from "@/components/app/icons";
 import { trpc } from "@/lib/trpc";
 import { visibleIssues, issueId } from "@/lib/issues";
 import {

@@ -3,7 +3,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
   BarChart3,
-  CalendarDays,
   Keyboard,
   KanbanSquare,
   LayoutPanelLeft,
@@ -31,6 +30,7 @@ import {
   Sparkles,
   MailPlus,
 } from "lucide-react";
+import { CalendarDays } from "@/components/app/icons";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { toastError } from "@/lib/errorText";

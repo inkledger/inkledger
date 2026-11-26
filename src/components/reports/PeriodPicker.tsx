@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CalendarDays, Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { CalendarDays } from "@/components/app/icons";
 import { parseDayKey } from "@contracts/time";
 import { PRESET_OPTIONS, type PresetId } from "@/lib/reportLabel";
 import { Button } from "@/components/ui/button";

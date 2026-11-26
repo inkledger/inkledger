@@ -1,5 +1,6 @@
 import { Link } from "react-router";
-import { CalendarDays, Check, EyeOff, ListChecks } from "lucide-react";
+import { Check, EyeOff, ListChecks } from "lucide-react";
+import { CalendarDays } from "@/components/app/icons";
 import { SectionLabel } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { surface } from "@/components/app/surface";

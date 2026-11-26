@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock } from "@/components/app/icons";
 import { isTyping } from "@/lib/dom";
 import { surface } from "@/components/app/surface";
 import { trpc } from "@/lib/trpc";

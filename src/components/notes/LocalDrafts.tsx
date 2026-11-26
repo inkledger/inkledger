@@ -1,4 +1,5 @@
-import { FileClock, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { FileClock } from "@/components/app/icons";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { dateFormat, t } from "@/i18n";

@@ -4,7 +4,6 @@ import {
   Bell,
   DatabaseBackup,
   Link2,
-  CalendarClock,
   Palette,
   Pin,
   Server,
@@ -28,6 +27,7 @@ import {
   KeyRound,
   type LucideIcon,
 } from "lucide-react";
+import { CalendarClock } from "@/components/app/icons";
 import { formatDuration, startOfWeek } from "@contracts/time";
 import { scheduleFor } from "@contracts/workSchedule";
 import { useAuth } from "@/hooks/useAuth";

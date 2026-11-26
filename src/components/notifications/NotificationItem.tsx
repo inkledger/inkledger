@@ -1,5 +1,6 @@
 import { Link } from "react-router";
-import { ArrowRightLeft, AtSign, CalendarClock, Eye, EyeOff, Flame, GitPullRequest, MessageSquare, Play, RefreshCw, UserMinus, UserPlus, X } from "lucide-react";
+import { ArrowRightLeft, AtSign, Eye, EyeOff, Flame, GitPullRequest, MessageSquare, Play, RefreshCw, UserMinus, UserPlus, X } from "lucide-react";
+import { CalendarClock } from "@/components/app/icons";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 import { parseDayKey } from "@contracts/time";

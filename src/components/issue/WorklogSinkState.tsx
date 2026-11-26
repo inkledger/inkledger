@@ -1,6 +1,7 @@
 import { dayAndTime } from "@/lib/dates";
 import { toastError } from "@/lib/errorText";
-import { AlertTriangle, CloudOff, Lock } from "lucide-react";
+import { AlertTriangle, Lock } from "lucide-react";
+import { CloudOff } from "@/components/app/icons";
 import { surface } from "@/components/app/surface";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";

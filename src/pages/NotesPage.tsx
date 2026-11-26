@@ -6,7 +6,8 @@ import {
   useNavigate,
   useParams,
 } from "react-router";
-import { BookOpen, ChevronLeft, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronLeft, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpen } from "@/components/app/icons";
 import {
   NOTE_FILTERS,
   NOTE_SEARCH_MAX,

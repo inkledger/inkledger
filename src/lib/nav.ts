@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  CalendarDays,
   Info as InfoIcon,
   KanbanSquare,
   LayoutDashboard,
@@ -13,6 +12,7 @@ import {
   Settings as SettingsIcon,
   Users,
 } from "lucide-react";
+import { CalendarDays } from "@/components/app/icons";
 import type { Permission } from "@contracts/accounts";
 import { t } from "@/i18n";
 import { usePinboardSurfacesNow } from "@/hooks/usePinboardPanel";

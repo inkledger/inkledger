@@ -8,10 +8,7 @@ import {
   History,
   ArrowDown,
   ArrowUp,
-  CalendarDays,
-  Clock,
   Copy,
-  GitBranch,
   GitCommitHorizontal,
   Eye,
   EyeOff,
@@ -21,8 +18,8 @@ import {
   Star,
   ListChecks,
   Columns2,
-  SquareCheck,
 } from "lucide-react";
+import { CalendarDays, Clock, GitBranch, SquareCheck } from "@/components/app/icons";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 import { formatDate, formatDuration, parseDayKey } from "@contracts/time";

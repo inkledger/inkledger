@@ -1,6 +1,7 @@
 import { toastError } from "@/lib/errorText";
 import { useState } from "react";
-import { CloudOff, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
+import { CloudOff } from "@/components/app/icons";
 import { trpc } from "@/lib/trpc";
 import { formatDuration } from "@contracts/time";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";

@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays } from "@/components/app/icons";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { toastError } from "@/lib/errorText";

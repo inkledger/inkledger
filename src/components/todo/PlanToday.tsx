@@ -1,6 +1,5 @@
 import {
   AtSign,
-  CircleDot,
   Eye,
   GitPullRequest,
   MessageSquare,
@@ -9,6 +8,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { CircleDot } from "@/components/app/icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { toastError } from "@/lib/errorText";

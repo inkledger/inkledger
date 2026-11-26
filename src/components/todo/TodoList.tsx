@@ -2,7 +2,6 @@ import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import {
-  CalendarCheck,
   Flag,
   Hourglass,
   Link2,
@@ -19,6 +18,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { CalendarCheck } from "@/components/app/icons";
 import { MailSubject } from "@/components/mail/MailCard";
 import { PinMailDialog } from "@/components/mail/PinMailDialog";
 import { Checkbox } from "@/components/ui/checkbox";

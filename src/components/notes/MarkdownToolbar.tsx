@@ -1,5 +1,4 @@
 import {
-  Bold,
   Code2,
   Eye,
   Heading3,
@@ -17,6 +16,7 @@ import {
   Sparkles,
   Undo2,
 } from "lucide-react";
+import { Bold } from "@/components/app/icons";
 import { Button } from "@/components/ui/button";
 import { t, type MessageKey } from "@/i18n";
 import type { MarkdownCommand } from "./markdownEdit";

@@ -396,10 +396,6 @@
 }
 
 @layer base {
-  /* Icons: one stroke weight everywhere (overrides lucide's attribute). */
-  .lucide {
-    stroke-width: 1.75;
-  }
   /* "Zoom out": every Tailwind size is in rem, so density scales the root. */
   html {
     font-size: 14px;

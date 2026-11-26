@@ -1,11 +1,11 @@
 import { t } from "@/i18n";
 import {
-  CircleCheckIcon,
   InfoIcon,
   Loader2Icon,
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react";
+import { CircleCheckIcon } from "@/components/app/icons";
 import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";

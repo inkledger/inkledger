@@ -3,12 +3,12 @@ import { failureText } from "@/lib/errorText";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
-  Clock,
   Loader2,
   Plus,
   Sunset,
   TriangleAlert,
 } from "lucide-react";
+import { Clock } from "@/components/app/icons";
 import {
   formatDuration,
   formatDurationLong,

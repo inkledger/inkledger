@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import {
-  CalendarDays,
   Flag,
   Hourglass,
   Link2,
@@ -8,6 +7,7 @@ import {
   Repeat,
   X,
 } from "lucide-react";
+import { CalendarDays } from "@/components/app/icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {

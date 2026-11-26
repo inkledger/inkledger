@@ -1,6 +1,7 @@
 import { toastError } from "@/lib/errorText";
 import { useState } from "react";
-import { Bookmark, History, Trash2, X } from "lucide-react";
+import { History, Trash2, X } from "lucide-react";
+import { Bookmark } from "@/components/app/icons";
 import { toast } from "sonner";
 import { formatQuery, parseQuery } from "@contracts/query";
 import { trpc } from "@/lib/trpc";

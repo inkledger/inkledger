@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudOff } from "@/components/app/icons";
 import { t } from "@/i18n";
 import { timeOfDay } from "@/lib/dates";
 import type { SaveState } from "./useNoteDocument";

@@ -1,8 +1,6 @@
 import { mediumDate } from "@/lib/dates";
 import {
-  Calendar,
   Settings2,
-  Carrot,
   Heart,
   Moon,
   Shield,
@@ -10,9 +8,9 @@ import {
   Sparkles,
   Sprout,
   Sun,
-  Trophy,
   type LucideIcon,
 } from "lucide-react";
+import { Calendar, Carrot, Trophy } from "@/components/app/icons";
 import { MODULE_TERMS_URL, type StoreEntry, type StoreIcon } from "@contracts/store";
 import type { ModuleCapability } from "@contracts/modules";
 import { trpc } from "@/lib/trpc";
