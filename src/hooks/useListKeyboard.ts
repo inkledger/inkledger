@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { inFloat, isDialogOpen, isTyping } from "@/lib/dom";
 import { hotkeySequence } from "@/lib/hotkeySequence";
 
@@ -24,7 +24,9 @@ export function useListKeyboard(keys: string[], actions: ListKeyActions, control
   const selected = control ? control.selected : own;
   const setSelected = control ? control.onSelect : setOwn;
   const state = useRef({ keys, actions, selected, setSelected });
-  useEffect(() => {
+  // Before the browser hands over the next key (a layout effect, not a passive one): a key pressed right
+  // after the selection was drawn acts on the row drawn as selected, never on the one before.
+  useLayoutEffect(() => {
     state.current = { keys, actions, selected, setSelected };
   });
 
