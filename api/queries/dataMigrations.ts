@@ -64,7 +64,7 @@ export const DATA_MIGRATIONS: DataMigration[] = [
       const { seedLegacyDashboard } = await import("../workspace/service");
       const rows = await db.select({ userId: settings.userId, layout: settings.dashboardLayout }).from(settings);
       for (const row of rows) {
-        let saved: unknown = null;
+        let saved: unknown;
         try {
           saved = row.layout ? JSON.parse(row.layout) : null;
         } catch {

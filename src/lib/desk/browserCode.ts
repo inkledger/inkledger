@@ -99,12 +99,11 @@ export function slowPattern(source: string): string | null {
   // escape (\w+, \s*) or one character backtracks only against a neighbour it overlaps: \w+\s*=\s*\w+
   // is linear, \s*\s*\s* is not. Any dot, class or group counts as before.
   let prev: { atom: string; counted: boolean } | null = null;
-  let atom = "";
   const overlaps = (a: string, b: string) =>
     a === b || a === "." || b === "." || !/^\\?[^\\]$/.test(a) || !/^\\?[^\\]$/.test(b) || (a.length === 1) !== (b.length === 1) || (/^\\[wd]$/.test(a) && /^\\[wd]$/.test(b)) || (/^\\[WSD]$/.test(a) && /^\\[WSD]$/.test(b));
   for (let i = 0; i < source.length; i++) {
     const ch = source[i];
-    atom = ch;
+    let atom = ch;
     const top = groups[groups.length - 1];
     // What follows position `at`: a quantifier's length (0: none), whether it is open-ended, the ways it can match.
     const quantifier = (at: number): { length: number; open: boolean; ways: number } => {

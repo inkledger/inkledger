@@ -74,7 +74,7 @@ export function registerIdeaFileRoutes(app: App) {
       .where(and(eq(ideas.id, ideaId), eq(ideas.userId, userId), isNull(ideas.deletedAt)))
       .limit(1);
     if (!idea) return c.json({ error: t("server.ideas.notFound") }, 404);
-    let file: File | null = null;
+    let file: File | null;
     try {
       const got = (await c.req.formData()).get("file");
       file = got instanceof File && got.size > 0 ? got : null;

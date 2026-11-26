@@ -449,7 +449,6 @@ function lastFetchedAt(conn: Connection, cp: string | null | undefined): number 
 /** One pass of a Jira connection, as its stream's pass (withStream): `full` is what it ran, wider than asked on a first sync. */
 export async function runSync(account: User, conn: Connection, wantFull: boolean, checkpoint: Checkpoint | null = null): Promise<{ result: Omit<SyncResult, "failed">; full: boolean; checkpoint: Checkpoint }> {
   const syncStart = Date.now();
-  let full = wantFull;
   try {
     const { user, creds } = contextFor(account, conn);
     // Ranks for this site's priorities (once a day): toRow reads them.
@@ -461,7 +460,7 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
     // and is always full; it raises no notifications.
     const lastSyncAt = state?.lastSyncAt ?? null;
     const firstSync = lastSyncAt === null;
-    full = wantFull || firstSync;
+    const full = wantFull || firstSync;
     // Covers the time since the last successful sync too: a failed pass or downtime
     // must not leave gaps until the next full sync.
     // From where the last pass fetched, when it says (it ended later).

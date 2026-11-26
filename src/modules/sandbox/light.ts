@@ -66,7 +66,7 @@ function reader(ts: Tok[], edge = false) {
   };
   const color = () => {
     if (!word("hsl") || !word("(")) return null;
-    let base: string | null = null;
+    let base: string;
     if (word("var")) {
       if (!word("(")) return null;
       const v = word("--shadow-color") ? "--shadow-color" : word("--night-shadow") ? "--night-shadow" : null;

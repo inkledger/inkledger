@@ -122,7 +122,7 @@ describe("linear, as the layer sees it", () => {
     sim.outside.update("ENG-1", { title: "Login fails everywhere" });
     const seen = new Set(first.items.map((i) => i.remoteId));
     let page = first.next;
-    let checkpoint = null;
+    let checkpoint;
     for (;;) {
       const p = await b.listChanged(meta(), { since: null, page });
       p.items.forEach((i) => seen.add(i.remoteId));

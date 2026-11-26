@@ -161,7 +161,7 @@ export function useBlockDrag({ root, areas, countIn, indexOf, onDrop, announce }
       if (!neighbour) return now;
       return { ...now, targetAreaId: neighbour.areaId, index: direction > 0 ? 0 : countIn(neighbour.areaId, anchorId) };
     };
-    let next: BlockDrag | null = now;
+    let next: BlockDrag | null;
     if (event.key === "ArrowUp" || event.key === "ArrowLeft") next = step(-1);
     else if (event.key === "ArrowDown" || event.key === "ArrowRight") next = step(1);
     else if (event.key === " " || event.key === "Enter") {

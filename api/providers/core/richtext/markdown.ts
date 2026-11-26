@@ -80,7 +80,7 @@ function linkAt(s: string, i: number, cx: Cx): { end: number; inner: string; url
   if (next === "(") {
     let k = close + 2;
     while (k < s.length && /\s/.test(s[k])) k++;
-    let dest = "";
+    let dest: string;
     if (s[k] === "<") {
       // No line end and no other < inside <...>: the search stops at either (never the rest of the text for each "[a](<").
       let e = k + 1;

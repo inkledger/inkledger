@@ -149,7 +149,7 @@ async function seedRow(table: string, uid: number): Promise<void> {
     // Some rows come by themselves (a trigger, a default per account): that one is theirs.
     const keys = Object.keys(values).filter((k) => k === "user_id" || fkCols.has(k));
     const [existing] = /duplicate key/.test(String(e)) && keys.length > 0 ? await q(`SELECT * FROM "${table}" WHERE ${keys.map((k) => `"${k}" = ?`).join(" AND ")}`, ...keys.map((k) => values[k])) : [];
-    if (!existing) throw new Error(`seeding ${table}: ${String(e)} with ${JSON.stringify(values)}`);
+    if (!existing) throw new Error(`seeding ${table}: ${String(e)} with ${JSON.stringify(values)}`, { cause: e });
     if (!seeded.has(table)) seeded.set(table, new Map());
     seeded.get(table)!.set(uid, existing);
   }

@@ -245,7 +245,7 @@ function parseWhere(toks: Tok[]): Expr {
       }
       if (op === "CONTAINS") return String(have).toLowerCase().includes(String(want).toLowerCase());
       let a = have;
-      let b = want;
+      let b: string | number;
       if (DATE_FIELDS.has(ref)) {
         a = Number(have);
         b = typeof want === "number" ? want : dateLiteral(want, ctx.tzMinutes);

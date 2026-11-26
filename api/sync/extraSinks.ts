@@ -142,7 +142,7 @@ async function mappingFor(sinkId: number, containerId: number | null): Promise<M
     .where(and(eq(sinkMappings.sinkConnectionId, sinkId), containerId === null ? isNull(sinkMappings.containerId) : or(eq(sinkMappings.containerId, containerId), isNull(sinkMappings.containerId))));
   const own = rows.find((r) => r.containerId === containerId) ?? rows.find((r) => r.containerId === null);
   if (!own) return null;
-  let path: SinkTarget["path"] = [];
+  let path: SinkTarget["path"];
   try {
     path = JSON.parse(own.targetPath) as SinkTarget["path"];
   } catch {

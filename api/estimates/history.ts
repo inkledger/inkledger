@@ -108,7 +108,7 @@ export type Known = { statuses: Map<string, { name: string; category: StatusCate
 export async function statusesOf(conn: Connection, b: BoundTracker, meta: { signal: AbortSignal; correlationId: string }): Promise<Known> {
   const statuses = new Map<string, { name: string; category: StatusCategory }>();
   if (b.capabilities.statuses && b.statuses) {
-    let sources: TrackerProbe["activeSources"] | null = null;
+    let sources: TrackerProbe["activeSources"] | null;
     try {
       sources = conn.probe ? (JSON.parse(conn.probe) as TrackerProbe).activeSources : null;
     } catch {

@@ -292,7 +292,7 @@ export async function scanInfo(page: InfoPage, ids: ScrollerIds, clock: { now():
   const steps = walk(page.root, { clip: grow(view, INFO_MARGIN), s: 0, bg: "", interactive: false, pointer: false, layer: -1, covered: false }, view, ids, found);
   for (;;) {
     const from = clock.now();
-    let done = false;
+    let done: boolean;
     while (!(done = !!steps.next().done) && clock.now() - from < sliceMs);
     if (done) break;
     await clock.yield();

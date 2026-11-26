@@ -326,7 +326,7 @@ export async function restoreBackup(
         } catch (e2) {
           // Neither: the server stays closed to writes until someone restores by hand.
           closed = true;
-          throw new Error(t("server.backup.stuck", { cause, safety, again: e2 instanceof Error ? e2.message : String(e2) }), { cause: e });
+          throw new Error(t("server.backup.stuck", { cause, safety, again: e2 instanceof Error ? e2.message : String(e2) }), { cause: e2 });
         }
         throw new Error(t("server.backup.broughtBack", { cause, safety }), { cause: e });
       } finally {
