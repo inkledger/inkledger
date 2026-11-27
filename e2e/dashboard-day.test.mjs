@@ -79,8 +79,13 @@ test("a stopped timer left for later stays on the timeline, keeps what was typed
     await block.click();
     const again = page.getByRole("dialog", { name: "Log time on DEMO-101" });
     assert.equal(await again.getByLabel("Comment").inputValue(), "half of the import done");
-    // Its tracked time comes back with it (40 minutes, rounded to the minute).
-    assert.match(await again.getByLabel(/^Time spent/).inputValue(), /40m/);
+    // Its tracked time comes back with it, rounded to the minute: about 40 minutes, but a slow runner
+    // can reach 40m30s before the stop, so the expected value is what the paused timer kept.
+    const [{ secs }] = await db.q("SELECT accumulated_seconds AS secs FROM timers WHERE issue_key = 'DEMO-101'");
+    assert.ok(secs >= 40 * 60 && secs < 45 * 60, `tracked ${secs}s`);
+    // The block keeps sub-second time the column doesn't, so near the half minute it may round either way.
+    const shown = await again.getByLabel(/^Time spent/).inputValue();
+    assert.ok([Math.floor(secs / 60), Math.ceil(secs / 60)].map(m => `${m}m`).includes(shown), `shown ${shown} for ${secs}s`);
     await again.getByRole("button", { name: "Later" }).click();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM worklogs"))[0].n, 0, "nothing logged by Later");
   } finally {
