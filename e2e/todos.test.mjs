@@ -225,11 +225,11 @@ test("reminders: today's and late TODOs in the bell and beside the menu link; To
       assert.equal(await page.getByRole("list", { name: "To do today" }).count(), 0);
       const nav = page.getByRole("link", { name: /^TODO\s*2 for today$/ });
       await nav.waitFor();
-      // The bell counts them.
-      const bell = page.getByRole("button", { name: "Notifications, 2 to review" }).first();
+      // The bell counts them (its name: the visible text, the count said after it) and leads to the notifications page.
+      const bell = page.getByRole("button", { name: /^Notifications\s*, 2 to review$/ }).first();
       await bell.click();
-      const center = page.getByRole("dialog");
-      const reminders = center.getByRole("region", { name: "To do today" });
+      await page.waitForURL(/\/notifications$/);
+      const reminders = page.getByRole("main").getByRole("region", { name: "To do today" });
       await reminders.getByRole("listitem", { name: "Send the invoice" }).waitFor();
       await reminders.getByRole("listitem", { name: "Review PR" }).getByRole("button", { name: "Tomorrow", exact: true }).click();
       await reminders.getByRole("listitem", { name: "Review PR" }).waitFor({ state: "detached" });
@@ -239,7 +239,6 @@ test("reminders: today's and late TODOs in the bell and beside the menu link; To
       assert.equal((await db.q("SELECT reminder_seen_on FROM todos WHERE text = 'Send the invoice'"))[0].reminder_seen_on, inDays(0));
       // Still open, still on today's list: only the reminder is away.
       assert.equal((await db.q("SELECT done_at FROM todos WHERE text = 'Send the invoice'"))[0].done_at, null);
-      await page.keyboard.press("Escape");
       // Back later the same day: no second toast.
       await page.reload();
       // Its reminder hidden for today: no count left beside the link.
