@@ -134,29 +134,82 @@ test("Stitch's sheet on a phone is modal: Tab stays inside, a redraw keeps the f
     await (await frameOf(cardFrame)).waitForFunction(() => !!document.activeElement?.closest("[data-stitch-card]"));
   }));
 
-test("Kanbunny's panel takes the focus, keeps it through its two-step reset, and gives it back", { skip: skip || (!IDS.includes("kanbunny") && "no kanbunny"), timeout: 600_000 }, () =>
-  withAll({}, async ({ page, base }) => {
+/** Kanbunny's hit box on the panel's edge (the host's box takes the keyboard): focused, Enter opens its panel. */
+const openKanbunny = async page => {
+  const hit = page.locator('[data-module-slot="panel-edge"] [data-module="kanbunny"][role="button"][tabindex="0"]');
+  await hit.waitFor({ state: "attached", timeout: 30_000 });
+  await page.waitForTimeout(1500);
+  await hit.focus();
+  await page.keyboard.press("Enter");
+  // It asks for the wide panel: the host's centered dialog (the whole screen on a phone).
+  const sheet = moduleSheet(page, "Kanbunny").and(page.locator('[data-sheet-size="wide"]'));
+  await sheet.waitFor();
+  const sheetFrame = sheet.locator('iframe[data-module-frame="view"]');
+  const inside = await frameOf(sheetFrame);
+  const panel = inside.locator("[data-kanbunny-panel]");
+  await panel.waitFor();
+  await focusOn(page, sheetFrame);
+  return { hit, sheet, sheetFrame, inside, panel };
+};
+const near = (a, b, what) => assert.ok(Math.abs(a - b) <= 1.5, `${what}: ${a} ≈ ${b}`);
+
+test("Kanbunny's wide panel on a desktop: a centered dialog of its size, focus kept through the Diary's two-step reset, Escape gives it back", { skip: skip || (!IDS.includes("kanbunny") && "no kanbunny"), timeout: 600_000 }, () =>
+  withAll({ viewport: { width: 1440, height: 900 } }, async ({ page, base }) => {
     await page.goto(base + "/");
-    // The host's box takes the keyboard: one named button over the bunny's shape.
-    const hit = page.locator('[data-module-slot="panel-edge"] [data-module="kanbunny"][role="button"][tabindex="0"]');
-    await hit.waitFor({ state: "attached", timeout: 30_000 });
-    await page.waitForTimeout(1500);
-    await hit.focus();
-    await page.keyboard.press("Enter");
-    const sheet = moduleSheet(page, "Kanbunny");
-    await sheet.waitFor();
-    const sheetFrame = sheet.locator('iframe[data-module-frame="view"]');
-    const inside = await frameOf(sheetFrame);
-    const panel = inside.locator("[data-kanbunny-panel]");
-    await panel.waitFor();
-    await focusOn(page, sheetFrame);
-    assert.equal(await sheet.evaluate(el => el.contains(document.activeElement)), true, "focus moved into the sheet");
+    const { hit, sheet, sheetFrame, inside, panel } = await openKanbunny(page);
+    assert.equal(await sheet.evaluate(el => el.contains(document.activeElement)), true, "focus moved into the dialog");
+    assert.equal(await sheet.getAttribute("aria-modal"), "true", "modal");
+    assert.equal(await pagePointerShut(page), true, "the page behind takes no pointer");
+    // Centered, min(64rem, 94vw) × min(48rem, 90dvh), measured once its zoom-in is over.
+    await settled(page);
+    const vp = page.viewportSize();
+    const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+    const box = await sheet.boundingBox();
+    near(box.width, Math.min(64 * rem, 0.94 * vp.width), "width");
+    near(box.height, Math.min(48 * rem, 0.9 * vp.height), "height");
+    near(box.x + box.width / 2, vp.width / 2, "centered across");
+    near(box.y + box.height / 2, vp.height / 2, "centered down");
+    // The frame fills the dialog under its header.
+    const frame = await sheetFrame.boundingBox();
+    const header = await sheet.locator('[data-slot="dialog-header"]').boundingBox();
+    near(frame.y, header.y + header.height, "frame right under the header");
+    near(frame.y + frame.height, box.y + box.height - 1, "frame down to the bottom");
+    near(frame.width, box.width - 2, "frame across");
+    // Start over is in the Diary tab.
+    await inside.getByRole("tab", { name: "Diary" }).click();
     const restart = panel.getByRole("button", { name: "Start over…" });
     await restart.focus();
     await page.keyboard.press("Enter");
     await panel.getByRole("button", { name: /^Sure\?/ }).waitFor();
-    assert.equal(await sheetFrame.evaluate(el => el === document.activeElement), true, "the host's focus on the sheet's frame");
+    assert.equal(await sheetFrame.evaluate(el => el === document.activeElement), true, "the host's focus on the dialog's frame");
     assert.equal(await inside.evaluate(() => document.activeElement?.textContent ?? ""), "Sure? A new egg hatches", "focus stays on the reset button");
+    await page.keyboard.press("Escape");
+    await sheet.waitFor({ state: "hidden" });
+    await focusOn(page, hit);
+  }));
+
+test("Kanbunny's wide panel on a phone: the whole screen, nothing wider than it, a 44 px close, Escape gives the focus back", { skip: skip || (!IDS.includes("kanbunny") && "no kanbunny"), timeout: 600_000 }, () =>
+  withAll({ viewport: { width: 390, height: 844 } }, async ({ page, base }) => {
+    await page.goto(base + "/");
+    const { hit, sheet, inside } = await openKanbunny(page);
+    assert.equal(await sheet.getAttribute("aria-modal"), "true", "modal");
+    await settled(page);
+    const box = await sheet.boundingBox();
+    assert.deepEqual([box.x, box.y, box.width, box.height].map(Math.round), [0, 0, 390, 844], "the whole screen");
+    // Over the tab bar: what is drawn where the bar is, is the dialog's.
+    const overBar = await page.evaluate(() => {
+      const r = document.querySelector("[data-tab-bar]")?.getBoundingClientRect();
+      if (!r || !r.height) return "no tab bar";
+      return !!document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('[data-sheet-size="wide"]');
+    });
+    assert.equal(overBar, true, "the dialog covers the tab bar");
+    const close = sheet.getByRole("button", { name: "Close" });
+    const c = await close.boundingBox();
+    assert.ok(c.width >= 44 && c.height >= 44, `close is ${c.width}×${c.height}`);
+    // No sideways scroll, in the page nor in the module's frame.
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "the page fits");
+    assert.equal(await sheet.evaluate(el => el.scrollWidth <= el.clientWidth), true, "the dialog fits");
+    assert.equal(await inside.evaluate(() => document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll("[data-kanbunny-panel] *")].every(e => e.getBoundingClientRect().right <= innerWidth + 0.5 || e.closest(".kb-sr"))), true, "the panel fits its frame");
     await page.keyboard.press("Escape");
     await sheet.waitFor({ state: "hidden" });
     await focusOn(page, hit);

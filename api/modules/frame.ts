@@ -339,10 +339,11 @@ async function start(init, port) {
     // The control that opened the sheet: the host hands the focus back to this frame, the frame to it (once).
     let opener = null;
     host.sheet = {
-      open: () => {
+      // { size: "wide" }: a centered dialog (the whole screen on a phone); anything else the side sheet.
+      open: (opts) => {
         const at = document.activeElement;
         opener = at && at !== document.body ? at : null;
-        fire("sheet.open");
+        fire("sheet.open", opts && opts.size === "wide" ? [{ size: "wide" }] : []);
       },
       close: () => fire("sheet.close"),
     };

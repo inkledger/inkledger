@@ -3,7 +3,7 @@ import { currentLocale } from "@/i18n";
 import { SURFACES } from "@/components/app/surface";
 import type { Hub } from "../host";
 import type { HitDrag, ViewSlot } from "../hostV2";
-import { mobileMore, sheetOpen } from "./sheet";
+import { mobileMore, sheetOpen, type SheetSize } from "./sheet";
 import { frameMethods, type ViewBox } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
@@ -339,7 +339,7 @@ function openFrame(
   const served = frameMethods(api, cas, box, budgetOf(entry.id), { moduleId: entry.id, store: moduleSessions }, gesture);
   const sheet = {
     // From a view (a runtime has no gesture of its own): its box, or the focused one, gets the focus back.
-    open: (id: string, from?: HTMLElement | null) => sheetOpen.open(id, from ?? focusedBox(id)),
+    open: (id: string, from?: HTMLElement | null, size?: SheetSize) => sheetOpen.open(id, from ?? focusedBox(id), size),
     // A sheet view going (its cleanup may still run) never closes the sheet opened again meanwhile.
     close: (id: string) => void (slot === "sheet" && role === "view" && stopped ? null : sheetOpen.close(id)),
   };

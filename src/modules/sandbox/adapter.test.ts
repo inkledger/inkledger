@@ -517,6 +517,24 @@ describe("the frame's host API (bootstrap)", () => {
     expect(sheetOpen.get()).toBeNull();
   });
 
+  it("sheet: the bootstrap passes { size: \"wide\" } on, anything else opens the side sheet", async () => {
+    sheetOpen.close();
+    withModule(["sheet"], (_el, host) => host.sheet?.open({ size: "wide" }));
+    await settle();
+    expect([sheetOpen.get(), sheetOpen.size()]).toEqual(["m", "wide"]);
+    sheetOpen.close();
+    // Kept as it closes (the dialog fading out stays a dialog).
+    expect(sheetOpen.size()).toBe("wide");
+    withModule(["sheet"], (_el, host) => host.sheet?.open());
+    await settle();
+    expect([sheetOpen.get(), sheetOpen.size()]).toEqual(["m", "side"]);
+    sheetOpen.close();
+    withModule(["sheet"], (_el, host) => host.sheet?.open({ size: "huge" } as unknown as { size: "wide" }));
+    await settle();
+    expect([sheetOpen.get(), sheetOpen.size()]).toEqual(["m", "side"]);
+    sheetOpen.close();
+  });
+
   it("sheet: closed, the focus the host gives back to the frame goes on to the control that opened it", async () => {
     sheetOpen.close();
     let focused = 0;

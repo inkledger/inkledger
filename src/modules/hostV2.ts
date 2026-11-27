@@ -203,7 +203,7 @@ type Capabilities = {
    * in it closes it; closed, the focus goes back to the opening view's box (its host button,
    * else its frame).
    */
-  sheet?: { open(): void; close(): void };
+  sheet?: { open(opts?: { size?: "side" | "wide" }): void; close(): void };
   /** "share", "download", "open-image": brokered, need the person's gesture in this view (a click, or a key once they put the focus there) in the last five seconds. */
   share?(file: Blob, name: string): Promise<boolean>;
   download?(file: Blob, name: string): Promise<void>;

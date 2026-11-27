@@ -12,6 +12,7 @@ import type { createInfoSource } from "./info";
 import { anchorsAround, type AnchorPage, type createPageEvents, type SignalPage } from "./anchors";
 import type { createLayoutChangedFeed, createLayoutFeed, createPointerFeed } from "./feeds";
 import type { createModuleCache } from "./cache";
+import type { SheetSize } from "./sheet";
 
 /**
  * The host API members a framed module gets only with their capability
@@ -47,7 +48,7 @@ export type CapabilityDeps = {
   /** The app's look (tokens stylesheet) on every theme change, and its fonts once loaded. */
   look: { watch(push: (css: string) => void): () => void; fonts(): Promise<string | null> };
   /** `from`: the opener's box (a view's), where the focus returns as the sheet closes. */
-  sheet: { open(moduleId: string, from?: HTMLElement | null): void; close(moduleId: string): void };
+  sheet: { open(moduleId: string, from?: HTMLElement | null, size?: SheetSize): void; close(moduleId: string): void };
   /** The phone's More sheet, closed from a module row in it. */
   more?: { close(): void };
 };
@@ -152,14 +153,15 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
       run: ([f, name]) => d.broker.downloadLarge(f, name),
     }),
     openImage: method({ args: z.tuple([picture]), cap: "open-image", rate: [1, 2], run: ([f]) => d.broker.openImage(f) }),
+    // Optionally how: { size: "wide" } (a centered dialog) or "side", the default; any other key refused.
     "sheet.open": method({
-      args: z.tuple([]),
+      args: z.tuple([z.object({ size: z.enum(["side", "wide"]) satisfies z.ZodType<SheetSize> }).strict().optional()]),
       cap: "sheet",
       rate: [1, 2],
-      run() {
+      run([opts]) {
         // A dialog only on the person's gesture: never one that pops up by itself.
         if (!d.broker.active()) throw new Error("needs the person's gesture");
-        d.sheet.open(d.moduleId, d.view?.el ?? null);
+        d.sheet.open(d.moduleId, d.view?.el ?? null, opts?.size ?? "side");
       },
     }),
     "sheet.close": method({ args: z.tuple([]), cap: "sheet", rate: [2, 4], run: () => d.sheet.close(d.moduleId) }),

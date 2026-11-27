@@ -63,6 +63,35 @@ describe("capabilities, held by the host", () => {
     expect(res.slice(2)).toEqual([null, "cache: signed out"]);
   });
 
+  it("sheet.open: no argument is the side sheet, { size } side or wide, any other value or key refused", async () => {
+    const res: unknown[] = [];
+    const opened: unknown[] = [];
+    // One peer per call: the method's own rate (two in a row) never refuses a case here.
+    const ask = async (a: unknown[]) => {
+      const { methods } = capabilityMethods({ ...deps, view: null, sheet: { open: (id: string, from?: HTMLElement | null, size?: string) => void opened.push([id, from, size]), close: unused } });
+      const frame = {};
+      const peer = createRpcPeer({ source: () => frame, post: m => m.t === "res" && res.push(m.ok ? "ok" : m.error), capabilities: ["sheet"], methods });
+      peer.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "sheet.open", a } });
+      await new Promise(r => setTimeout(r, 0));
+    };
+    await ask([]);
+    await ask([undefined]);
+    await ask([{ size: "side" }]);
+    await ask([{ size: "wide" }]);
+    await ask([{ size: "huge" }]);
+    await ask([{ size: "wide", modal: false }]);
+    await ask([{}]);
+    await ask(["wide"]);
+    await ask([{ size: "wide" }, 1]);
+    expect(res).toEqual(["ok", "ok", "ok", "ok", "bad-arguments", "bad-arguments", "bad-arguments", "bad-arguments", "bad-arguments"]);
+    expect(opened).toEqual([
+      ["m", null, "side"],
+      ["m", null, "side"],
+      ["m", null, "side"],
+      ["m", null, "wide"],
+    ]);
+  });
+
   it("a large file to save goes past the picture cap, only with its own capability", async () => {
     const saved: [number, string][] = [];
     const { methods } = capabilityMethods({ ...deps, broker: { ...deps.broker, downloadLarge: async (f: Blob, name: string) => void saved.push([f.size, name]) } });
