@@ -7,7 +7,7 @@ import { closeOverlay, collectionSwitch, layerChip, openPlanner, updatePeriods, 
 
 /** At least `expected` rows (exactly 0 when expected is 0), or the test fails: a timeout is never an answer. */
 async function waitForCount(db, table, expected) {
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 200; i++) {
     const [row] = await db.q(`SELECT count(*)::int AS n FROM ${table}`);
     if (expected === 0 ? row.n === 0 : row.n >= expected) return row.n;
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -24,9 +24,12 @@ test("FlowMap is opt-in, exports only aggregates and deletes all derived data", 
     // The collector's code comes after the page (a lazy chunk): until it is in, a full page load away would take
     // the held clicks with it. Wait for it, not for a guessed time (a loaded CI machine fetches it late).
     await page.waitForFunction(() => performance.getEntriesByType("resource").some(e => /\/assets\/collector-[^/]+\.js/.test(e.name)));
+    // Loaded is not started: the collector starts once the settings it reads are in (no request left in flight).
+    await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Customize dashboard", exact: true }).click();
     await page.keyboard.press("Escape");
-    // Exposures count after a second on screen; leaving the page then sends them (pagehide beacon).
+    // Exposures count after a second on screen; leaving the page then sends them (pagehide beacon,
+    // which the browser sends after the page is gone: the rows are awaited below, up to 20 s).
     await page.waitForTimeout(1_300);
     await page.goto(`${base}/settings/workspace`);
     assert.ok(await waitForCount(db, "workspace_flow_events", 1) > 0, "the real collector recorded an allowlisted interaction");
