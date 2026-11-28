@@ -39,6 +39,24 @@ describe("searches kept, and keys or links pasted", () => {
     other = await as(o.id);
   });
 
+  it("keeps the order searches were run in, even within one millisecond", async () => {
+    // The clock stands still: every search runs in the same millisecond.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-20T10:00:00Z"));
+    try {
+      for (const w of ["same-a", "same-b", "same-c"]) await other.queries.used({ query: w });
+      await other.queries.used({ query: "same-a" });
+      const { q } = await import("../queries/connection");
+      const rows = await q<{ query: string; used_at: string }>("SELECT query, used_at FROM recent_queries WHERE query LIKE 'same-%' ORDER BY used_at");
+      // Each a step after the one before, in the order they were run: never a tie to be read either way.
+      expect(rows.map((r) => r.query)).toEqual(["same-b", "same-c", "same-a"]);
+      expect(new Set(rows.map((r) => String(r.used_at))).size).toBe(3);
+      expect((await other.queries.list()).recent.slice(0, 3)).toEqual(["same-a", "same-c", "same-b"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps searches in English, the last ten used, saved ones by name (a name used again overwrites)", async () => {
     expect((await caller.queries.used({ query: "progetto:APP assegnata:io" })).query).toBe("project:APP assignee:me");
     for (let i = 0; i < 12; i++) await caller.queries.used({ query: `word${i}` });
