@@ -20,7 +20,7 @@ JIRA_READ_ONLY=1; mods stay 1.0.0; never `pnpm build` in inkledger-modules (it s
   44 px tap areas, Reports mobile sort + entry label.
 - [x] UX-D (6c92e37): localized back hint and platform keys, toaster labels, trash copy, settings
   synonyms, docs/dev/ux-patterns.md. README screenshots NOT regenerated: studio's reseed writes
-  inkledger_demo in the jtt-db Postgres (prod instance) — left to the user.
+  inkledger_demo in the old stack's Postgres (prod instance) — left to the user.
 - [x] f33b8a7: live timer controls inside the day chart just past midnight; weekday-independent tests.
 
 ## Mods (app side)

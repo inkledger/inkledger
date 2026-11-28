@@ -15,7 +15,7 @@ Migrations run at start. Backups are scheduled from **Settings → Backup** and 
 
 ## Local stack updates and CI deployment
 
-`deploy/staging.yml` runs the local stack on `http://127.0.0.1:47824`, beside the legacy `jtt` stack. `pnpm docker:update` dumps its database, builds the current checkout, swaps only the app container and rolls back the image and database if the health check fails. Use `pnpm docker:update --dry-run` to inspect the operation or `--rehearse-rollback` to test recovery.
+`deploy/staging.yml` runs the local stack on `http://127.0.0.1:47824`. `pnpm docker:update` dumps its database, builds the current checkout, swaps only the app container and rolls back the image and database if the health check fails. Use `pnpm docker:update --dry-run` to inspect the operation or `--rehearse-rollback` to test recovery.
 
 Releases and deployment run **only on version tags**, never on a push or merge to `main`. Set the version in `package.json`, commit it, then tag that exact commit (`v1.2.3` for version `1.2.3`) and push the tag. CI rejects a tag that does not match the package version.
 

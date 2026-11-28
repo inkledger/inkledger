@@ -54,7 +54,7 @@ Answers to open questions go under each Q in its doc, with the date. The loop re
   - numbers MUST be `.int()` and bounded;
   - ids are `z.number().int().positive()`.
 - **R-0.10**
-  - Nothing in these docs may push, deploy (app or Worker), touch the `jtt` stack or the prod/staging containers, write to real trackers or mailboxes, sign licences, or clear caches.
+  - Nothing in these docs may push, deploy (app or Worker), touch the prod/staging containers, write to real trackers or mailboxes, sign licences, or clear caches.
   - Tests and e2e always run with `PROVIDERS_READ_ONLY=1`.
 - **R-0.11** These MUST NOT change from the starting state of a batch, except where the batch says otherwise:
   - the render budget (`e2e/renders.test.mjs`);
@@ -114,7 +114,7 @@ EACH ITERATION
 5. Review the full diff: no stray files, no `any`/@ts-ignore, no lint silenced, no limits of existing tests changed, every AC of the batch has its test. Local commit `type(scope): desc` ≤ 50 characters, the repository's git identity, no trailer.
 6. Update LOOP.md (state, commit, commands → outcome) and the doc (Status, batch checkbox, decisions found in the code), in the same commit.
 
-NEVER: push, deploy (app, Worker/wrangler, images), touch the jtt stack or the prod/staging containers and volumes, write to real trackers or mailboxes, sign or self-sign licences, clear caches, install global tools, change test limits to make them pass.
+NEVER: push, deploy (app, Worker/wrangler, images), touch the prod/staging containers and volumes, write to real trackers or mailboxes, sign or self-sign licences, clear caches, install global tools, change test limits to make them pass.
 
 END: when no `todo` batches remain, write at the top of LOOP.md and in chat: batches done (commits), blocked ones with their exact question, what the user must do (answer the Qs in the docs, review, push). Then stop the loop.
 ```
