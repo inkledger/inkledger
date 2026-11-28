@@ -37,7 +37,7 @@ export function useFocusClearOfBars() {
     const onFocus = (event: FocusEvent) => {
       const el = event.target;
       if (!(el instanceof HTMLElement) || el.closest("[data-chrome], [data-sticky-pane], [role=dialog], [role=alertdialog], [data-radix-popper-content-wrapper]")) return;
-      requestAnimationFrame(() => {
+      const clear = () => {
         const rect = el.getBoundingClientRect();
         if (rect.height === 0) return;
         let top = 0;
@@ -53,7 +53,33 @@ export function useFocusClearOfBars() {
         const main = document.getElementById("main");
         if (main && main.contains(el) && main.scrollHeight > main.clientHeight + 1) main.scrollBy({ top: delta });
         else window.scrollBy({ top: delta });
+      };
+      requestAnimationFrame(clear);
+      // Content settling after the focus (a tracker's comments arriving above it on a slow network) can push
+      // the control under a bar again: while it keeps the keyboard's focus, for a few seconds, it is brought
+      // clear again. Never under a finger or a pointer (a drag changes the layout as it goes: the page must hold
+      // still), so only for a keyboard focus, and not after any pointer goes down.
+      const page = document.getElementById("main");
+      if (!page || !page.contains(el) || typeof ResizeObserver === "undefined" || !el.matches(":focus-visible")) return;
+      let frame = 0;
+      const ro = new ResizeObserver(() => {
+        if (document.activeElement !== el || !el.matches(":focus-visible")) return stop();
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(clear);
       });
+      const timer = setTimeout(() => stop(), 4000);
+      const stop = () => {
+        ro.disconnect();
+        clearTimeout(timer);
+        cancelAnimationFrame(frame);
+        el.removeEventListener("blur", stop);
+        document.removeEventListener("pointerdown", stop, true);
+      };
+      el.addEventListener("blur", stop);
+      document.addEventListener("pointerdown", stop, true);
+      // The panel grows with its content on a phone; on a desktop it scrolls and its content grows inside.
+      ro.observe(page);
+      if (page.firstElementChild) ro.observe(page.firstElementChild);
     };
     document.addEventListener("focusin", onFocus);
     return () => document.removeEventListener("focusin", onFocus);
