@@ -25,6 +25,19 @@ function flowCell(clientX: number, clientY: number, rect: FlowClick["block"]): {
   };
 }
 
+/** Collections running on this page, per surface (a restart can overlap the one it replaces). */
+const running = new Map<string, number>();
+
+/** Says on the page which surfaces collect now (their clicks count from here on): what a test syncs on. */
+function markRunning(surfaceId: string, delta: 1 | -1): void {
+  const count = (running.get(surfaceId) ?? 0) + delta;
+  if (count > 0) running.set(surfaceId, count);
+  else running.delete(surfaceId);
+  const surfaces = [...running.keys()].sort().join(" ");
+  if (surfaces) document.documentElement?.setAttribute("data-flowmap", surfaces);
+  else document.documentElement?.removeAttribute("data-flowmap");
+}
+
 export function startFlowCollection(options: FlowCollectionOptions): (stop?: { optedOut?: boolean }) => void {
   const { scope, descriptor, clientInstanceId, presentationEpoch, activationId, send, early = [] } = options;
   let queue: FlowEvent[] = [];
@@ -223,6 +236,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
   window.addEventListener("pagehide", pageHide);
   for (const read of early) activate(read, true);
   observeAnchors();
+  markRunning(scope.surfaceId, 1);
   // One scan per frame however many nodes change (typing, a drag, a long list): never per mutation.
   let scan: number | undefined;
   const scheduleScan = () => {
@@ -237,6 +251,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
   return ({ optedOut = false } = {}) => {
     // What was collected still goes when the page or layout changes; after an opt-out not even a request leaves.
     if (!optedOut) beacon();
+    if (!stopped) markRunning(scope.surfaceId, -1);
     stopped = true;
     clearSchedule();
     observer.disconnect();

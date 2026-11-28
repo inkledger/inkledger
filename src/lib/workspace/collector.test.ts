@@ -44,7 +44,9 @@ class ElementMock {
 }
 
 function setup(send: FlowCollectionOptions["send"], early?: FlowCollectionOptions["early"]) {
-  const document = Object.assign(new EventTargetMock(), { hidden: false, body: {}, querySelectorAll: () => [] });
+  const attributes = new Map<string, string>();
+  const documentElement = { setAttribute: (name: string, value: string) => attributes.set(name, value), removeAttribute: (name: string) => attributes.delete(name), getAttribute: (name: string) => attributes.get(name) ?? null };
+  const document = Object.assign(new EventTargetMock(), { hidden: false, body: {}, documentElement, querySelectorAll: () => [] });
   const window = new EventTargetMock();
   vi.stubGlobal("document", document);
   vi.stubGlobal("window", window);
@@ -73,6 +75,15 @@ afterEach(() => {
 });
 
 describe("FlowMap collection delivery", () => {
+  it("marks the page while it collects, and only while it does", () => {
+    const { document, stop } = setup(() => Promise.resolve());
+    expect(document.documentElement.getAttribute("data-flowmap")).toBe("dashboard");
+    stop();
+    expect(document.documentElement.getAttribute("data-flowmap")).toBeNull();
+    stop();
+    expect(document.documentElement.getAttribute("data-flowmap")).toBeNull();
+  });
+
   it("keeps batches bounded when events arrive during a slow send", async () => {
     const sends: FlowEvent[][] = [];
     let release!: () => void;
