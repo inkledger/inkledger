@@ -19,8 +19,8 @@ const APP = "inkledger";
 const DB = "inkledger-db";
 const HEALTH = "http://127.0.0.1:47824/api/health";
 const BACKUPS = process.env.INKLEDGER_BACKUP_DIR ?? join(homedir(), "Backups/inkledger");
-// The dev database lives in the old stack's Postgres: only read from, with pg_dump.
-const DEV_PG = process.env.DEV_PG_CONTAINER ?? "jtt-db";
+// The Postgres container holding the dev database: only read from, with pg_dump.
+const DEV_PG = process.env.DEV_PG_CONTAINER ?? DB;
 const args = new Set(process.argv.slice(2));
 const dry = args.has("--dry-run");
 if (!dry && !args.has("--yes")) {
@@ -31,7 +31,8 @@ if (!dry && !args.has("--yes")) {
 const devUrl = new URL(/^DATABASE_URL=(.+)$/m.exec(readFileSync(join(ROOT, ".env"), "utf8"))?.[1].trim() ?? "");
 const devDb = devUrl.pathname.slice(1);
 const devUser = decodeURIComponent(devUrl.username);
-if (!devDb || devDb === "jtt") throw new Error(`docker-from-dev: refusing to read database "${devDb}" (not a dev database)`);
+// Never the stack's own database: it is the one this script replaces.
+if (!devDb || (DEV_PG === DB && devDb === "inkledger")) throw new Error(`docker-from-dev: refusing to read database "${devDb}" (not a dev database)`);
 
 function run(cmd, argv, opts = {}) {
   console.log(`$ ${cmd} ${argv.join(" ")}${opts.in ? ` < ${opts.in}` : ""}${opts.out ? ` > ${opts.out}` : ""}`);

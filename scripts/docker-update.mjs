@@ -2,7 +2,6 @@
 // Updates the inkledger Docker stack (deploy/staging.yml): backs up its database,
 // builds this checkout (or pulls INKLEDGER_RELEASE_IMAGE), swaps the app container
 // and waits for it to be healthy, rolling back to the previous image if it is not.
-// The old jtt stack is never touched.
 //
 //   pnpm docker:update              backup + build + swap
 //   pnpm docker:update --dry-run    print the steps, change nothing
@@ -13,10 +12,9 @@
 // (it refuses a newer schema): the database goes back to this run's dump first. Without a
 // dump the script stops there and says how to recover, never claiming a rollback.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, openSync, closeSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, closeSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { jttDatabaseUrl } from "./docker-guard.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PROJECT = "inkledger";
@@ -31,13 +29,7 @@ const RELEASE_IMAGE = process.env.INKLEDGER_RELEASE_IMAGE;
 const args = new Set(process.argv.slice(2));
 const dry = args.has("--dry-run");
 
-// The old stack's names: this script must never reach them.
-for (const name of [PROJECT, APP, DB, IMAGE]) {
-  if (/^jtt/.test(name)) throw new Error(`docker-update: refusing to touch ${name}`);
-}
 if (!existsSync(ENV_FILE)) throw new Error(`docker-update: ${ENV_FILE} is missing (see .env.example)`);
-// Nor through the env file: a database URL naming the old stack's database or host.
-if (jttDatabaseUrl(readFileSync(ENV_FILE, "utf8"))) throw new Error(`docker-update: ${ENV_FILE} points DATABASE_URL at the jtt stack: refusing`);
 
 const out = (cmd, argv) => spawnSync(cmd, argv, { cwd: ROOT, encoding: "utf8" }).stdout?.trim() ?? "";
 function run(cmd, argv, opts = {}) {

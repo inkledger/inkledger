@@ -1,4 +1,4 @@
-# The inkledger stack beside the old jtt one: its own ports, database and volumes.
+# The inkledger stack on this machine: its own ports, database and volumes.
 # Updated by `pnpm docker:update`, which builds the image first (so no `build:` here).
 # Secrets: INKLEDGER_ENV_FILE,
 # default ../.env.inkledger (see .env.example).
