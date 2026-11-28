@@ -27,6 +27,7 @@ import { useHotkeys, useMouseHistoryButtons } from "@/hooks/useHotkeys";
 import { useOpenBeside } from "@/hooks/useOpenBeside";
 import { DeskDropTarget } from "@/components/desk/DeskDropTarget";
 import { useLiveSync } from "@/hooks/useLiveSync";
+import { useChatAlerts } from "@/components/chat/useChatAlerts";
 import { useTimerAlerts } from "@/hooks/useTimerAlerts";
 import { useNativeBridge } from "@/hooks/useNativeBridge";
 import { isNative } from "@/lib/native";
@@ -697,6 +698,7 @@ function MobileBell() {
 function ShellWatchers() {
   useTimerAlerts();
   useLiveSync();
+  useChatAlerts();
   useNativeBridge();
   useDayEndReminder();
   useNotificationAlerts();

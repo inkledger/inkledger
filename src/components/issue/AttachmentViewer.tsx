@@ -50,6 +50,7 @@ export function AttachmentViewer({
   onIndex,
   onClose,
   connectionId,
+  srcOf,
 }: {
   items: ViewerAttachment[];
   /** The connection of the issue the attachments are on */
@@ -57,9 +58,11 @@ export function AttachmentViewer({
   index: number | null;
   onIndex: (i: number) => void;
   onClose: () => void;
+  /** Where an item's bytes are (a chat's files); a tracker attachment's address by default. */
+  srcOf?: (a: ViewerAttachment) => string;
 }) {
   const a = index !== null ? items[index] : undefined;
-  const src = a ? attachmentUrl(a.id, "content", connectionId) : "";
+  const src = a ? (srcOf ? srcOf(a) : attachmentUrl(a.id, "content", connectionId)) : "";
   const kind = a ? previewKind(a.mimeType) : null;
   const go = (d: number) => {
     if (index === null || items.length < 2) return;

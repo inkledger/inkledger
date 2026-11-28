@@ -148,6 +148,18 @@ async function boundFor(user: User, key: string, connectionId?: number) {
   return boundOn(user, key, await issueConnection(user.id, key, connectionId));
 }
 
+/**
+ * A comment on the issue, written on its tracker as the user (Markdown, converted for it); the
+ * issue is seen once commented. Shared by the issue's composer and "publish" from a chat.
+ */
+export async function addIssueComment(user: User, key: string, text: string, connectionId?: number): Promise<{ id: string }> {
+  const { b, ref, conn } = await boundFor(user, key, connectionId);
+  if (!b.comments?.add) throw cannotManage(conn.type);
+  const added = await providerCall(() => b.comments!.add!(callMeta(), ref, markdown(text), { idempotencyKey: randomUUID() }));
+  await markSeen(user.id, key, conn.id);
+  return { id: added.comment?.id ?? "" };
+}
+
 async function trackerFor(user: User, key: string, connectionId?: number) {
   const found = await boundFor(user, key, connectionId);
   if (!found.b.transitions?.list || !found.b.transitions.apply) {
@@ -642,13 +654,7 @@ export const issuesRouter = createRouter({
 
   addComment: protectedProcedure
     .input(z.object({ ...onConnection, key: issueKeyInput, text: z.string().trim().min(1).max(10_000) }))
-    .mutation(async ({ ctx, input }) => {
-      const { b, ref, conn } = await boundFor(ctx.user, input.key, input.connectionId);
-      if (!b.comments?.add) throw cannotManage(conn.type);
-      const added = await providerCall(() => b.comments!.add!(callMeta(), ref, markdown(input.text), { idempotencyKey: randomUUID() }));
-      await markSeen(ctx.user.id, input.key, conn.id);
-      return { id: added.comment?.id ?? "" };
-    }),
+    .mutation(({ ctx, input }) => addIssueComment(ctx.user, input.key, input.text, input.connectionId)),
 
   /** Attachment metadata; content is served by GET /api/attachments/:id/:kind. */
   attachments: protectedProcedure

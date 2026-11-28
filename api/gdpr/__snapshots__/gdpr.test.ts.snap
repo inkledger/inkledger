@@ -24,6 +24,14 @@ exports[`exporting a person's data > is a ZIP of every table of theirs, their ro
       "rows": 1,
     },
     {
+      "name": "data/chat_members.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/chat_reactions.json",
+      "rows": 1,
+    },
+    {
       "name": "data/client_containers.json",
       "rows": 1,
     },
@@ -309,6 +317,10 @@ exports[`exporting a person's data > is a ZIP of every table of theirs, their ro
     },
     {
       "name": "data/workspace_revisions.json",
+      "rows": 1,
+    },
+    {
+      "name": "chat.json",
       "rows": 1,
     },
     {

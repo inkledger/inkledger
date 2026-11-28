@@ -56,14 +56,18 @@ export function registerEventRoutes(app: Hono<{ Bindings: HttpBindings }>) {
           id: lastId && missed ? lastId : `${RUN}:${lastSeq(userId)}`,
           data: JSON.stringify({ build: serverBuild() ?? null, serverNow: Date.now(), resync: missed === null } satisfies Hello),
         });
-        const queued = new Set(queue.map(s => s.seq));
+        const queued = new Set(queue.filter(s => !s.ephemeral).map(s => s.seq));
         queue.push(...(missed ?? []).filter(s => !queued.has(s.seq)));
         queue.sort((a, b) => a.seq - b.seq);
         while (!stream.aborted && !stream.closed) {
           // What arrived while writing goes out before waiting again.
           if (queue.length > 0) {
             if (!(await signedIn())) break;
-            for (const s of queue.splice(0)) await stream.writeSSE({ event: s.e.type, id: `${RUN}:${s.seq}`, data: JSON.stringify(s.origin ? { ...s.e, origin: s.origin } : s.e) });
+            for (const s of queue.splice(0)) {
+              const data = JSON.stringify(s.origin ? { ...s.e, origin: s.origin } : s.e);
+              // Ephemeral: no id, so the page's last id (what it catches up from) stays where it was.
+              await stream.writeSSE(s.ephemeral ? { event: s.e.type, data } : { event: s.e.type, id: `${RUN}:${s.seq}`, data });
+            }
           }
           let keepalive: ReturnType<typeof setTimeout> | undefined;
           const next = await Promise.race([

@@ -17,6 +17,8 @@ import { purgeIdleModuleFiles } from "./modules/files";
 import { purgeTrash } from "./queries/trash";
 import { registerAttachmentRoutes, UPLOAD_MAX_BYTES } from "./attachments";
 import { registerIdeaFileRoutes } from "./ideaFiles";
+import { registerChatFileRoutes } from "./chat/files";
+import { CHAT_FILE_MAX_BYTES } from "@contracts/chat";
 import { IDEA_FILE_MAX_BYTES } from "@contracts/ideaFiles";
 import { registerDownloadRoutes } from "./downloads";
 import { registerModuleRoutes } from "./modules/routes";
@@ -63,6 +65,7 @@ import { registerOpsRoutes } from "./ops/routes";
 import { registerSsoRoutes } from "./sso/routes";
 import { registerScimRoutes } from "./scim/routes";
 import { purgeSsoStates } from "./sso/store";
+import { purgeChat } from "./chat/purge";
 
 // Connect and migrate before answering anything (Postgres; PGlite in tests).
 await initDb();
@@ -117,6 +120,11 @@ const feedbackShotBody = bodyLimit({
   maxSize: FEEDBACK_SCREENSHOT_MAX_BYTES + 64 * 1024,
   onError: (c) => c.json({ error: t("server.feedback.screenshotTooLarge", { mb: 1 }) }, 413),
 });
+// A file into a chat (contracts/chat.ts), with room for the multipart around it.
+const chatFileBody = bodyLimit({
+  maxSize: CHAT_FILE_MAX_BYTES + 64 * 1024,
+  onError: (c) => c.json({ error: t("server.chat.fileTooLargeAny", { mb: CHAT_FILE_MAX_BYTES / 1024 / 1024 }) }, 413),
+});
 const uploadBody = bodyLimit({
   maxSize: UPLOAD_MAX_BYTES,
   onError: (c) => c.json({ error: t("server.attachments.tooLarge") }, 413),
@@ -137,6 +145,8 @@ app.use((c, next) =>
     ? ideaFileBody(c, next)
     : c.req.method === "POST" && /^\/api\/feedback\/\d+\/screenshot$/.test(c.req.path)
     ? feedbackShotBody(c, next)
+    : c.req.method === "POST" && /^\/api\/chat\/\d+\/files$/.test(c.req.path)
+    ? chatFileBody(c, next)
     : c.req.method === "POST" && c.req.path === `${MODULES_PATH}/upload`
       ? moduleBody(c, next)
       : smallBody(c, next),
@@ -216,6 +226,7 @@ registerHookRoutes(app);
 registerOutlookRoutes(app);
 registerCopyRoutes(app);
 registerIdeaFileRoutes(app);
+registerChatFileRoutes(app);
 registerEventRoutes(app);
 registerDeskChatRoutes(app);
 registerAuditRoutes(app);
@@ -263,7 +274,7 @@ if (env.isProduction || env.serveBuild) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit(), purgeSsoStates(), runFeedbackSync()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit(), purgeSsoStates(), purgeChat(), runFeedbackSync()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;

@@ -2233,6 +2233,171 @@ export const feedbackComments = pgTable(
   ],
 );
 
+
+/**
+ * A chat about an issue between teammates on this server (contracts/chat.ts). Every user keeps
+ * their own copy of an issue, so a thread is anchored to the issue's identity on its tracker
+ * (type, base URL, the tracker's stable id), not to anyone's row; the key and the rest are a
+ * snapshot for lists, refreshed as members open it.
+ */
+export const chatThreads = pgTable(
+  "chat_threads",
+  {
+    id: serial("id").primaryKey(),
+    uid: uuid("uid").notNull().defaultRandom(),
+    /** Who opened it; null once their account is erased */
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    /** connections.type and connections.base_url (normalized) of the tracker it lives on */
+    trackerType: text("tracker_type").notNull(),
+    trackerBase: text("tracker_base").notNull(),
+    /** issues.jira_id on that tracker: stable when the issue moves */
+    issueRemoteId: text("issue_remote_id").notNull(),
+    issueKey: text("issue_key").notNull(),
+    issueTitle: text("issue_title").notNull().default(""),
+    issueStatus: text("issue_status").notNull().default(""),
+    /** The canonical category (StatusCategory) */
+    issueCategory: text("issue_category").notNull().default(""),
+    /** contracts/chat.ts CHAT_THREAD_STATES */
+    state: text("state").notNull().default("open"),
+    resolvedBy: integer("resolved_by").references(() => users.id, { onDelete: "set null" }),
+    resolvedAt: ms("resolved_at"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    lastMessageAt: ms("last_message_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("uq_chat_threads_uid").on(t.uid),
+    index("idx_chat_threads_issue").on(t.trackerType, t.trackerBase, t.issueRemoteId),
+    check("chat_threads_state", sql`${t.state} IN ('open', 'resolved')`),
+  ],
+);
+
+export type ChatThread = typeof chatThreads.$inferSelect;
+
+/** Who is in a thread, and what each of them keeps of it: where they read to, muted, pinned, archived. */
+export const chatMembers = pgTable(
+  "chat_members",
+  {
+    threadId: integer("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** contracts/chat.ts CHAT_ROLES */
+    role: text("role").notNull().default("member"),
+    joinedAt: ms("joined_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    /** Left the thread: it no longer reaches them */
+    leftAt: ms("left_at"),
+    /** chat_messages.id of the last message they read (0: none) */
+    lastReadId: integer("last_read_id").notNull().default(0),
+    muted: integer("muted").notNull().default(0),
+    pinned: integer("pinned").notNull().default(0),
+    archivedAt: ms("archived_at"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.threadId, t.userId] }),
+    index("idx_chat_members_user").on(t.userId, t.leftAt),
+    check("chat_members_role", sql`${t.role} IN ('owner', 'member')`),
+  ],
+);
+
+export type ChatMember = typeof chatMembers.$inferSelect;
+
+/** A thread's lines: what a member wrote (Markdown, with cards and files), or what happened (joined, resolved…). */
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: serial("id").primaryKey(),
+    threadId: integer("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    /** Who wrote it (or did what a system line says); null once their account is erased */
+    authorId: integer("author_id").references(() => users.id, { onDelete: "set null" }),
+    /** text | system */
+    kind: text("kind").notNull().default("text"),
+    body: text("body").notNull().default(""),
+    /** A system line's event (ChatSystemEvent as JSON) */
+    system: text("system"),
+    /** Cards (ChatRef[] as JSON): snapshots of what its writer chose to show */
+    refs: text("refs").notNull().default("[]"),
+    replyToId: integer("reply_to_id").references((): AnyPgColumn => chatMessages.id, { onDelete: "set null" }),
+    /** The sending page's id for it: a retry never writes it twice */
+    clientNonce: text("client_nonce"),
+    /** The tracker comment it was published as */
+    jiraCommentId: text("jira_comment_id"),
+    editedAt: ms("edited_at"),
+    /** Removed by its writer: the line stays (replies point at it), its words and files go */
+    deletedAt: ms("deleted_at"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_chat_messages_thread").on(t.threadId, t.id),
+    uniqueIndex("uq_chat_messages_nonce").on(t.authorId, t.clientNonce),
+    check("chat_messages_kind", sql`${t.kind} IN ('text', 'system')`),
+    check("chat_messages_body", sql`length(${t.body}) <= 10000`),
+  ],
+);
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+
+/** Files in a thread: uploaded while writing (no message yet), then sent with one. Sealed for their row. */
+export const chatFiles = pgTable(
+  "chat_files",
+  {
+    id: serial("id").primaryKey(),
+    threadId: integer("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    /** The message it went with; null while it waits to be sent */
+    messageId: integer("message_id").references(() => chatMessages.id, { onDelete: "cascade" }),
+    /** Who uploaded it; null once their account is erased */
+    uploaderId: integer("uploader_id").references(() => users.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    /** Read from the bytes when it came, never the browser's word */
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    /** A picture's size, read from its header (no layout shift while it loads) */
+    width: integer("width"),
+    height: integer("height"),
+    data: bytea("data").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_chat_files_thread").on(t.threadId),
+    index("idx_chat_files_message").on(t.messageId),
+    check("chat_files_name", sql`length(${t.name}) BETWEEN 1 AND 200`),
+  ],
+);
+
+export type ChatFile = typeof chatFiles.$inferSelect;
+
+/** Reactions to a message (contracts/chat.ts CHAT_REACTIONS), one of each per person. */
+export const chatReactions = pgTable(
+  "chat_reactions",
+  {
+    messageId: integer("message_id")
+      .notNull()
+      .references(() => chatMessages.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [primaryKey({ columns: [t.messageId, t.userId, t.emoji] }), index("idx_chat_reactions_user").on(t.userId)],
+);
 export const workspaceRevisions = pgTable("workspace_revisions", {
   id: text("id").notNull(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

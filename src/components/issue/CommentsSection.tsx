@@ -1,4 +1,6 @@
 import { MakeTodoButton } from "@/components/todo/MakeTodo";
+import { DiscussButton } from "@/components/chat/IssueChat";
+import { cn } from "@/lib/utils";
 import { firstLine } from "@/lib/todoDay";
 import { toastError, errorText } from "@/lib/errorText";
 import { useState } from "react";
@@ -147,8 +149,10 @@ export function CommentsSection({
                       {relativeTime(created, now)}
                       {c.edited && t("views.issue.comments.edited")}
                     </time>
+                    {connectionId && <span className="ml-auto" />}
+                    {connectionId && <DiscussButton issueKey={issueKey} connectionId={connectionId} comment={{ id: c.id, author: c.author, created: c.created, text: c.body }} />}
                     <MakeTodoButton
-                      className="ml-auto h-7"
+                      className={cn("h-7", !connectionId && "ml-auto")}
                       label={t("views.todos.fromCommentLabel")}
                       count={todosOf(c.id)}
                       initial={firstLine(c.body)}

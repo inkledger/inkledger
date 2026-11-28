@@ -30,7 +30,7 @@ import {
   Sparkles,
   MailPlus,
   MessageSquarePlus,
-  MessagesSquare,
+  MessagesSquare, MessageCircle,
 } from "lucide-react";
 import { CalendarDays } from "@/components/app/icons";
 import { useTheme } from "next-themes";
@@ -301,6 +301,7 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
         nav("nav:settings", "/settings", <SettingsIcon className="mr-2 h-4 w-4" />, t("ui.nav.settings")),
         nav("nav:info", "/info", <InfoIcon className="mr-2 h-4 w-4" />, t("ui.nav.info")),
         nav("nav:feedback", "/feedback", <MessagesSquare className="mr-2 h-4 w-4" />, t("ui.feedback.nav")),
+        nav("nav:chat", "/notifications?tab=chat", <MessageCircle className="mr-2 h-4 w-4" />, t("pages.chat.title")),
       ],
     },
     {

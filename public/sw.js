@@ -116,3 +116,21 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// A notification that says where it leads (data.url, a path of this app): a click brings the app
+// forward there, an open window first (it navigates itself), else a new one.
+self.addEventListener("notificationclick", (event) => {
+  const url = event.notification.data && event.notification.data.url;
+  event.notification.close();
+  if (typeof url !== "string" || !url.startsWith("/") || url.startsWith("//")) return;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+      if (open) {
+        open.postMessage({ type: "ikl-open", url });
+        return open.focus();
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

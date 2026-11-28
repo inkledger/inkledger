@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Suspense, lazy, useDeferredValue, useEffect, useRef, useState, type CSSProperties } from "react";
 import { NavigationType, useLocation, useNavigate, useNavigationType } from "react-router";
 import { ArrowUpRight, BellOff, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Mail, MailOpen, Play, RotateCcw } from "lucide-react";
 import {
@@ -31,6 +31,8 @@ import { Kbd } from "@/components/app/Kbd";
 import { KIND_STYLE, ago, reason } from "@/components/notifications/notificationKinds";
 import { TodoReminders } from "@/components/todo/TodoReminders";
 import { Button } from "@/components/ui/button";
+import { TabPanel, Tabs } from "@/components/ui/tabs";
+import { useChatUnread, useInboxCount } from "@/hooks/useNotifications";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useInbox, type InboxRow } from "@/hooks/useInbox";
@@ -48,6 +50,8 @@ import { createStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
+type Tab = "inbox" | "chat";
+const TABS: readonly Tab[] = ["inbox", "chat"];
 type View = { cat: NotificationCategory; state: InboxState; sel: string; open: Set<string>; detail: boolean };
 
 /**
@@ -77,7 +81,46 @@ const keptRead = createStore<{ filter: string; keys: ReadonlySet<string> }>({ fi
 
 type Group = InboxGroup<InboxRow>;
 
+/** The Chat tab's body: its own chunk, loaded when the tab is first opened. */
+const ChatInbox = lazy(() => import("@/components/chat/ChatInbox").then((m) => ({ default: m.ChatInbox })));
+
 export default function NotificationsPage() {
+  const [{ tab }, setTab] = useUrlFields(TAB_FIELDS);
+  const chatUnread = useChatUnread();
+  const inboxCount = useInboxCount();
+  const tabs = (
+    <Tabs
+      idBase="notifications"
+      label={t("pages.chat.tabsLabel")}
+      value={tab}
+      onChange={(next) => setTab({ tab: next })}
+      items={[
+        { value: "inbox", label: t("pages.notifications.title"), count: inboxCount },
+        { value: "chat", label: t("pages.chat.tab"), count: chatUnread },
+      ]}
+      className="-mx-2 border-b-0"
+    />
+  );
+  if (tab === "chat")
+    return (
+      <>
+        <PageHeader sticky title={t("pages.chat.title")} description={chatUnread > 0 ? t("pages.chat.unread", { count: chatUnread }) : undefined} tabs={tabs} />
+        <TabPanel value="chat" current={tab} idBase="notifications">
+          <Suspense fallback={<div className="p-4" role="status" aria-label={t("pages.chat.messages.loading")} />}>
+            <ChatInbox />
+          </Suspense>
+        </TabPanel>
+      </>
+    );
+  return (
+    <InboxPage tabs={tabs} />
+  );
+}
+
+/** The tab alone (each tab keeps its own fields). */
+const TAB_FIELDS: Fields<{ tab: Tab }> = { tab: { key: "tab", fallback: "inbox", codec: oneOf(TABS) } };
+
+function InboxPage({ tabs }: { tabs: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [view, setView] = useUrlFields(FIELDS);
@@ -285,107 +328,110 @@ export default function NotificationsPage() {
         title={t("pages.notifications.title")}
         description={unreadTotal === 0 ? t("pages.notifications.allRead") : t("pages.notifications.toRead", { count: unreadTotal })}
         actions={reading ? undefined : <Toolbar label={t("pages.notifications.title")} foldBelow="m" groups={[bulk]} />}
+        tabs={reading ? undefined : tabs}
       />
-      {!reading && (
-        <PageToolbar label={t("pages.notifications.filters")}>
-          <SegmentedControl
-            label={t("pages.notifications.categoriesLabel")}
-            value={cat}
-            onChange={c => setView({ cat: c, sel: "" })}
-            options={NOTIFICATION_CATEGORIES.map(c => ({ value: c, label: `${t(`pages.notifications.categories.${c}`)} ${counts[c]}` }))}
-          />
-          <SegmentedControl
-            label={t("pages.notifications.statesLabel")}
-            value={state}
-            onChange={s => setView({ state: s, sel: "", open: new Set() })}
-            options={INBOX_STATES.map(s => ({
-              value: s,
-              label: s === "unread" ? `${t("pages.notifications.states.unread")} ${unreadTotal}` : s === "read" ? `${t("pages.notifications.states.read")} ${readTotal}` : t("pages.notifications.states.done"),
-            }))}
-          />
-        </PageToolbar>
-      )}
-      <div ref={regionRef} className="region">
-        <div
-          ref={splitRef}
-          style={{ "--notifications-preview-w": width === null ? undefined : `${width}px` } as CSSProperties}
-          className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(360px,var(--notifications-preview-w,50cqw),min(60vw,100cqw_-_420px))]"
-        >
-          <div className={cn("min-w-0 p-3 md:p-4", detail && current && "@max-xl:hidden")}>
-            {state === "unread" && (
-              <div className="mb-4 grid grid-cols-[minmax(0,1fr)] gap-4 empty:hidden">
-                <AlertList />
-                <TodoReminders onOpen={() => {}} />
-              </div>
-            )}
-            {inbox.query.isPending ? (
-              <div className="grid gap-2">
-                <Skeleton className="h-16" />
-                <Skeleton className="h-16" />
-                <Skeleton className="h-16" />
-              </div>
-            ) : inbox.query.error ? (
-              <ErrorState message={errorText(inbox.query.error)} onRetry={() => void inbox.query.refetch()} />
-            ) : groups.length === 0 ? (
-              <EmptyState icon={BellOff} title={t(`pages.notifications.empty.${state}`)} message={t("pages.notifications.emptyMessage")} />
-            ) : (
-              <section aria-label={t("pages.notifications.list")}>
-                <SectionLabel as="h2" className="sr-only">{t("pages.notifications.list")}</SectionLabel>
-                <ul className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
-                  {groups.map(g => (
-                    <GroupRow
-                      key={g.key}
-                      group={g}
-                      state={state}
-                      selected={g.key === selected}
-                      expanded={open.has(g.key)}
-                      onSelect={() => select(g.key, "click")}
-                      onToggle={() => toggleOpen(g.key)}
-                      onFinish={() => finish(g.key)}
-                      onFinishOne={id => (state === "done" ? inbox.restore([id]) : inbox.done([id]))}
-                    />
-                  ))}
-                </ul>
-              </section>
-            )}
-          </div>
-          <aside
-            ref={previewRef}
-            id="notifications-preview"
-            data-notifications-preview
-            data-sticky-pane
-            aria-label={t("pages.notifications.preview")}
-            className={cn(
-              "min-h-0 min-w-0 flex-col @xl:sticky @xl:top-[calc(var(--page-header-h,0px)+var(--page-toolbar-h,0px))] @xl:flex @xl:h-[calc(100dvh-2rem-var(--page-header-h,0px)-var(--page-toolbar-h,0px))] @xl:border-l",
-              detail && current ? "flex" : "hidden"
-            )}
-          >
-            <Splitter
-              grid={splitRef}
-              pane={{ id: "notifications-preview", ref: previewRef }}
-              cssVar="--notifications-preview-w"
-              bounds={previewBounds}
-              onChange={w => previewWidth.set(w)}
-              label={t("pages.notifications.resizePreview")}
-              className="@max-xl:hidden"
+      <div role="tabpanel" id="notifications-panel-inbox" aria-labelledby="notifications-tab-inbox" className="contents">
+        {!reading && (
+          <PageToolbar label={t("pages.notifications.filters")}>
+            <SegmentedControl
+              label={t("pages.notifications.categoriesLabel")}
+              value={cat}
+              onChange={c => setView({ cat: c, sel: "" })}
+              options={NOTIFICATION_CATEGORIES.map(c => ({ value: c, label: `${t(`pages.notifications.categories.${c}`)} ${counts[c]}` }))}
             />
-            {current ? (
-              <Preview
-                group={current}
-                state={state}
-                position={{ n: at + 1, total: keys.length }}
-                onBack={backToList}
-                onPrev={at > 0 ? () => select(keys[at - 1]) : undefined}
-                onNext={at < keys.length - 1 ? () => select(keys[at + 1]) : undefined}
-                onToggleRead={() => toggleRead(current.key)}
-                onFinish={() => finish(current.key)}
-                onOpenIssue={() => openIssue(current.key)}
-                onStart={() => start.mutate({ issueKey: current.issueKey, connectionId: current.connectionId })}
+            <SegmentedControl
+              label={t("pages.notifications.statesLabel")}
+              value={state}
+              onChange={s => setView({ state: s, sel: "", open: new Set() })}
+              options={INBOX_STATES.map(s => ({
+                value: s,
+                label: s === "unread" ? `${t("pages.notifications.states.unread")} ${unreadTotal}` : s === "read" ? `${t("pages.notifications.states.read")} ${readTotal}` : t("pages.notifications.states.done"),
+              }))}
+            />
+          </PageToolbar>
+        )}
+        <div ref={regionRef} className="region">
+          <div
+            ref={splitRef}
+            style={{ "--notifications-preview-w": width === null ? undefined : `${width}px` } as CSSProperties}
+            className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_clamp(360px,var(--notifications-preview-w,50cqw),min(60vw,100cqw_-_420px))]"
+          >
+            <div className={cn("min-w-0 p-3 md:p-4", detail && current && "@max-xl:hidden")}>
+              {state === "unread" && (
+                <div className="mb-4 grid grid-cols-[minmax(0,1fr)] gap-4 empty:hidden">
+                  <AlertList />
+                  <TodoReminders onOpen={() => {}} />
+                </div>
+              )}
+              {inbox.query.isPending ? (
+                <div className="grid gap-2">
+                  <Skeleton className="h-16" />
+                  <Skeleton className="h-16" />
+                  <Skeleton className="h-16" />
+                </div>
+              ) : inbox.query.error ? (
+                <ErrorState message={errorText(inbox.query.error)} onRetry={() => void inbox.query.refetch()} />
+              ) : groups.length === 0 ? (
+                <EmptyState icon={BellOff} title={t(`pages.notifications.empty.${state}`)} message={t("pages.notifications.emptyMessage")} />
+              ) : (
+                <section aria-label={t("pages.notifications.list")}>
+                  <SectionLabel as="h2" className="sr-only">{t("pages.notifications.list")}</SectionLabel>
+                  <ul className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
+                    {groups.map(g => (
+                      <GroupRow
+                        key={g.key}
+                        group={g}
+                        state={state}
+                        selected={g.key === selected}
+                        expanded={open.has(g.key)}
+                        onSelect={() => select(g.key, "click")}
+                        onToggle={() => toggleOpen(g.key)}
+                        onFinish={() => finish(g.key)}
+                        onFinishOne={id => (state === "done" ? inbox.restore([id]) : inbox.done([id]))}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+            <aside
+              ref={previewRef}
+              id="notifications-preview"
+              data-notifications-preview
+              data-sticky-pane
+              aria-label={t("pages.notifications.preview")}
+              className={cn(
+                "min-h-0 min-w-0 flex-col @xl:sticky @xl:top-[calc(var(--page-header-h,0px)+var(--page-toolbar-h,0px))] @xl:flex @xl:h-[calc(100dvh-2rem-var(--page-header-h,0px)-var(--page-toolbar-h,0px))] @xl:border-l",
+                detail && current ? "flex" : "hidden"
+              )}
+            >
+              <Splitter
+                grid={splitRef}
+                pane={{ id: "notifications-preview", ref: previewRef }}
+                cssVar="--notifications-preview-w"
+                bounds={previewBounds}
+                onChange={w => previewWidth.set(w)}
+                label={t("pages.notifications.resizePreview")}
+                className="@max-xl:hidden"
               />
-            ) : (
-              <EmptyState className="py-16" title={t("pages.notifications.preview")} message={t("pages.notifications.previewEmpty")} />
-            )}
-          </aside>
+              {current ? (
+                <Preview
+                  group={current}
+                  state={state}
+                  position={{ n: at + 1, total: keys.length }}
+                  onBack={backToList}
+                  onPrev={at > 0 ? () => select(keys[at - 1]) : undefined}
+                  onNext={at < keys.length - 1 ? () => select(keys[at + 1]) : undefined}
+                  onToggleRead={() => toggleRead(current.key)}
+                  onFinish={() => finish(current.key)}
+                  onOpenIssue={() => openIssue(current.key)}
+                  onStart={() => start.mutate({ issueKey: current.issueKey, connectionId: current.connectionId })}
+                />
+              ) : (
+                <EmptyState className="py-16" title={t("pages.notifications.preview")} message={t("pages.notifications.previewEmpty")} />
+              )}
+            </aside>
+          </div>
         </div>
       </div>
     </>

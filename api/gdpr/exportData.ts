@@ -4,7 +4,7 @@
 // ZIP stream as it goes. Tracker-side data is the tracker's to export.
 import { and, asc, eq, getTableColumns, getTableName, gt, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
-import { auditEvents, connections, users } from "@db/schema";
+import { auditEvents, chatFiles, chatMembers, chatMessages, chatThreads, connections, users } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { auditAbout, viewOf } from "../lib/audit";
 import { csvField } from "../auditExport";
@@ -79,6 +79,32 @@ async function auditOf(userId: number, names: readonly string[]): Promise<unknow
   }
 }
 
+/**
+ * The person's part of the chats they are or were in (shared tables): those chats as their issue,
+ * their own messages, and the files they sent (names and sizes, no bytes).
+ */
+async function chatOf(userId: number) {
+  const db = getDb();
+  const threadIds = db.select({ id: chatMembers.threadId }).from(chatMembers).where(eq(chatMembers.userId, userId));
+  const threads = await db
+    .select({ id: chatThreads.id, trackerBase: chatThreads.trackerBase, issueKey: chatThreads.issueKey, issueTitle: chatThreads.issueTitle, state: chatThreads.state, createdAt: chatThreads.createdAt })
+    .from(chatThreads)
+    .where(inArray(chatThreads.id, threadIds))
+    .orderBy(asc(chatThreads.id));
+  const messages = await db
+    .select({ id: chatMessages.id, threadId: chatMessages.threadId, kind: chatMessages.kind, body: chatMessages.body, refs: chatMessages.refs, replyToId: chatMessages.replyToId, createdAt: chatMessages.createdAt, editedAt: chatMessages.editedAt, deletedAt: chatMessages.deletedAt })
+    .from(chatMessages)
+    .where(eq(chatMessages.authorId, userId))
+    .orderBy(asc(chatMessages.id));
+  const sent = await db
+    .select({ id: chatFiles.id, threadId: chatFiles.threadId, messageId: chatFiles.messageId, name: chatFiles.name, contentType: chatFiles.contentType, size: chatFiles.size, createdAt: chatFiles.createdAt })
+    .from(chatFiles)
+    .where(eq(chatFiles.uploaderId, userId))
+    .orderBy(asc(chatFiles.id));
+  const asPlain = <T extends Record<string, unknown>>(rows: T[]) => rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, plain(v)])));
+  return { threads: asPlain(threads), messages: asPlain(messages), files: asPlain(sent) };
+}
+
 /** What an export holds, file by file (manifest.json), and what it leaves out and why. */
 export type ExportManifest = {
   format: "inkledger-user-export/1";
@@ -120,6 +146,10 @@ export async function* exportEntries(userId: number, now = new Date()): AsyncGen
       yield { name: `data/${name}.csv`, data: toCsv(rows) };
     }
   }
+
+  const chat = await chatOf(userId);
+  files.push({ name: "chat.json", rows: chat.messages.length });
+  yield { name: "chat.json", data: json(chat) };
 
   const events = await auditOf(userId, [user.username ?? "", user.displayName, user.email]);
   files.push({ name: "audit_events.json", rows: events.length });

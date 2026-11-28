@@ -1020,6 +1020,13 @@ export const settings: Shape<typeof en> = {
         export: "Ha esportato il registro",
         purge: "Eventi oltre la conservazione rimossi",
       },
+      chat: {
+        open: "Ha aperto una chat su una issue",
+        members: { add: "Ha aggiunto persone a una chat" },
+        leave: "Ha lasciato una chat",
+        message: { remove: "Ha eliminato un suo messaggio in chat" },
+        publish: "Ha pubblicato un messaggio della chat sul tracker",
+      },
       feedback: {
         create: "Ha inviato un feedback",
         share: "Ha condiviso il suo feedback con gli sviluppatori",

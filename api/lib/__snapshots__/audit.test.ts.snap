@@ -150,6 +150,33 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "chat.leave": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "chat.members.add": {
+    "kept": [
+      "added",
+    ],
+    "redacted": 17,
+  },
+  "chat.message.remove": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "chat.open": {
+    "kept": [
+      "members",
+    ],
+    "redacted": 17,
+  },
+  "chat.publish": {
+    "kept": [
+      "connectionId",
+      "issueKey",
+    ],
+    "redacted": 17,
+  },
   "connections.add": {
     "kept": [
       "baseUrl",

@@ -80,6 +80,9 @@ const NOT_OWNED: Record<string, string> = {
 
 /** Procedures (or a field of one) not covered here, with why. */
 const SKIPS: Record<string, string> = {
+  "chat.open userIds": "people asked into a chat: teammates only, each checked against the tracker with their own connection (api/chat/chat.test.ts)",
+  "chat.send refs[].key": "a card's issue key is a snapshot its writer chose to show, drawn as text: it opens nothing of anyone's",
+  "chat.addMembers userIds": "people asked into a chat: teammates only, each checked against the tracker with their own connection (api/chat/chat.test.ts)",
   "connections.githubPoll": "a device sign-in lives in memory with the user who started it and needs the provider",
   "mails.signInPoll": "a device sign-in lives in memory with the user who started it and needs the provider",
   "connections.setOption key": "the name of an option, on a connection checked first",
@@ -171,6 +174,15 @@ async function connection(userId: number, type: string, host: string, account: s
 
 const jiraOptions = (who: string) => ({ deployment: "cloud", authType: "basic", username: who + "@example.com" });
 
+/** A chat about the issue with its user alone in it: a message of theirs, and a file they uploaded and haven't sent. */
+async function chatSeed(userId: number, base: string, remoteId: string, key: string, mark: string) {
+  const chatThread = (await one<{ id: number }>("INSERT INTO chat_threads (created_by, tracker_type, tracker_base, issue_remote_id, issue_key, issue_title, created_at, last_message_at) VALUES (?, 'jira', ?, ?, ?, ?, 1, 1) RETURNING id", userId, base, remoteId, key, mark)).id;
+  await q("INSERT INTO chat_members (thread_id, user_id, role, joined_at) VALUES (?, ?, 'owner', 1)", chatThread, userId);
+  const chatMessage = (await one<{ id: number }>("INSERT INTO chat_messages (thread_id, author_id, kind, body, created_at) VALUES (?, ?, 'text', ?, 1) RETURNING id", chatThread, userId, mark)).id;
+  const chatFile = (await one<{ id: number }>("INSERT INTO chat_files (thread_id, uploader_id, name, content_type, size, data, created_at) VALUES (?, ?, ?, 'text/plain', 3, ?, ?) RETURNING id", chatThread, userId, mark, Buffer.from("abc"), Date.now())).id;
+  return { chatThread, chatMessage, chatFile };
+}
+
 /** Bob's own things a case may point Ann's ids from (for the owner's control, another account's). */
 async function seedBob(bobId: number, tag = "bob") {
   const conn = await connection(bobId, "jira", BOB_HOST, tag, jiraOptions("bob"));
@@ -188,7 +200,8 @@ async function seedBob(bobId: number, tag = "bob") {
   const idea = (await one<{ id: number }>("INSERT INTO ideas (user_id, title, created_at, updated_at) VALUES (?, 'bob', 1, 1) RETURNING id", bobId)).id;
   const planned = (await one<{ id: string }>("INSERT INTO planned_entries (user_id, kind, starts_at, ends_at, note, created_at, updated_at) VALUES (?, 'travel', ?, ?, 'bob', 1, 1) RETURNING id", bobId, Date.parse("2026-10-20T09:00:00Z"), Date.parse("2026-10-20T10:00:00Z"))).id;
   await q("INSERT INTO timers (user_id, connection_id, issue_key, started_at, created_at, updated_at) VALUES (?, ?, 'BOB-1', 1, 1, 1)", bobId, conn);
-  return { conn, sink, tempo, container, key: "BOB-1", bucket, board, pin, todo, issueNote, mail, note, idea, planned };
+  const chat = await chatSeed(bobId, "https://" + BOB_HOST, "1", "BOB-1", tag);
+  return { conn, sink, tempo, container, key: "BOB-1", bucket, board, pin, todo, issueNote, mail, note, idea, planned, ...chat };
 }
 
 let seeds = 0;
@@ -287,7 +300,8 @@ async function seedFor(userId: number, who: "ann" | "bob") {
   await q("INSERT INTO module_files (user_id, module_id, key, content_type, data, size, updated_at, used_at) VALUES (?, 'm1', ?, 'application/json', ?, 10, 1, 1)", userId, "f" + n, Buffer.from(mark));
   const feedback = (await one<{ id: number }>("INSERT INTO feedback (user_id, type, title, body, created_at, updated_at) VALUES (?, 'idea', ?, ?, 1, 1) RETURNING id", userId, mark, mark)).id;
   await q("INSERT INTO feedback_comments (feedback_id, author_id, origin, body, created_at) VALUES (?, ?, 'user', ?, 1)", feedback, userId, mark);
-  return { feedback, n, conn, sink, tempo, container, key, project: P, issue, remoteId, worklog, worklogRemote, trash, bucket, folder, note, version, batch: deleted.batch, todo, issueNote, mail, messageId, exchangeId, idea, deletedIdea, board, pin, client, query, outbox, notification, planned, moduleKey: "k" + n, moduleFile: "f" + n };
+  const chat = await chatSeed(userId, "https://" + host, remoteId, key, mark);
+  return { ...chat, feedback, n, conn, sink, tempo, container, key, project: P, issue, remoteId, worklog, worklogRemote, trash, bucket, folder, note, version, batch: deleted.batch, todo, issueNote, mail, messageId, exchangeId, idea, deletedIdea, board, pin, client, query, outbox, notification, planned, moduleKey: "k" + n, moduleFile: "f" + n };
 }
 type Ann = Awaited<ReturnType<typeof seedFor>>;
 
@@ -505,6 +519,28 @@ const CASES: Case[] = [
   { proc: "feedback.comment", fields: ["id"], call: (c, a) => c.feedback.comment({ id: a.feedback, body: "mine" }) },
   { proc: "feedback.share", fields: ["id"], call: (c, a) => c.feedback.share({ id: a.feedback }) },
   { proc: "feedback.export", fields: ["ids"], call: (c, a) => c.feedback.export({ scope: "mine", format: "json", ids: [a.feedback] }), expect: "noLeak" },
+
+  // Chats: a thread is its members'; anyone else's reads as missing
+  { proc: "chat.candidates", fields: ["connectionId", "key"], call: (c, a) => c.chat.candidates(on(a)) },
+  { proc: "chat.forIssue", fields: ["connectionId", "key"], call: (c, a) => c.chat.forIssue(on(a)) },
+  { proc: "chat.open", fields: ["connectionId", "key"], call: (c, a, b) => c.chat.open({ ...on(a), userIds: [b.chatThread + 100000] }), codes: ["NOT_FOUND"] },
+  { proc: "chat.thread", fields: ["threadId"], call: (c, a) => c.chat.thread({ threadId: a.chatThread }) },
+  { proc: "chat.messages", fields: ["threadId"], call: (c, a) => c.chat.messages({ threadId: a.chatThread }) },
+  { proc: "chat.send", fields: ["threadId"], call: (c, a) => c.chat.send({ threadId: a.chatThread, body: "mine", clientNonce: "n-" + Math.random().toString(36).slice(2) }) },
+  { proc: "chat.send", fields: ["replyToId"], call: (c, a, b) => c.chat.send({ threadId: b.chatThread, body: "mine", replyToId: a.chatMessage, clientNonce: "n-" + Math.random().toString(36).slice(2) }), noOwner: "an answer is to a message of the same thread (api/chat/chat.test.ts)" },
+  { proc: "chat.send", fields: ["fileIds"], call: (c, a, b) => c.chat.send({ threadId: b.chatThread, body: "mine", fileIds: [a.chatFile], clientNonce: "n-" + Math.random().toString(36).slice(2) }), noOwner: "a file goes with a message of the thread it was uploaded to (api/chat/chat.test.ts)" },
+  { proc: "chat.edit", fields: ["messageId"], call: (c, a) => c.chat.edit({ messageId: a.chatMessage, body: "mine" }) },
+  { proc: "chat.remove", fields: ["messageId"], call: (c, a) => c.chat.remove({ messageId: a.chatMessage }) },
+  { proc: "chat.react", fields: ["messageId"], call: (c, a) => c.chat.react({ messageId: a.chatMessage, emoji: "👍", on: true }) },
+  { proc: "chat.markRead", fields: ["threadId"], call: (c, a) => c.chat.markRead({ threadId: a.chatThread, messageId: a.chatMessage }) },
+  { proc: "chat.markRead", fields: ["messageId"], call: (c, a, b) => c.chat.markRead({ threadId: b.chatThread, messageId: a.chatMessage }), noOwner: "a read is of a message of the same thread (api/chat/chat.test.ts)" },
+  { proc: "chat.typing", fields: ["threadId"], call: (c, a) => c.chat.typing({ threadId: a.chatThread }) },
+  { proc: "chat.addMembers", fields: ["threadId"], call: (c, a, b) => c.chat.addMembers({ threadId: a.chatThread, userIds: [b.chatThread + 100000] }) },
+  { proc: "chat.leave", fields: ["threadId"], call: (c, a) => c.chat.leave({ threadId: a.chatThread }) },
+  { proc: "chat.setState", fields: ["threadId"], call: (c, a) => c.chat.setState({ threadId: a.chatThread, state: "resolved" }) },
+  { proc: "chat.prefs", fields: ["threadId"], call: (c, a) => c.chat.prefs({ threadId: a.chatThread, pinned: true }) },
+  { proc: "chat.publishFiles", fields: ["messageId"], call: (c, a) => c.chat.publishFiles({ messageId: a.chatMessage }), noOwner: "writes attachments on the tracker (api/chat/files.test.ts)" },
+  { proc: "chat.publish", fields: ["messageId"], call: (c, a) => c.chat.publish({ messageId: a.chatMessage }), noOwner: "writes a comment on the tracker (api/chat/files.test.ts)" },
   { proc: "ideas.capture", fields: ["containerId"], call: (c, a) => c.ideas.capture({ text: "x", containerId: a.container }) },
   { proc: "ideas.update", fields: ["id"], call: (c, a) => c.ideas.update({ id: a.idea, title: "mine" }) },
   { proc: "ideas.update", fields: ["containerId"], call: (c, a, b) => c.ideas.update({ id: b.idea, containerId: a.container }) },
