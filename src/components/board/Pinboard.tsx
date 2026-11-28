@@ -717,6 +717,9 @@ export function Pinboard({
       <div {...surface("ground")} className="paper-board relative min-h-0 flex-1 overflow-hidden rounded-xl border">
         <div
           ref={scroller}
+          // A named, focusable scroll area: a group (a label on a plain div is not announced, and not allowed);
+          // not a second landmark inside the pinboard's own region.
+          role="group"
           tabIndex={0}
           aria-label={t("views.board.pinboard.area")}
           className={cn(

@@ -101,3 +101,30 @@ test("forced colors: no serious violation, and the focus is still drawn", async 
     await app.stop();
   }
 });
+
+// While its data is still on its way (a slow server), the pinboard is already a valid page: its board area
+// is a named region (a label on a plain element is not allowed).
+test("the pinboard while it loads has no serious accessibility violation", async () => {
+  const app = await start();
+  try {
+    const { page, base } = app;
+    await page.route(u => new URL(u).pathname.startsWith("/api/trpc/"), async route => {
+      await new Promise(r => setTimeout(r, 4000));
+      await route.continue().catch(() => {});
+    });
+    await page.goto(base + "/pinboard");
+    await page.waitForLoadState("load");
+    await page.waitForTimeout(1500);
+    await page.evaluate(AXE);
+    const found = await page.evaluate(async () =>
+      (await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] } })).violations
+        .filter(v => v.impact === "serious" || v.impact === "critical")
+        .filter(v => v.id !== "color-contrast")
+        .map(v => `${v.id}: ${v.nodes.map(n => n.target.join(" ")).join(" | ")}`),
+    );
+    assert.deepEqual(found, []);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  } finally {
+    await app.stop();
+  }
+});
