@@ -2,6 +2,7 @@
 // the Chat section of an issue): what a thread is anchored to, what a message may carry,
 // and the limits both sides check. Shared by the page and the API.
 import { z } from "zod";
+import type { RichDoc } from "./richtext";
 
 /** A thread is open, or resolved (the question had its answer); a new message opens it again. */
 export const CHAT_THREAD_STATES = ["open", "resolved"] as const;
@@ -146,6 +147,8 @@ export type ChatMessageView = {
   authorId: number | null;
   kind: "text" | "system";
   body: string;
+  /** The body as a rich-text tree (Markdown read on the server), for RichText; null for a system line or no words. */
+  doc: RichDoc | null;
   system: ChatSystemEvent | null;
   refs: ChatRef[];
   files: ChatFileView[];

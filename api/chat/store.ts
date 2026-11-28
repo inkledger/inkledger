@@ -3,7 +3,7 @@
 // and every change is told live to the thread's members (api/lib/userEvents.ts).
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, sql, type SQL } from "drizzle-orm";
-import { chatFiles, chatMembers, chatMessages, chatReactions, chatThreads, users, type ChatThread, type Connection } from "@db/schema";
+import { chatFiles, chatMembers, chatMessages, chatReactions, chatThreads, users, type ChatThread, type Connection, type User } from "@db/schema";
 import { CHAT_MEMBERS_MAX, CHAT_PAGE, CHAT_SEARCH_MAX, CHAT_THREADS_PAGE, chatPreview, isChatReaction } from "@contracts/chat";
 import type { ChatChange } from "@contracts/liveEvents";
 import type {
@@ -23,7 +23,9 @@ import { t } from "@contracts/i18n";
 import { getDb, type Db } from "../queries/connection";
 import { xactLock } from "../queries/locks";
 import { ownConnection } from "../providers/connections";
-import { publish } from "../lib/userEvents";
+import { publish as publishEvent } from "../lib/userEvents";
+import { addIssueComment } from "../routers/issues";
+import { fromMarkdown } from "../providers/core/richtext";
 import { candidates as candidatesFor, connectionsTo, lookIssue, ownIssueRow, teammates, type Reach, type TrackerOf } from "./access";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -103,7 +105,7 @@ async function activeMemberIds(threadId: number, db: Pick<Db, "select"> = getDb(
 export async function tell(threadId: number, change: ChatChange, by: number, opts: { messageId?: number; origin?: string; to?: number[] } = {}) {
   const to = opts.to ?? (await activeMemberIds(threadId));
   for (const userId of to) {
-    publish(userId, opts.messageId === undefined ? { type: "chat", threadId, change, by } : { type: "chat", threadId, change, by, messageId: opts.messageId }, userId === by ? opts.origin : undefined);
+    publishEvent(userId, opts.messageId === undefined ? { type: "chat", threadId, change, by } : { type: "chat", threadId, change, by, messageId: opts.messageId }, userId === by ? opts.origin : undefined);
   }
 }
 
@@ -318,6 +320,7 @@ async function views(rows: MessageRow[]): Promise<ChatMessageView[]> {
       authorId: r.authorId,
       kind: r.kind === "system" ? "system" : "text",
       body: r.deletedAt ? "" : r.body,
+      doc: r.deletedAt || r.kind !== "text" || !r.body ? null : fromMarkdown(r.body, "gfm"),
       system: parseSystem(r.system),
       refs: r.deletedAt ? [] : parseRefs(r.refs),
       files: filesOf.get(r.id) ?? [],
@@ -683,6 +686,50 @@ export async function search(userId: number, text: string): Promise<{ threadId: 
     .limit(CHAT_SEARCH_MAX);
   const vs = await views(rows.map((r) => r.message));
   return rows.map((r, i) => ({ threadId: r.message.threadId, issueKey: r.issueKey, message: vs[i] }));
+}
+
+/**
+ * A message of the thread written on the tracker as a comment, by the caller (their own account,
+ * through their own connection): their own words as they are, someone else's quoted with their
+ * name. Once per message; the thread says it was published.
+ */
+export async function publish(user: User, messageId: number, origin?: string): Promise<{ commentId: string; issueKey: string; connectionId: number }> {
+  const m = await messageIn(user.id, messageId);
+  if (m.kind !== "text" || m.deletedAt || !m.body.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.chat.nothingToPublish") });
+  if (m.jiraCommentId) throw new TRPCError({ code: "CONFLICT", message: t("server.chat.published") });
+  const th = m.membership.thread;
+  await refreshSnapshot(user.id, th);
+  const conn = (await connectionsTo([user.id], th, th.issueRemoteId)).get(user.id);
+  if (!conn) throw refused(t("server.chat.noConnectionYours", { tracker: trackerName(th.trackerBase) }));
+  const row = await ownIssueRow(user.id, conn.id, th.issueRemoteId, th.issueKey);
+  const key = row?.key ?? th.issueKey;
+  let text = m.body;
+  if (m.authorId !== user.id) {
+    const [author] = m.authorId === null ? [] : await getDb().select({ name: users.displayName, username: users.username }).from(users).where(eq(users.id, m.authorId)).limit(1);
+    const name = author ? author.name || author.username || "" : t("server.chat.someone");
+    text = t("server.chat.quoted", { name }) + "\n\n" + m.body.split("\n").map((l) => "> " + l).join("\n");
+  }
+  // Claimed first: two clicks (two tabs) never write two comments.
+  const [claimed] = await getDb()
+    .update(chatMessages)
+    .set({ jiraCommentId: "" })
+    .where(and(eq(chatMessages.id, messageId), isNull(chatMessages.jiraCommentId)))
+    .returning({ id: chatMessages.id });
+  if (!claimed) throw new TRPCError({ code: "CONFLICT", message: t("server.chat.published") });
+  let commentId: string;
+  try {
+    commentId = (await addIssueComment(user, key, text, conn.id)).id;
+  } catch (e) {
+    await getDb().update(chatMessages).set({ jiraCommentId: null }).where(and(eq(chatMessages.id, messageId), eq(chatMessages.jiraCommentId, "")));
+    throw e;
+  }
+  await getDb().transaction(async (tx) => {
+    await tx.update(chatMessages).set({ jiraCommentId: commentId || "?" }).where(eq(chatMessages.id, messageId));
+    await systemLine(tx, th.id, user.id, { kind: "published", messageId });
+    await tx.update(chatThreads).set({ lastMessageAt: new Date() }).where(eq(chatThreads.id, th.id));
+  });
+  await tell(th.id, "edit", user.id, { messageId, origin });
+  return { commentId, issueKey: key, connectionId: conn.id };
 }
 
 /** Members to tell that someone is typing (the typer's own other tabs too). */

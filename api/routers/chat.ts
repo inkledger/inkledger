@@ -14,6 +14,7 @@ import {
   markRead,
   messages,
   openThread,
+  publish,
   react,
   remove,
   search,
@@ -125,6 +126,13 @@ export const chatRouter = createRouter({
   prefs: protectedProcedure
     .input(z.object({ threadId: id, muted: z.boolean().optional(), pinned: z.boolean().optional(), archived: z.boolean().optional() }))
     .mutation(({ ctx, input }) => setPrefs(ctx.user.id, input.threadId, input, ctx.clientId)),
+
+  /** A message written on the tracker as a comment, by the caller (once per message). */
+  publish: protectedProcedure.input(z.object({ messageId: id })).mutation(async ({ ctx, input }) => {
+    const out = await publish(ctx.user, input.messageId, ctx.clientId);
+    void record(ctx, "chat.publish", { target: { type: "chat_message", id: input.messageId }, after: { issueKey: out.issueKey, connectionId: out.connectionId } });
+    return { commentId: out.commentId };
+  }),
 
   /** What the badges count. */
   unreadCount: protectedProcedure.query(({ ctx }) => unreadCount(ctx.user.id)),

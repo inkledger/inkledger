@@ -184,6 +184,10 @@
     "type": "mutation"
   },
   {
+    "path": "chat.publish",
+    "type": "mutation"
+  },
+  {
     "path": "chat.react",
     "type": "mutation"
   },
