@@ -471,7 +471,11 @@ for (const viewport of [{ width: 1400, height: 900 }, { width: 320, height: 760 
         assert.deepEqual(await violations(page), [], `axe: ${state}`);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth <= 1), `no page-wide horizontal scroll: ${state}`);
       };
+      // As a person would: a block's controls are off while its last change is saved (Workspace keeps the
+      // focus through it); on a loaded machine the save may still be on its way when the next key comes.
       const press = async (locator, key = "Enter") => {
+        await locator.waitFor();
+        for (let i = 0; i < 200 && !(await locator.isEnabled()); i++) await page.waitForTimeout(50);
         await locator.focus();
         await page.keyboard.press(key);
       };
