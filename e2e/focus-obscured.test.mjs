@@ -102,3 +102,48 @@ test("focusing a control inside a sticky bar never scrolls the page", { timeout:
     await app.stop();
   }
 });
+
+// Content above a focused control that finishes loading later (a tracker's comments on a slow network)
+// pushed the control down under the tab bar after it had been brought clear. It is brought clear again.
+test("a focused control pushed under the tab bar by content loading above it comes back into view", { timeout: 180_000 }, async () => {
+  const app = await start({ viewport: { width: 390, height: 844 } });
+  try {
+    const { page, base } = app;
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(base + "/issues/DEMO-101");
+    await page.locator("[data-surface-stage]").waitFor();
+    await page.waitForTimeout(800);
+    // A control near the page's end, reached with the keyboard and brought clear of the bars.
+    await page.evaluate(() => {
+      const main = document.getElementById("main");
+      const room = main.querySelector("div[aria-hidden].h-16");
+      const before = document.createElement("button");
+      before.textContent = "Before";
+      const button = document.createElement("button");
+      button.textContent = "Last control";
+      button.id = "last-control";
+      room.parentElement.insertBefore(before, room);
+      room.parentElement.insertBefore(button, room);
+      before.focus();
+    });
+    await page.keyboard.press("Tab");
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "last-control");
+    const covered = await page.evaluate(async () => {
+      const frames = (n) => new Promise(r => { const f = () => (--n <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
+      await frames(10);
+      const room = document.querySelector("#main div[aria-hidden].h-16");
+      const button = document.getElementById("last-control");
+      // Then something above it grows (late content).
+      const late = document.createElement("div");
+      late.style.height = "300px";
+      room.parentElement.insertBefore(late, button);
+      await frames(20);
+      const r = button.getBoundingClientRect();
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return at === button ? null : (at ? at.tagName + "." + String(at.className).slice(0, 40) : "off screen");
+    });
+    assert.equal(covered, null, "the focused control is visible again");
+  } finally {
+    await app.stop();
+  }
+});
