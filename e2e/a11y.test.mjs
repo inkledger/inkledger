@@ -25,11 +25,28 @@ test("key routes have no serious or critical accessibility violation", async () 
   });
   try {
     const { page, base } = app;
+    // A page is checked once it has its data: requests still on their way (a loaded machine) would have it
+    // checked while still loading.
+    let pending = 0;
+    const api = r => new URL(r.url()).pathname.startsWith("/api/trpc/");
+    page.on("request", r => api(r) && pending++);
+    page.on("requestfinished", r => api(r) && pending--);
+    page.on("requestfailed", r => api(r) && pending--);
+    const settled = async () => {
+      for (let quiet = 0, i = 0; quiet < 3 && i < 300; i++) {
+        quiet = pending <= 0 ? quiet + 1 : 0;
+        await page.waitForTimeout(100);
+      }
+    };
     const found = [];
     for (const route of ROUTES) {
       await page.goto(base + route);
       await page.waitForLoadState("load");
       await page.waitForTimeout(1500);
+      await settled();
+      // Contrast is measured at rest: a page's entry animation (its opacity) still running on a loaded machine
+      // would be read as faded text.
+      await page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined))));
       // Run in the page as the test (the app's CSP rightly refuses inline scripts).
       await page.evaluate(AXE);
       const result = await page.evaluate(async () =>

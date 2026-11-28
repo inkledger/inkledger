@@ -251,12 +251,20 @@ test("on a phone the hours are fields, at 320 px, and a refused draft can't be s
 
 /** Away 15:00–16:00 on the last working day, a timer running (the page's clock, not the server's). */
 const awayAtThree = async ({ page, base }) => {
-  await page.clock.install({ time: new Date(lastWorkday()).setHours(15, 0, 0, 0) });
+  // Away exactly 15:00:00–16:00:00, however long the page takes to load (an away ending at 16:00:01 is
+  // rightly rounded up to 16:05): it loads from 14:59 on, the clock then stops at 15:00:00 sharp, a heartbeat
+  // there (the idle detector beats on visibilitychange too) starts the away, and one hour exactly passes.
+  const three = new Date(lastWorkday()).setHours(15, 0, 0, 0);
+  await page.clock.install({ time: three - 60_000 });
   await page.goto(`${base}/?period=day&from=${day()}`);
   await editButton(page).waitFor();
+  await page.clock.pauseAt(three);
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await page.clock.fastForward("01:00:00");
   const dialog = page.getByRole("dialog", { name: /^You were away/ });
   await dialog.waitFor();
+  // The away is measured: time runs on again (the page's requests wait on its timers).
+  await page.clock.resume();
   return dialog;
 };
 const awaySeed = now => async db => {
