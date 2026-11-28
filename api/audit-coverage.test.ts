@@ -262,3 +262,66 @@ describe("other people's time read", () => {
   });
 });
 
+describe("every refused SCIM write writes exactly one event", () => {
+  const TOKEN = "ikl_scim_audit-token-0123456789abcdef";
+  let send: (method: string, path: string, body?: unknown) => Promise<number>;
+
+  beforeAll(async () => {
+    const { Hono } = await import("hono");
+    const { registerScimRoutes } = await import("./scim/routes");
+    const app = new Hono<{ Bindings: import("@hono/node-server").HttpBindings }>();
+    registerScimRoutes(app);
+    const [{ id }] = await q<{ id: number }>("INSERT INTO identity_providers (kind, name, issuer, created_at) VALUES ('oidc', 'Audited idp', 'https://login.example/audit/v2.0', 1) RETURNING id");
+    const { sha256Hex } = await import("./lib/hash");
+    await q("INSERT INTO scim_tokens (provider_id, token_hash, label, created_at) VALUES (?, ?, 'Audited', 1)", id, sha256Hex(TOKEN));
+    send = async (method, path, body) => {
+      const res = await app.request("/scim/v2" + path, { method, headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/scim+json" }, body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body) });
+      return res.status;
+    };
+  });
+
+  const refused = async (what: string, act: () => Promise<number>, status: number, expected: [string, string, string | undefined]) => {
+    const { flushAudit } = await import("./lib/audit");
+    const before = await lastId();
+    expect.soft(await act(), what).toBe(status);
+    await flushAudit();
+    const events = await q<{ action: string; outcome: string; actor_kind: string; after: string | null }>("SELECT action, outcome, actor_kind, after FROM audit_events WHERE id > ? ORDER BY id", before);
+    expect.soft(events.map((e) => [e.action, e.outcome, e.actor_kind, (JSON.parse(e.after ?? "{}") as { scimType?: string }).scimType]), what).toEqual([[expected[0], expected[1], "scim", expected[2]]]);
+    expect.soft(JSON.parse(events[0]?.after ?? "{}"), what).toMatchObject({ status });
+    expect.soft(JSON.stringify(events), what).not.toContain("SECRET");
+  };
+
+  it("an invalid payload, a name taken, an account SCIM can't see, the last owner: denied, by scim", async () => {
+    await refused("no userName", () => send("POST", "/Users", { displayName: "SECRET-display", emails: [{ value: "SECRET@example.com" }] }), 400, ["scim.createUser", "denied", "invalidValue"]);
+    await refused("not JSON", () => send("POST", "/Users", "{SECRET"), 400, ["scim.createUser", "denied", "invalidSyntax"]);
+    expect(await send("POST", "/Groups", { displayName: "Audited group" })).toBe(201);
+    await refused("a group name taken", () => send("POST", "/Groups", { displayName: "Audited group" }), 409, ["scim.createGroup", "denied", "uniqueness"]);
+    const local = await account("member");
+    await refused("a local account", () => send("PATCH", `/Users/${local.id}`, { Operations: [{ op: "replace", path: "displayName", value: "SECRET-name" }] }), 404, ["scim.patchUser", "denied", undefined]);
+    const [{ id: group }] = await q<{ id: number }>("SELECT id FROM teams WHERE name = 'Audited group'");
+    await refused("a bad operation", () => send("PATCH", `/Groups/${group}`, { Operations: "SECRET" }), 400, ["scim.updateGroup", "denied", "invalidSyntax"]);
+
+    // The last owner: refused through DELETE and through a PATCH turning the account off.
+    const made = await send("POST", "/Users", { userName: "audit-owner@example.com" });
+    expect(made).toBe(201);
+    const [{ id: owner }] = await q<{ id: number }>("SELECT id FROM users WHERE scim_user_name = 'audit-owner@example.com'");
+    const others = await q<{ id: number }>("UPDATE users SET disabled_at = 1 WHERE role = 'admin' AND disabled_at IS NULL AND id <> ? RETURNING id", owner);
+    await q("UPDATE users SET role = 'admin' WHERE id = ?", owner);
+    try {
+      await refused("the last owner deleted", () => send("DELETE", `/Users/${owner}`), 400, ["scim.deactivateUser", "denied", "mutability"]);
+      await refused("the last owner patched off", () => send("PATCH", `/Users/${owner}`, { Operations: [{ op: "replace", path: "active", value: false }] }), 400, ["scim.deactivateUser", "denied", "mutability"]);
+    } finally {
+      for (const { id } of others) await q("UPDATE users SET disabled_at = NULL WHERE id = ?", id);
+    }
+  });
+
+  it("reads, a refused filter and an unknown path write none", async () => {
+    const { flushAudit } = await import("./lib/audit");
+    const before = await lastId();
+    expect(await send("GET", `/Users?filter=${encodeURIComponent('userName co "a"')}`)).toBe(400);
+    expect(await send("GET", "/Users")).toBe(200);
+    expect(await send("GET", "/Nowhere")).toBe(404);
+    await flushAudit();
+    expect(await since(before)).toEqual([]);
+  });
+});

@@ -10,11 +10,18 @@ import { assertOwnerStays, lockOwners, OwnerLockError, signOutEverywhere } from 
 import { accessFor, managedTeams, pendingSubject, usernameFrom, writeAccess } from "../sso/accounts";
 import { defaultAccessOf, groupMapOf, ssoEnforced } from "../sso/store";
 import { SCIM_BASE } from "@contracts/sso";
+import { env } from "../lib/env";
 
 export const USER_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:User";
 export const GROUP_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:Group";
 export const LIST_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:ListResponse";
 export const PATCH_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
+
+/**
+ * A SCIM address as meta.location and the Location header give it: absolute under PUBLIC_URL
+ * (RFC 7644 §3.1), or the path alone while PUBLIC_URL is unset (docs/it/sso.md).
+ */
+export const scimUrl = (path: string, base: string | null = env.publicUrl): string => `${base ? base.replace(/\/+$/, "") : ""}${SCIM_BASE}${path}`;
 
 /** A refusal SCIM says as such (RFC 7644 §3.12). */
 export class ScimError extends Error {
@@ -79,7 +86,7 @@ export async function userResource(u: User): Promise<Json> {
     emails: u.email ? [{ value: u.email, type: "work", primary: true }] : [],
     active: !u.disabledAt,
     groups: await teamsOfUser(u.id),
-    meta: { resourceType: "User", created: u.createdAt.toISOString(), location: `${SCIM_BASE}/Users/${u.id}` },
+    meta: { resourceType: "User", created: u.createdAt.toISOString(), location: scimUrl(`/Users/${u.id}`) },
   };
 }
 
@@ -281,7 +288,7 @@ export async function groupResource(t: Team): Promise<Json> {
     ...(t.externalId && !t.externalId.startsWith(OWN_MARK) ? { externalId: t.externalId } : {}),
     displayName: t.name,
     members: members.map((m) => ({ value: String(m.id), display: m.username ?? "" })),
-    meta: { resourceType: "Group", created: t.createdAt.toISOString(), location: `${SCIM_BASE}/Groups/${t.id}` },
+    meta: { resourceType: "Group", created: t.createdAt.toISOString(), location: scimUrl(`/Groups/${t.id}`) },
   };
 }
 

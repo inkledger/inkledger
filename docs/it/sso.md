@@ -62,8 +62,9 @@ Create a token in Settings (shown once; only its hash is kept), and give the pro
 - The **last owner can't be turned off**, nor the last break-glass owner while enforcing (400, `mutability`).
 - SCIM sees only the accounts it provisioned: it can't read or change a local account.
 - `/Groups` are teams: created, renamed, deleted, members added and removed. Only accounts SCIM provisioned are placed; team leads stay.
+- `meta.location` and the `Location` header of a created resource are absolute URLs under `PUBLIC_URL` (`<PUBLIC_URL>/scim/v2/Users/<id>`), as RFC 7644 expects. While `PUBLIC_URL` is unset they are the path alone (`/scim/v2/Users/<id>`): set it for strict clients.
 
-Every SCIM write is in the [audit log](audit.md) with the actor kind `scim` and the token's id.
+Every SCIM write is in the [audit log](audit.md) with the actor kind `scim` and the token's id, a refused one too: an invalid payload, a name already taken, an account SCIM can't see or the last owner is written under the action it would have been, with the outcome `denied` and only the answer's status and `scimType` (never the payload). A request without a valid token (401) and reads are not written.
 
 ## Enforcement and break-glass
 

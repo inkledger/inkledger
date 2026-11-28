@@ -365,12 +365,16 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   "scim.createGroup": {
     "kept": [
       "name",
+      "scimType",
+      "status",
     ],
     "redacted": 17,
   },
   "scim.createUser": {
     "kept": [
       "active",
+      "scimType",
+      "status",
       "userName",
       "username",
     ],
@@ -379,6 +383,8 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   "scim.deactivateUser": {
     "kept": [
       "active",
+      "scimType",
+      "status",
       "userName",
       "username",
     ],
@@ -387,12 +393,16 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   "scim.deleteGroup": {
     "kept": [
       "name",
+      "scimType",
+      "status",
     ],
     "redacted": 17,
   },
   "scim.patchUser": {
     "kept": [
       "active",
+      "scimType",
+      "status",
       "userName",
       "username",
     ],
@@ -409,6 +419,8 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   "scim.replaceUser": {
     "kept": [
       "active",
+      "scimType",
+      "status",
       "userName",
       "username",
     ],
@@ -417,6 +429,8 @@ exports[`redaction > every action, fed its own fields and every secret: only its
   "scim.updateGroup": {
     "kept": [
       "name",
+      "scimType",
+      "status",
     ],
     "redacted": 17,
   },
