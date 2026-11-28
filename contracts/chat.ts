@@ -1,7 +1,7 @@
 // Chats about an issue between teammates on this server (the Chat tab of Notifications,
 // the Chat section of an issue): what a thread is anchored to, what a message may carry,
-// and the limits both sides check. Shared by the page and the API.
-import { z } from "zod";
+// and the limits both sides check. Shared by the page and the API (no zod here: the page's first
+// load carries this; the API's checks are in contracts/chatSchemas.ts).
 import type { RichDoc } from "./richtext";
 
 /** A thread is open, or resolved (the question had its answer); a new message opens it again. */
@@ -44,36 +44,18 @@ export const CHAT_TYPING_EVERY_MS = 2_000;
 export const CHAT_SEARCH_MIN = 2;
 export const CHAT_SEARCH_MAX = 100;
 
-/** An issue in a message: a snapshot of what its sender saw (the reader may not have it imported). */
-export const chatIssueRef = z.object({
-  kind: z.literal("issue"),
-  key: z.string().min(1).max(100),
-  title: z.string().max(500),
-  status: z.string().max(200),
-  category: z.string().max(40),
-});
-/** A worklog its author chose to show: date, time and words, nothing else of theirs. */
-export const chatWorklogRef = z.object({
-  kind: z.literal("worklog"),
-  key: z.string().min(1).max(100),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  seconds: z.number().int().min(0).max(7 * 24 * 3600),
-  comment: z.string().max(2000),
-});
-/** A tracker comment quoted into the chat ("Discuss in chat"). */
-export const chatCommentRef = z.object({
-  kind: z.literal("comment"),
-  key: z.string().min(1).max(100),
-  commentId: z.string().min(1).max(200),
-  author: z.string().max(200),
-  created: z.string().max(40),
-  excerpt: z.string().max(2000),
-});
-export const chatRef = z.discriminatedUnion("kind", [chatIssueRef, chatWorklogRef, chatCommentRef]);
-export type ChatRef = z.infer<typeof chatRef>;
 /** Cards in one message. */
 export const CHAT_REFS_MAX = 10;
-export const chatRefs = z.array(chatRef).max(CHAT_REFS_MAX);
+
+/**
+ * A card in a message (contracts/chatSchemas.ts checks one): an issue as its sender saw it (the
+ * reader may not have it imported), a worklog its author chose to show (date, time and words,
+ * nothing else of theirs), or a tracker comment quoted ("Discuss in chat").
+ */
+export type ChatRef =
+  | { kind: "issue"; key: string; title: string; status: string; category: string }
+  | { kind: "worklog"; key: string; date: string; seconds: number; comment: string }
+  | { kind: "comment"; key: string; commentId: string; author: string; created: string; excerpt: string };
 
 /** What a system line says happened. */
 export type ChatSystemEvent =

@@ -31,7 +31,7 @@ function merge(into: ChatMessageView[], add: ChatMessageView[]): ChatMessageView
  * newer ones as they are told (live) or every few seconds when the stream is down; what is sent
  * shows at once and is retried with the same nonce.
  */
-export function useThreadMessages(threadId: number) {
+export function useThreadMessages(threadId: number, focusId: number | null = null) {
   const utils = trpc.useUtils();
   const [messages, setMessages] = useState<ChatMessageView[]>([]);
   const [olderMore, setOlderMore] = useState(false);
@@ -47,17 +47,28 @@ export function useThreadMessages(threadId: number) {
   const load = useCallback(async () => {
     setStatus("loading");
     try {
-      const page = await utils.client.chat.messages.query({ threadId });
+      // A link to one message: the page around it (then newer ones as they come); else the latest.
+      const page = await utils.client.chat.messages.query(focusId ? { threadId, around: focusId } : { threadId });
       if (latest.current.threadId !== threadId) return;
       setMessages(page.messages);
       setOlderMore(page.olderMore);
+      if (focusId && page.newerMore) {
+        let after = page.messages.at(-1)?.id ?? 0;
+        for (let i = 0; i < 20; i++) {
+          const next = await utils.client.chat.messages.query({ threadId, after });
+          if (latest.current.threadId !== threadId) return;
+          setMessages((m) => merge(m, next.messages));
+          if (!next.newerMore || next.messages.length === 0) break;
+          after = next.messages.at(-1)!.id;
+        }
+      }
       setStatus("ready");
       setError(null);
     } catch (e) {
       setError(e);
       setStatus("error");
     }
-  }, [threadId, utils]);
+  }, [threadId, utils, focusId]);
 
   useEffect(() => {
     setMessages([]);

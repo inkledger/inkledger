@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { CHAT_BODY_MAX, CHAT_FILES_PER_MESSAGE, CHAT_FILTERS, CHAT_MEMBERS_MAX, CHAT_REACTIONS, CHAT_SEARCH_MIN, CHAT_THREAD_STATES, CHAT_TYPING_EVERY_MS, chatRefs } from "@contracts/chat";
+import { CHAT_BODY_MAX, CHAT_FILES_PER_MESSAGE, CHAT_FILTERS, CHAT_MEMBERS_MAX, CHAT_REACTIONS, CHAT_SEARCH_MIN, CHAT_THREAD_STATES, CHAT_TYPING_EVERY_MS } from "@contracts/chat";
+import { chatRefs } from "@contracts/chatSchemas";
 import { createRouter, protectedProcedure } from "../middleware";
 import { issueKeyInput } from "../lib/inputs";
 import { record } from "../lib/audit";

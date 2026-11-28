@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { NavigationType, useLocation, useNavigate, useNavigationType } from "react-router";
-import { BellOff, MessagesSquare, Pin, Search } from "lucide-react";
+import { BellOff, MessageCircle, Pin, Search } from "lucide-react";
 import { CHAT_FILTERS, CHAT_SEARCH_MIN, type ChatFilter, type ChatThreadView } from "@contracts/chat";
 import { PageToolbar } from "@/components/app/PageToolbar";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -127,14 +127,24 @@ export function ChatInbox() {
     const fit = () => {
       const top = el.getBoundingClientRect().top;
       const height = window.visualViewport?.height ?? window.innerHeight;
-      el.style.height = `calc(${Math.max(0, height - top)}px - var(--bottom-nav-h, 0px) - 0.5rem)`;
+      // It ends where the first of these does: the window, the page's panel (a desktop's margin), the phone's
+      // tab bar (and the timer button standing on it), with a little room.
+      const main = document.getElementById("main")?.getBoundingClientRect();
+      const bar = document.querySelector<HTMLElement>("[data-tab-bar]");
+      // (fixed: no offsetParent to tell it is shown; a drawn bar has a height)
+      const barBox = bar?.getBoundingClientRect();
+      const barTop = barBox && barBox.height > 0 ? barBox.top - 12 : Infinity;
+      const bottom = Math.min(height, main ? main.bottom - 1 : Infinity, barTop);
+      el.style.height = `${Math.max(0, bottom - top - 8)}px`;
     };
     fit();
     // What sits above it changes height (the header's "n unread" line comes and goes): measured again.
+    // Its ancestors up to the panel change size whenever something above it does.
     const ro = new ResizeObserver(fit);
-    const header = document.querySelector("[data-above-modules]");
-    if (header) ro.observe(header);
-    ro.observe(document.body);
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      ro.observe(n);
+      if (n.id === "main") break;
+    }
     window.addEventListener("resize", fit);
     window.visualViewport?.addEventListener("resize", fit);
     return () => {
@@ -180,7 +190,7 @@ export function ChatInbox() {
             ) : (
               <>
                 {list.length === 0 ? (
-                  <EmptyState icon={MessagesSquare} title={t(`pages.chat.empty.${view.filter}`)} message={t("pages.chat.emptyMessage")} />
+                  <EmptyState icon={MessageCircle} title={t(`pages.chat.empty.${view.filter}`)} message={t("pages.chat.emptyMessage")} />
                 ) : (
                   <section aria-label={t("pages.chat.list")}>
                     <SectionLabel as="h2" className="sr-only">
@@ -238,7 +248,7 @@ export function ChatInbox() {
                 }}
               />
             ) : (
-              <EmptyState className="py-16" icon={MessagesSquare} title={t("pages.chat.preview")} message={t("pages.chat.previewEmpty")} />
+              <EmptyState className="py-16" icon={MessageCircle} title={t("pages.chat.preview")} message={t("pages.chat.previewEmpty")} />
             )}
           </aside>
         </div>

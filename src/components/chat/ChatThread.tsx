@@ -48,7 +48,7 @@ export function ChatThread({ threadId, variant = "pane", onBack, focusId, onGone
 }
 
 function Loaded({ thread, self, variant, onBack, focusId, onGone }: { thread: ChatThreadView; self: number | null; variant: "pane" | "inline"; onBack?: () => void; focusId: number | null; onGone?: () => void }) {
-  const data = useThreadMessages(thread.id);
+  const data = useThreadMessages(thread.id, focusId);
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
   const [editing, setEditing] = useState<ChatMessageView | null>(null);
   const typingIds = useTyping(thread.id, self);

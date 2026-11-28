@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquarePlus, MessagesSquare } from "lucide-react";
+import { MessageCirclePlus, MessageCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 import type { ChatRef } from "@contracts/chat";
 import { surface } from "@/components/app/surface";
@@ -25,7 +25,7 @@ export function ChatButton({ issueKey, connectionId, iconOnly = true }: { issueK
   return (
     <>
       <Button variant="ghost" size={iconOnly ? "icon" : "sm"} aria-label={iconOnly ? t("pages.chat.open") : undefined} title={t("pages.chat.open")} onClick={() => setOpen(true)}>
-        <MessagesSquare className="h-4 w-4" />
+        <MessageCircle className="h-4 w-4" />
         {!iconOnly && t("pages.chat.openShort")}
       </Button>
       {open && (
@@ -52,7 +52,7 @@ export function DiscussButton({ issueKey, connectionId, comment }: { issueKey: s
   return (
     <>
       <Button variant="ghost" size="icon-sm" aria-label={t("pages.chat.discussTitle")} title={t("pages.chat.discuss")} onClick={() => setOpen(true)}>
-        <MessageSquarePlus className="h-4 w-4" />
+        <MessageCirclePlus className="h-4 w-4" />
       </Button>
       {open && (
         <TeammatePicker
@@ -128,7 +128,7 @@ export function IssueChatSection({ issueKey, connectionId }: { issueKey: string;
       {current !== null && current > 0 && <ChatThread key={current} threadId={current} variant="inline" onGone={() => setOpen(-1)} />}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={() => setPicking(true)}>
-          <MessageSquarePlus className="h-4 w-4" />
+          <MessageCirclePlus className="h-4 w-4" />
           {list.length === 0 ? t("pages.chat.ask") : t("pages.chat.newChat")}
         </Button>
         {current !== null && current > 0 && (

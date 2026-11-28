@@ -161,6 +161,23 @@ test("a teammate is asked about an issue, reads and answers live; nobody else re
           }, [threadId, file.id]);
           assert.deepEqual(status, [404, 404]);
 
+          // In comfortable density on a desktop the split is narrower than its threshold: the chat over the list
+          // still ends inside the page's panel, its hint included.
+          await giulia.evaluate(() => (document.documentElement.dataset.density = "comfortable"));
+          await giulia.goto(`${base}/notifications?tab=chat&thread=${threadId}&cdetail`);
+          await herThread.getByRole("textbox", { name: "Message" }).waitFor();
+          await giulia.evaluate(() => (document.documentElement.dataset.density = "comfortable"));
+          await giulia.waitForTimeout(300);
+          const inPanel = await giulia.evaluate(() => {
+            const composer = document.querySelector("[data-chat-composer]").getBoundingClientRect();
+            const main = document.getElementById("main").getBoundingClientRect();
+            const end = Math.min(main.bottom, innerHeight);
+            return composer.bottom <= end && end - composer.bottom < 16;
+          });
+          assert.ok(inPanel, "the composer ends inside the panel, at its bottom");
+          await giulia.evaluate(() => delete document.documentElement.dataset.density);
+          await giulia.goto(`${base}/notifications?tab=chat`);
+
           // At 320 px the chat fits: nothing scrolls sideways.
           await giulia.setViewportSize({ width: 320, height: 720 });
           // Narrow, the list again (the chat picked beside it is the selection); opened, it replaces the list.
@@ -219,6 +236,85 @@ test("a tracker comment is discussed in a chat that quotes it", async () => {
         await thread.getByText(/Comment by Anna Analyst/).waitFor();
         const [m] = await db.q("SELECT refs FROM chat_messages WHERE kind = 'text'");
         assert.equal(JSON.parse(m.refs)[0].commentId, "900");
+      },
+    );
+  } finally {
+    await jira.close();
+  }
+});
+
+test("a message is answered, reacted to, edited and removed; a chat is found by its words and opened at a linked message", async () => {
+  const jira = await fakeJira();
+  try {
+    await withApp(
+      {
+        seed: async db => {
+          const now = Date.now();
+          await db.q("UPDATE connections SET base_url = ? WHERE id = 1", jira.url);
+          await db.q("INSERT INTO users (id, username, role, email, display_name, created_at) VALUES (2, 'gverdi', 'member', 'gverdi', 'Giulia Verdi', ?)", now);
+          await db.q("INSERT INTO chat_threads (id, created_by, tracker_type, tracker_base, issue_remote_id, issue_key, issue_title, created_at, last_message_at) SELECT 1, 1, 'jira', base_url, 'DEMO-101', 'DEMO-101', 'Test task number 1', ?, ? FROM connections WHERE id = 1", now, now);
+          await db.q("INSERT INTO chat_members (thread_id, user_id, role, joined_at, last_read_id) VALUES (1, 1, 'owner', ?, 999), (1, 2, 'member', ?, 0)", now, now);
+          // Sixty lines: the first is past the latest page, for a link to it.
+          for (let i = 1; i <= 60; i++) await db.q("INSERT INTO chat_messages (thread_id, author_id, body, created_at) VALUES (1, 2, ?, ?)", i === 1 ? "The reconciliation report lacks March" : `line ${i}`, now - (61 - i) * 1000);
+        },
+      },
+      async ({ page, base, db }) => {
+        // A link to the first line opens the chat there, marked.
+        const [{ id: first }] = await db.q("SELECT id FROM chat_messages ORDER BY id LIMIT 1");
+        await page.goto(`${base}/notifications?tab=chat&thread=1&msg=${first}`);
+        const thread = page.locator("[data-chat-thread]");
+        const linked = thread.locator(`[data-message-id="${first}"]`);
+        await linked.getByText("The reconciliation report lacks March").waitFor();
+        await page.waitForFunction(id => {
+          const el = document.querySelector(`[data-message-id="${id}"]`);
+          const box = document.querySelector("[data-chat-messages]");
+          if (!el || !box) return false;
+          const r = el.getBoundingClientRect();
+          const b = box.getBoundingClientRect();
+          return r.top >= b.top && r.bottom <= b.bottom;
+        }, first);
+
+        // Answered: the reply quotes it.
+        await linked.getByRole("button", { name: "Message actions" }).click();
+        await page.getByRole("menuitem", { name: "Reply" }).click();
+        await thread.getByText(/Replying to Giulia Verdi/).waitFor();
+        const box = thread.getByRole("textbox", { name: "Message" });
+        await box.fill("I'll add it today");
+        await box.press("Enter");
+        const mine = thread.locator("[data-mine]").filter({ hasText: "I'll add it today" });
+        await mine.getByText(/In reply to Giulia Verdi/).waitFor();
+
+        // Reacted to, and taken back.
+        await linked.getByRole("button", { name: "Message actions" }).click();
+        await page.getByRole("menuitem", { name: "React with 👍" }).click();
+        const reaction = linked.getByRole("button", { name: /reacted with 👍/ });
+        await reaction.waitFor();
+        assert.equal(await reaction.getAttribute("aria-pressed"), "true");
+        await reaction.click();
+        await reaction.waitFor({ state: "detached" });
+
+        // ↑ on an empty box edits one's last message; Enter saves it.
+        await box.click();
+        await box.press("ArrowUp");
+        await thread.getByText("Editing your message").waitFor();
+        await box.fill("I'll add it tomorrow");
+        await box.press("Enter");
+        const edited = thread.locator("[data-mine]").filter({ hasText: "I'll add it tomorrow" });
+        await edited.getByText("(edited)").waitFor();
+
+        // Removed: the line stays, marked, for everyone.
+        await edited.getByRole("button", { name: "Message actions" }).click();
+        await page.getByRole("menuitem", { name: "Remove" }).click();
+        await page.getByRole("alertdialog").getByRole("button", { name: "Remove" }).click();
+        await thread.getByText("Message removed").first().waitFor();
+        const [row] = await db.q("SELECT body, deleted_at FROM chat_messages WHERE author_id = 1 AND kind = 'text'");
+        assert.equal(row.body, "");
+        assert.ok(row.deleted_at);
+
+        // Found by its words from the list's search.
+        await page.goto(base + "/notifications?tab=chat");
+        await page.getByPlaceholder("Issue, person or words").fill("reconciliation");
+        await page.getByRole("region", { name: /Messages with/ }).getByText("The reconciliation report lacks March").waitFor();
       },
     );
   } finally {
