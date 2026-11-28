@@ -24,15 +24,25 @@ test("FlowMap is opt-in, exports only aggregates and deletes all derived data", 
     // The collector's code comes after the page (a lazy chunk): until it is in, a full page load away would take
     // the held clicks with it. Wait for it, not for a guessed time (a loaded CI machine fetches it late).
     await page.waitForFunction(() => performance.getEntriesByType("resource").some(e => /\/assets\/collector-[^/]+\.js/.test(e.name)));
-    // Loaded is not started: the collector starts once the settings it reads are in (no request left in flight).
-    await page.waitForLoadState("networkidle");
+    // Loaded is not started: the dashboard's collection starts once the settings and the presentation it
+    // reads are in, and the page names the surfaces that collect. Clicks before that are only held.
+    const dashboardCollects = () => page.waitForFunction(() => (document.documentElement.getAttribute("data-flowmap") ?? "").split(" ").includes("dashboard"));
+    await dashboardCollects();
     await page.getByRole("button", { name: "Customize dashboard", exact: true }).click();
     await page.keyboard.press("Escape");
-    // Exposures count after a second on screen; leaving the page then sends them (pagehide beacon,
-    // which the browser sends after the page is gone: the rows are awaited below, up to 20 s).
+    // A presentation change restarts it (the held clicks go to the new one): leave only with one running.
     await page.waitForTimeout(1_300);
-    await page.goto(`${base}/settings/workspace`);
-    assert.ok(await waitForCount(db, "workspace_flow_events", 1) > 0, "the real collector recorded an allowlisted interaction");
+    await dashboardCollects();
+    // Leave inside the app, as a person does: the dashboard's collection ends with the page alive and sends
+    // its events. A full load away (page.goto) would leave them to unload beacons, which Chromium may drop.
+    await page.evaluate(() => {
+      history.pushState(null, "", "/settings/workspace");
+      dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await page.waitForFunction(() => !(document.documentElement.getAttribute("data-flowmap") ?? "").split(" ").includes("dashboard"));
+    const clicked = async () => (await db.q("SELECT count(*)::int AS n FROM workspace_flow_events WHERE surface_id = 'dashboard' AND payload LIKE '%\"controlId\":\"dashboard.customize.open\"%'"))[0].n;
+    for (let i = 0; i < 200 && await clicked() === 0; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(await clicked(), 1, "the real collector recorded the allowlisted click");
     await updatePeriods(page);
     // The usage map of the period shown: downloaded at once, no picture put on the page.
     const downloaded = page.waitForEvent("download");
