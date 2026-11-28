@@ -22,7 +22,9 @@ import type {
 import { t } from "@contracts/i18n";
 import { getDb, type Db } from "../queries/connection";
 import { xactLock } from "../queries/locks";
-import { ownConnection } from "../providers/connections";
+import { contextFor, ownConnection } from "../providers/connections";
+import { uploadAttachments } from "../jira/client";
+import { openBytesFor } from "../lib/crypto";
 import { publish as publishEvent } from "../lib/userEvents";
 import { addIssueComment } from "../routers/issues";
 import { fromMarkdown } from "../providers/core/richtext";
@@ -730,6 +732,36 @@ export async function publish(user: User, messageId: number, origin?: string): P
   });
   await tell(th.id, "edit", user.id, { messageId, origin });
   return { commentId, issueKey: key, connectionId: conn.id };
+}
+
+/**
+ * A message's files attached to the issue on its tracker, by the caller (their account, their
+ * connection). Jira only, as the issue page's own uploads; the thread says it was done.
+ */
+export async function publishFiles(user: User, messageId: number, origin?: string): Promise<{ issueKey: string; connectionId: number; count: number }> {
+  const m = await messageIn(user.id, messageId);
+  if (m.kind !== "text" || m.deletedAt) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.chat.nothingToPublish") });
+  const files = await getDb().select().from(chatFiles).where(eq(chatFiles.messageId, messageId)).orderBy(asc(chatFiles.id));
+  if (files.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.chat.nothingToPublish") });
+  const th = m.membership.thread;
+  await refreshSnapshot(user.id, th);
+  const conn = (await connectionsTo([user.id], th, th.issueRemoteId)).get(user.id);
+  if (!conn) throw refused(t("server.chat.noConnectionYours", { tracker: trackerName(th.trackerBase) }));
+  if (conn.type !== "jira") throw refused(t("server.chat.unsupported", { tracker: trackerName(th.trackerBase) }));
+  const row = await ownIssueRow(user.id, conn.id, th.issueRemoteId, th.issueKey);
+  const key = row?.key ?? th.issueKey;
+  const { creds } = contextFor(user, conn);
+  await uploadAttachments(
+    creds,
+    key,
+    files.map((f) => new File([new Uint8Array(openBytesFor(f.data, `chat-file:${f.threadId}:${f.id}`))], f.name, { type: f.contentType })),
+  );
+  await getDb().transaction(async (tx) => {
+    await systemLine(tx, th.id, user.id, { kind: "published", messageId });
+    await tx.update(chatThreads).set({ lastMessageAt: new Date() }).where(eq(chatThreads.id, th.id));
+  });
+  await tell(th.id, "members", user.id, { origin });
+  return { issueKey: key, connectionId: conn.id, count: files.length };
 }
 
 /** Members to tell that someone is typing (the typer's own other tabs too). */

@@ -1459,6 +1459,8 @@ export const pages: Shape<(typeof en)["pages"]> = {
       linkCopied: "Link copiato",
       publish: "Pubblica sul tracker",
       published: "Pubblicato sul tracker",
+      publishFiles: "Allega i file sul tracker",
+      filesPublished: "File allegati sul tracker",
       edit: "Modifica",
       remove: "Elimina",
       removeTitle: "Eliminare questo messaggio?",

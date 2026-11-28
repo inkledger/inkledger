@@ -188,6 +188,10 @@
     "type": "mutation"
   },
   {
+    "path": "chat.publishFiles",
+    "type": "mutation"
+  },
+  {
     "path": "chat.react",
     "type": "mutation"
   },

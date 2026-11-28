@@ -52,6 +52,7 @@ export interface FrozenIn {
   "chat.open": { connectionId: number; key: string; userIds: number[] };
   "chat.prefs": { archived?: false | true | undefined; muted?: false | true | undefined; pinned?: false | true | undefined; threadId: number };
   "chat.publish": { messageId: number };
+  "chat.publishFiles": { messageId: number };
   "chat.react": { emoji: "✅" | "❓" | "❤️" | "🎉" | "👀" | "👍"; messageId: number; on: boolean };
   "chat.remove": { messageId: number };
   "chat.search": { q: string };
@@ -484,6 +485,7 @@ export interface FrozenOut {
   "chat.open": { reused: boolean; threadId: number };
   "chat.prefs": void;
   "chat.publish": { commentId: string };
+  "chat.publishFiles": { count: number };
   "chat.react": void;
   "chat.remove": void;
   "chat.search": { issueKey: string; message: { authorId: null | number; body: string; clientNonce: null | string; createdAt: number; deleted: boolean; doc: null | { blocks: Rec1; v: 1 }; editedAt: null | number; files: { contentType: string; height: null | number; id: number; name: string; size: number; width: null | number }[]; id: number; jiraCommentId: null | string; kind: "system" | "text"; reactions: { emoji: "✅" | "❓" | "❤️" | "🎉" | "👀" | "👍"; userIds: number[] }[]; refs: ({ author: string; commentId: string; created: string; excerpt: string; key: string; kind: "comment" } | { category: string; key: string; kind: "issue"; status: string; title: string } | { comment: string; date: string; key: string; kind: "worklog"; seconds: number })[]; replyTo: null | { authorId: null | number; deleted: boolean; id: number; preview: string }; system: null | { kind: "added"; userIds: number[] } | { kind: "left" } | { kind: "opened" } | { kind: "published"; messageId: number } | { kind: "reopened" } | { kind: "resolved" }; threadId: number }; threadId: number }[];

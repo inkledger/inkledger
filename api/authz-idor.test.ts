@@ -539,6 +539,7 @@ const CASES: Case[] = [
   { proc: "chat.leave", fields: ["threadId"], call: (c, a) => c.chat.leave({ threadId: a.chatThread }) },
   { proc: "chat.setState", fields: ["threadId"], call: (c, a) => c.chat.setState({ threadId: a.chatThread, state: "resolved" }) },
   { proc: "chat.prefs", fields: ["threadId"], call: (c, a) => c.chat.prefs({ threadId: a.chatThread, pinned: true }) },
+  { proc: "chat.publishFiles", fields: ["messageId"], call: (c, a) => c.chat.publishFiles({ messageId: a.chatMessage }), noOwner: "writes attachments on the tracker (api/chat/files.test.ts)" },
   { proc: "chat.publish", fields: ["messageId"], call: (c, a) => c.chat.publish({ messageId: a.chatMessage }), noOwner: "writes a comment on the tracker (api/chat/files.test.ts)" },
   { proc: "ideas.capture", fields: ["containerId"], call: (c, a) => c.ideas.capture({ text: "x", containerId: a.container }) },
   { proc: "ideas.update", fields: ["id"], call: (c, a) => c.ideas.update({ id: a.idea, title: "mine" }) },

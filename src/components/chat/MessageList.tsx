@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUpRight, Clock, CornerUpLeft, Download, FileText, Link2, MessageSquareQuote, MoreHorizontal, Pencil, Send, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Clock, CornerUpLeft, Download, FileText, Link2, MessageSquareQuote, MoreHorizontal, Paperclip, Pencil, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDuration } from "@contracts/time";
 import { CHAT_REACTIONS, type ChatFileView, type ChatMemberView, type ChatMessageView, type ChatReaction, type ChatRef, type ChatThreadView } from "@contracts/chat";
@@ -531,6 +531,10 @@ function MessageActions({ m, thread, self, mine, onReply, onEdit }: { m: ChatMes
     onError: (e) => toastError(e),
   });
   const remove = trpc.chat.remove.useMutation({ onError: (e) => toastError(e) });
+  const publishFiles = trpc.chat.publishFiles.useMutation({
+    onSuccess: () => toast.success(t("pages.chat.messages.filesPublished")),
+    onError: (e) => toastError(e),
+  });
   const [confirm, setConfirm] = useState(false);
   if (m.deleted) return <span />;
   const link = () => {
@@ -570,6 +574,12 @@ function MessageActions({ m, thread, self, mine, onReply, onEdit }: { m: ChatMes
             <DropdownMenuItem disabled={publish.isPending} onSelect={() => publish.mutate({ messageId: m.id })}>
               <Send className="h-4 w-4" />
               {t("pages.chat.messages.publish")}
+            </DropdownMenuItem>
+          )}
+          {m.files.length > 0 && thread.issue.connectionId !== null && (
+            <DropdownMenuItem disabled={publishFiles.isPending} onSelect={() => publishFiles.mutate({ messageId: m.id })}>
+              <Paperclip className="h-4 w-4" />
+              {t("pages.chat.messages.publishFiles")}
             </DropdownMenuItem>
           )}
           {mine && (

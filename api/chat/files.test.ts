@@ -9,6 +9,14 @@ process.env.DATABASE_URL = ":memory:";
  */
 
 const comments: { key: string; text: string; connectionId?: number }[] = [];
+const uploads: { key: string; names: string[]; sizes: number[] }[] = [];
+vi.mock("../jira/client", async (original) => ({
+  ...(await original<typeof import("../jira/client")>()),
+  uploadAttachments: vi.fn(async (_creds: unknown, key: string, files: File[]) => {
+    uploads.push({ key, names: files.map((f) => f.name), sizes: files.map((f) => f.size) });
+    return files.map((f, i) => ({ id: String(i), filename: f.name }));
+  }),
+}));
 const fail = { next: false };
 vi.mock("../routers/issues", async (original) => ({
   ...(await original<typeof import("../routers/issues")>()),
@@ -94,7 +102,10 @@ describe("files and publishing, between members", () => {
     ann = await mk("Ann");
     bob = await mk("Bob");
     cy = await mk("Cy");
-    for (const u of [ann, bob]) await q("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'jira', 'https://jira.example', ?, '{}', 'x', 1)", u, "a" + u);
+    for (const u of [ann, bob]) await q("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'jira', 'https://jira.example', ?, ?, 'x', 1)", u, "a" + u, JSON.stringify({ deployment: "server", authType: "basic", username: "u" + u }));
+    // Sealed for each connection, as a real one: publishing opens it.
+    const { sealSecret } = await import("../lib/crypto");
+    for (const c of await q<{ id: number }>("SELECT id FROM connections")) await q("UPDATE connections SET encrypted_secret = ? WHERE id = ?", sealSecret("t", c.id), c.id);
     await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) SELECT ?, id, '10001', 'APP-1', 'Fix', 'Open', 'APP', 'P', 'u', 1 FROM connections WHERE user_id = ?", bob, bob);
     thread = (await one<{ id: number }>("INSERT INTO chat_threads (created_by, tracker_type, tracker_base, issue_remote_id, issue_key, created_at, last_message_at) VALUES (?, 'jira', 'https://jira.example', '10001', 'APP-1', 1, 1) RETURNING id", ann)).id;
     for (const u of [ann, bob]) await q("INSERT INTO chat_members (thread_id, user_id, role, joined_at) VALUES (?, ?, 'member', 1)", thread, u);
@@ -175,6 +186,16 @@ describe("files and publishing, between members", () => {
     expect((await (await as(bob)).chat.messages({ threadId: thread })).messages.find((x) => x.id === m.id)?.jiraCommentId).toBeNull();
     await (await as(bob)).chat.publish({ messageId: m.id });
     expect(comments.at(-1)?.text).toBe("retry me");
+  });
+
+  it("attaches a message's files on the tracker, opened from their seal, as the caller", async () => {
+    const f = (await (await upload(bob, thread, "report.csv", Buffer.from("a,b\n1,2\n"))).json()) as { id: number };
+    const m = await (await as(bob)).chat.send({ threadId: thread, body: "the data", fileIds: [f.id], clientNonce: "nonce-files-1" });
+    expect(await (await as(bob)).chat.publishFiles({ messageId: m.id })).toEqual({ count: 1 });
+    expect(uploads.at(-1)).toEqual({ key: "APP-1", names: ["report.csv"], sizes: [8] });
+    // A message without files has nothing to attach; someone outside the thread reaches nothing.
+    const plain = await (await as(bob)).chat.send({ threadId: thread, body: "no files", clientNonce: "nonce-files-2" });
+    expect(await (await as(bob)).chat.publishFiles({ messageId: plain.id }).catch((e: { code: string }) => e.code)).toBe("BAD_REQUEST");
   });
 
   it("draws Markdown as a rich-text tree", async () => {

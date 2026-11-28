@@ -16,6 +16,7 @@ import {
   messages,
   openThread,
   publish,
+  publishFiles,
   react,
   remove,
   search,
@@ -135,6 +136,13 @@ export const chatRouter = createRouter({
     const out = await publish(ctx.user, input.messageId, ctx.clientId);
     void record(ctx, "chat.publish", { target: { type: "chat_message", id: input.messageId }, after: { issueKey: out.issueKey, connectionId: out.connectionId } });
     return { commentId: out.commentId };
+  }),
+
+  /** A message's files attached to the issue on the tracker, by the caller. */
+  publishFiles: protectedProcedure.input(z.object({ messageId: id })).mutation(async ({ ctx, input }) => {
+    const out = await publishFiles(ctx.user, input.messageId, ctx.clientId);
+    void record(ctx, "chat.publish", { target: { type: "chat_message", id: input.messageId }, after: { issueKey: out.issueKey, connectionId: out.connectionId } });
+    return { count: out.count };
   }),
 
   /** What the badges count. */

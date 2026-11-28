@@ -816,6 +816,8 @@ export const pagesRest = {
       linkCopied: "Link copied",
       publish: "Publish on the tracker",
       published: "Published on the tracker",
+      publishFiles: "Attach the files on the tracker",
+      filesPublished: "Files attached on the tracker",
       edit: "Edit",
       remove: "Remove",
       removeTitle: "Remove this message?",
