@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
-import { CloudUpload, FlaskConical, ListRestart, RotateCcw } from "lucide-react";
+import { CloudOff, CloudUpload, FlaskConical, ListRestart, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import type { AppRouter } from "../../../../api/router";
 import { trpc } from "@/lib/trpc";
@@ -202,6 +202,13 @@ export default function BackupOffsite({ info, canRestore }: { info: Info; canRes
 
       {saved.kind !== "none" && (
         <SettingsGroup id="backup-offsite-status" title={t("settings.backup.offsite.copiesTitle")} keywords={t("settings.backup.offsite.copiesKeywords")}>
+          {/* A read-only server (a test or staging copy) skips every off-site copy: said here, not only in the server's log. */}
+          {info.readOnly && (
+            <p role="status" data-testid="offsite-read-only" className="mb-3 flex items-start gap-1.5 text-body-sm text-warning [overflow-wrap:anywhere]">
+              <CloudOff aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0">{t("settings.backup.offsite.readOnly")}</span>
+            </p>
+          )}
           <SettingsRow
             label={t("settings.backup.offsite.last")}
             hint={
@@ -212,7 +219,7 @@ export default function BackupOffsite({ info, canRestore }: { info: Info; canRes
                   : t("settings.backup.offsite.never")
             }
           >
-            <Button size="sm" variant="outline" disabled={copyNow.isPending || info.files.length === 0} onClick={() => copyNow.mutate()}>
+            <Button size="sm" variant="outline" disabled={copyNow.isPending || info.files.length === 0 || info.readOnly} onClick={() => copyNow.mutate()}>
               <CloudUpload />
               {copyNow.isPending ? t("settings.backup.offsite.copying") : t("settings.backup.offsite.now")}
             </Button>

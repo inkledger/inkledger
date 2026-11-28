@@ -1277,6 +1277,45 @@ test("Settings → Backup: 'Back up now' writes a dump to the folder and lists i
   });
 });
 
+test("Settings → Backup: off-site copies on a read-only server say they are skipped, and Copy now is off", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ikl-e2e-backups-"));
+  writeFileSync(join(dir, "inkledger-20260101-020000.dump"), "dump");
+  // OFFSITE_SHOTS=<dir>: the section in light, dark and dark high contrast (for review).
+  const shots = process.env.OFFSITE_SHOTS;
+  return withApp({ env: { BACKUP_DIR: dir } }, async ({ page, base, db }) => {
+    await page.goto(base + "/settings/backup");
+    const status = page.locator("#backup-offsite-status");
+    // Off: no line (nothing to skip).
+    await page.getByRole("heading", { name: "Backup", level: 2 }).waitFor();
+    await page.locator("#backup-offsite").getByRole("radio", { name: "restic" }).waitFor();
+    assert.equal(await page.getByTestId("offsite-read-only").count(), 0);
+    await page.locator("#backup-offsite").getByRole("radio", { name: "restic" }).click();
+    await page.locator("#backup-offsite").getByRole("button", { name: "Save" }).click();
+    // The e2e server is read-only (harness.mjs): the line says so.
+    await status.getByRole("status").filter({ hasText: "Skipped: this server is read-only" }).waitFor();
+    assert.equal(await status.getByRole("button", { name: "Copy now" }).isDisabled(), true);
+    if (!shots) return;
+    mkdirSync(shots, { recursive: true });
+    for (const [name, scheme, contrast] of [["light", "light", "normal"], ["dark", "dark", "normal"], ["dark-high-contrast", "dark", "high"]]) {
+      if (contrast === "high") {
+        await page.goto(base + "/settings/appearance");
+        await page.getByRole("radiogroup", { name: "Contrast" }).getByRole("radio", { name: "High" }).click();
+        await page.waitForFunction(() => document.documentElement.dataset.contrast === "high");
+        // Shown at once; a reload is only fair once the server has it.
+        for (let i = 0; i < 100 && (await db.q("SELECT theme_contrast FROM settings WHERE user_id = 1"))[0]?.theme_contrast !== "high"; i++) await page.waitForTimeout(100);
+      }
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(base + "/settings/backup#backup-offsite-status");
+      await page.waitForFunction(c => document.documentElement.dataset.contrast === c, contrast);
+      await status.getByRole("status").waitFor();
+      await status.scrollIntoViewIfNeeded();
+      await page.mouse.move(0, 0);
+      await page.waitForTimeout(300);
+      await status.screenshot({ path: join(shots, `backup-offsite-read-only-${name}.png`) });
+    }
+  });
+});
+
 const PHONE = { width: 390, height: 800 };
 const pausedTimer = db => {
   const now = Date.now();

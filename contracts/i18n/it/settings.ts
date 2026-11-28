@@ -1265,6 +1265,7 @@ export const settings: Shape<typeof en> = {
       lastOk: "{when} · {name}",
       lastFailed: "L'ultima copia non è riuscita: {error}",
       never: "Ancora nessuna",
+      readOnly: "Saltata: questo server è in sola lettura (PROVIDERS_READ_ONLY o JIRA_READ_ONLY), quindi nessun backup viene copiato fuori sede. I backup locali continuano come sempre.",
       now: "Copia ora",
       copying: "Copia in corso…",
       copied: "Copiato fuori sede: {name}",

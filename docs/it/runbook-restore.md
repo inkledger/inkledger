@@ -23,13 +23,15 @@ If the file holds migrations this version does not know, the restore stops with 
 
 ## Restore from an off-site copy
 
+> **A read-only server copies nothing off-site.** With `PROVIDERS_READ_ONLY=1` (or `JIRA_READ_ONLY=1`), for example a staging or test server on a copied database, every off-site copy is skipped, the scheduled ones and **Copy now** alike; local backups go on as usual. Settings → Backup → Off-site copies says so ("Skipped: this server is read-only"), and the server log has `[backup] off-site copy skipped: read-only server`. Such a server's newest off-site copy is as old as the last one taken before it went read-only.
+
 When the backups folder is gone (a lost disk or host) but off-site copies are on (Settings → Backup → Off-site copy):
 
 1. Start a server of the same version or newer, with the same environment file: `CREDENTIALS_KEY` (and `_OLD`) as when the copy was taken, and `BACKUP_KEY` (S3; add `BACKUP_KEY_OLD` if the copy predates a key change) or `RESTIC_REPOSITORY`/`RESTIC_PASSWORD` (restic).
 2. Sign in as an owner (on a new server, the first admin) and set Settings → Backup → Off-site copy back to the same bucket and folder (or kind restic).
 3. Off-site copies → **Show the copies** → the copy → **Restore**, and confirm. Only an owner holding "restore backups" sees the button.
 4. The server downloads the copy into `BACKUP_DIR`, decrypts it and checks every byte before the file appears (a copy altered or cut short is refused, nothing changes), then restores it exactly as above: safety backup first, one transaction, sessions ended, `restore.completed` in the audit log.
-5. The data folder archive comes back beside it as `inkledger-<date>-<time>.data.tar.gz` (mode 0600). It holds `instance.key`, installed modules, downloads and the audit file copy. On a new host, stop the app, extract it into `/app/data` (`tar -xzf <file> -C /app/data`, as the container's user), start the app, then delete the archive. Restoring `instance.key` keeps module licences activated for this server.
+5. The data folder archive comes back beside it as `inkledger-<date>-<time>.data.tar.gz` (mode 0600). It holds the installed modules, downloads and the audit file copy, and `instance.key` once the server has one: the key is made the first time the server needs its identity (a module licence activated or checked, feedback forwarded upstream), so a server that never did has none, and its archive holds none. It is in the archive only where `INSTANCE_KEY_PATH` lies in the data folder (the default, `/app/data/instance.key`). On a new host, stop the app, extract it into `/app/data` (`tar -xzf <file> -C /app/data`, as the container's user), start the app, then delete the archive. When the archive held `instance.key`, restoring it keeps module licences activated for this server; without one, the server makes a new key when it first needs it.
 
 ### Without the app (off-site)
 

@@ -171,7 +171,7 @@ checkout: they apply cleanly. Not applied: the session asked for the user to app
 - [x] Base images pinned by digest (Dockerfile, deploy/staging.yml db). CHANGELOG.md.
 - [x] Image: PGlite, TypeScript, better-sqlite3 removed from the runtime image (better-sqlite3 a
   dev dependency now). node_modules 110 → 40 MB, image 68.5 MiB; booted on Postgres.
-- [x] Staging updated with `pnpm docker:update`: migration 0010 applied, healthy, jtt unchanged.
+- [x] Staging updated with `pnpm docker:update`: migration 0010 applied, healthy, the old stack unchanged.
 - [x] `issues.unreadCount`: the sidebar counter no longer loads the catalogue. Before/after
   table in docs/dev/performance.md (cold page ~1.6 MB → ~450 KiB, warm 220–430 → 12–21 KiB).
 - [x] LAN pairing: the fingerprint is compared with what the phone shows for the certificate,

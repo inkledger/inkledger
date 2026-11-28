@@ -1265,6 +1265,7 @@ export const settings = {
       lastOk: "{when} · {name}",
       lastFailed: "Last copy failed: {error}",
       never: "None yet",
+      readOnly: "Skipped: this server is read-only (PROVIDERS_READ_ONLY or JIRA_READ_ONLY), so no backup is copied off-site. Local backups go on as usual.",
       now: "Copy now",
       copying: "Copying…",
       copied: "Copied off-site: {name}",

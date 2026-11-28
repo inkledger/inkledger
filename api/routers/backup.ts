@@ -84,6 +84,8 @@ export const backupRouter = createRouter({
       offsiteState: await getOffsiteState(),
       backupKeySet: backupKeySet(),
       resticConfigured: resticConfigured(),
+      /** A read-only server (PROVIDERS_READ_ONLY / JIRA_READ_ONLY) skips every off-site copy (backupOffsite.ts) */
+      readOnly: env.readOnly,
       drill: await getLastDrill(),
       drillSettings: await getDrillSettings(),
     };

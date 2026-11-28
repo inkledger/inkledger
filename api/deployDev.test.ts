@@ -25,7 +25,7 @@ describe("deploy/dev.yml", () => {
     expect(db.container_name).toBe("inkledger-test-db");
     // Pinned, never a moving tag alone.
     expect(db.image).toMatch(/^postgres:17-alpine@sha256:[0-9a-f]{64}$/);
-    // Only this machine, on its own port: never 54329 (jtt) or 54330 (staging).
+    // Only this machine, on its own port: never 54329 (docker-compose.yml) or 54330 (the inkledger stack).
     expect(db.ports).toEqual([expect.objectContaining({ host_ip: "127.0.0.1", published: "54331", target: 5432 })]);
     expect(db.tmpfs).toEqual(["/var/lib/postgresql/data"]);
     expect(db.volumes ?? []).toEqual([]);
@@ -48,6 +48,6 @@ describe("deploy/dev.yml", () => {
     expect(Number(forecast.cpus)).toBe(1);
     expect(forecast.volumes).toEqual([expect.objectContaining({ source: "ml-models", target: "/models" })]);
     // Nothing of the other stacks.
-    expect(JSON.stringify(c)).not.toMatch(/jtt|inkledger-db\b|54329|54330/);
+    expect(JSON.stringify(c)).not.toMatch(/inkledger-db\b|54329|54330/);
   });
 });

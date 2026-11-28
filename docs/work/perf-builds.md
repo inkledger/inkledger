@@ -5,7 +5,7 @@ Production builds for Docker and Tauri, a script that updates the container, a s
 makes the apps to hand out, a measurement of the builds, and where to gain efficiency.
 
 ## Constraints and out of scope
-- The old jtt stack (container, image, database) is never touched. Only the inkledger stack
+- The old stack (container, image, database) is never touched. Only the inkledger stack
   (deploy/staging.yml, :47824, read-only towards trackers).
 - No optimizations here: performance.md proposes them.
 - Unsigned native builds (no Apple Developer account).
@@ -17,7 +17,7 @@ makes the apps to hand out, a measurement of the builds, and where to gain effic
 - Perf reuses the e2e harness, so there is no second way to boot and seed a server.
 
 ## Batches
-- [x] docker:update (backup, build, swap, health, rollback): run on staging, jtt unchanged
+- [x] docker:update (backup, build, swap, health, rollback): run on staging, the old stack unchanged
 - [x] dist: .dmg/.app.zip/.apk + SHA256SUMS in release/0.1.0
 - [x] perf server/page/docker/app + measuring.md section
 - [x] performance.md: numbers and ranked improvements
@@ -29,7 +29,7 @@ makes the apps to hand out, a measurement of the builds, and where to gain effic
 ## Checks
 | Command | Scope | Result |
 |---|---|---|
-| `pnpm docker:update` | staging :47824 | healthy in 2.8 s; jtt image/start time unchanged |
+| `pnpm docker:update` | staging :47824 | healthy in 2.8 s; the old stack's image/start time unchanged |
 | `pnpm dist` | mac + android | ok; dmg verified (hdiutil); APK sha matches the container |
 | `pnpm perf server` ×2, `docker`, `app` ×2 | local | complete; page timings within ~15% |
 | `pnpm docker:from-dev --yes` | staging :47824 | 1 user, 3 connections, 157 worklogs, 1787 issues, 6 mods; 3 secrets sealed again; GitHub 401 as in dev |

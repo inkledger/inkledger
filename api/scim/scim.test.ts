@@ -92,6 +92,34 @@ describe("SCIM groups", () => {
   });
 });
 
+describe("SCIM addresses", () => {
+  it("meta.location and Location are absolute under PUBLIC_URL, the path alone while it is unset", async () => {
+    const { scimUrl } = await import("./resources");
+    expect(scimUrl("/Users/8", null)).toBe("/scim/v2/Users/8");
+    expect(scimUrl("/Users/8", "https://time.example.com")).toBe("https://time.example.com/scim/v2/Users/8");
+    expect(scimUrl("/Groups/3", "https://example.com/ikl/")).toBe("https://example.com/ikl/scim/v2/Groups/3");
+    const { env } = await import("../lib/env");
+    const was = env.publicUrl;
+    try {
+      env.publicUrl = null;
+      const relative = await sim.okta.create({ userName: "rel@example.com" });
+      expect((relative.body?.meta as { location?: string } | undefined)?.location).toBe(`/scim/v2/Users/${String(relative.body?.id)}`);
+      env.publicUrl = "https://time.example.com";
+      const res = await call("/scim/v2/Users", { method: "POST", headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/scim+json" }, body: JSON.stringify({ schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"], userName: "abs@example.com" }) });
+      expect(res.status).toBe(201);
+      const made = (await res.json()) as { id: string; meta: { location: string } };
+      expect(made.meta.location).toBe(`https://time.example.com/scim/v2/Users/${made.id}`);
+      expect(res.headers.get("location")).toBe(made.meta.location);
+      const group = (await (await call(`/scim/v2/Groups`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/scim+json" }, body: JSON.stringify({ displayName: "Absolute" }) })).json()) as { id: string; meta: { location: string } };
+      expect(group.meta.location).toBe(`https://time.example.com/scim/v2/Groups/${group.id}`);
+      const types = (await (await call("/scim/v2/ResourceTypes", { headers: { authorization: `Bearer ${TOKEN}` } })).json()) as { Resources: { meta: { location: string } }[] };
+      expect(types.Resources.map((r) => r.meta.location)).toEqual(["https://time.example.com/scim/v2/ResourceTypes/User", "https://time.example.com/scim/v2/ResourceTypes/Group"]);
+    } finally {
+      env.publicUrl = was;
+    }
+  });
+});
+
 describe("SCIM tokens", () => {
   it("no token, a wrong one or a revoked one: 401; every write is audited as scim", async () => {
     expect((await call("/scim/v2/Users")).status).toBe(401);
