@@ -26,7 +26,7 @@ import { ownConnection } from "../providers/connections";
 import { publish as publishEvent } from "../lib/userEvents";
 import { addIssueComment } from "../routers/issues";
 import { fromMarkdown } from "../providers/core/richtext";
-import { candidates as candidatesFor, connectionsTo, lookIssue, ownIssueRow, teammates, type Reach, type TrackerOf } from "./access";
+import { candidates as candidatesFor, connectionsTo, findIssueByKey, lookIssue, ownIssueRow, teammates, type Reach, type TrackerOf } from "./access";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -54,7 +54,7 @@ export async function anchorOf(userId: number, connectionId: number, key: string
   const tracker = { trackerType: conn.type, trackerBase: conn.baseUrl };
   const row = await ownIssueRow(userId, conn.id, null, key);
   if (row) return { ...tracker, remoteId: row.remoteId, key: row.key, title: row.summary, status: row.status, category: row.category };
-  const { reach, issue } = await lookIssue(conn, { remoteId: key, key });
+  const { reach, issue } = await findIssueByKey(conn, key);
   if (reach === "ok" && issue) return { ...tracker, remoteId: issue.remoteId, key: issue.key, title: issue.title, status: issue.status.name, category: issue.status.category };
   if (reach === "unreachable") throw refused(t("server.chat.unreachable", { tracker: trackerName(conn.baseUrl) }));
   if (reach === "reconnect") throw refused(t("server.chat.reconnectYours", { tracker: trackerName(conn.baseUrl) }));

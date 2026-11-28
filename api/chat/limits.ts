@@ -31,6 +31,11 @@ export function limit(key: string, max: number, ms: number): void {
   if (!fits(key, max, ms)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: t("server.chat.slowDown") });
 }
 
+/** Starts a key's window afresh (a message sent ends its writer's typing: the next keystroke says it again at once). */
+export function forget(key: string): void {
+  windows.delete(key);
+}
+
 /** Test helper: forget every window. */
 export function resetChatLimits() {
   windows.clear();

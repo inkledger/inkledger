@@ -12,6 +12,7 @@ import { RemoteLinks } from "@/components/issue/RemoteLinks";
 import { IssueMails } from "@/components/mail/IssueMails";
 import { TodoList } from "@/components/todo/TodoList";
 import { LazySection } from "@/components/issue/LazySection";
+import { IssueChatSection } from "@/components/chat/IssueChat";
 import type { Issue, IssueData } from "@/components/issue/useIssueData";
 import { t } from "@/i18n";
 
@@ -52,6 +53,13 @@ export function IssueTextSections({
             />
           </PanelSection>
         </LazySection>
+        {i.connectionId && (
+          <LazySection lazy={lazy}>
+            <PanelSection title={t("pages.chat.section")} className="border-b">
+              <IssueChatSection issueKey={i.key} connectionId={i.connectionId} />
+            </PanelSection>
+          </LazySection>
+        )}
         <YourWork issue={i} idScope={idScope} />
     </div>
   );

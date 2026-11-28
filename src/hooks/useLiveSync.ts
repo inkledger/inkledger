@@ -6,25 +6,28 @@ import { useTimers } from "@/hooks/useTimers";
 import { TIMER_HEARTBEAT_MS } from "@contracts/timerLock";
 import { deviceId } from "@/lib/device";
 import { isNoteDirty, publishServerNote } from "@/components/notes/noteSync";
+import { asChatEvent, emitChat, noteTyping } from "@/components/chat/chatLive";
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
 type Utils = ReturnType<typeof trpc.useUtils>;
 
 /** What each event makes this page refetch, by name (several in one frame refetch once). */
-const refetches: Record<"timers" | "schedule" | "notesLists" | "decisions", (u: Utils) => Promise<unknown>> = {
+const refetches: Record<"timers" | "schedule" | "notesLists" | "decisions" | "chats", (u: Utils) => Promise<unknown>> = {
   // The TODO worked on follows its timer.
   timers: u => Promise.all([u.timers.list.invalidate(), u.todos.working.invalidate()]),
   // Hours changed on another page or device: holes, placement and targets follow at once.
   schedule: u => u.workSchedule.invalidate(),
   notesLists: u => Promise.all([u.notes.tree.invalidate(), u.notes.trash.invalidate(), u.notes.search.invalidate()]),
   decisions: u => u.decisions.list.invalidate(),
+  // A chat changed: its lists, counts and header follow (an open thread's messages follow through emitChat).
+  chats: u => Promise.all([u.chat.threads.invalidate(), u.chat.unreadCount.invalidate(), u.chat.forIssue.invalidate(), u.chat.thread.invalidate()]),
 };
 type Refetch = keyof typeof refetches;
 
 /** Which refetches an event asks for ("hello": a reconnect may have missed any of them). */
 const asks: Partial<Record<LiveEventType, Refetch[]>> = {
-  hello: ["timers", "schedule", "notesLists", "decisions"],
+  hello: ["timers", "schedule", "notesLists", "decisions", "chats"],
   timers: ["timers"],
   schedule: ["schedule"],
   notes: ["notesLists"],
@@ -56,6 +59,15 @@ export function useLiveSync() {
     };
     const close = liveEvents.open((type, data) => {
       ask(asks[type] ?? []);
+      if (type === "chat") {
+        const e = asChatEvent(data);
+        // Someone typing: shown where the thread is open, nothing to refetch.
+        if (e?.change === "typing") noteTyping(e.threadId, e.by);
+        else if (e) {
+          emitChat(e);
+          ask(["chats"]);
+        }
+      }
       // Back after missing more than the server kept: everything shown is refetched.
       if (type === "hello" && isRecord(data) && data.resync === true) void utils.invalidate();
       if (type === "hello") void utils.notes.get.invalidate();

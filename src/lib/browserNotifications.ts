@@ -37,6 +37,8 @@ export type ShowResult = "shown" | "error" | "unknown";
 export async function showBrowserNotification(
   title: string,
   options: NotificationOptions,
+  /** What a click does where the page shows it itself (no service worker): the worker opens `options.data.url`. */
+  onClick?: () => void,
 ): Promise<ShowResult> {
   if (currentPermission() !== "granted") return "error";
   try {
@@ -51,6 +53,12 @@ export async function showBrowserNotification(
     }
     return await new Promise<ShowResult>(resolve => {
       const n = new Notification(title, options);
+      if (onClick)
+        n.onclick = () => {
+          window.focus();
+          n.close();
+          onClick();
+        };
       n.onshow = () => resolve("shown");
       n.onerror = () => resolve("error");
       // Some browsers never fire onshow: don't hang.

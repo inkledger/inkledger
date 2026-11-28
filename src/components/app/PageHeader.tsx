@@ -22,6 +22,7 @@ export function PageHeader({
   breadcrumbCurrent,
   breadcrumbTrail,
   actions,
+  tabs,
   sticky = false,
   back = false,
   className,
@@ -46,6 +47,8 @@ export function PageHeader({
   /** Steps between the section and the current item (the folders a note is in) */
   breadcrumbTrail?: BreadcrumbStep[];
   actions?: React.ReactNode;
+  /** The page's sections as tabs (Tabs), on the header's bottom edge: part of it (sticky, measured with it). */
+  tabs?: React.ReactNode;
   /** Stays at the top of the panel while it scrolls (desktop): for pages whose controls drive the content. */
   sticky?: boolean;
   /** A detail page: "← Board" back to where it was opened from (or its section). */
@@ -81,6 +84,7 @@ export function PageHeader({
       className={cn(
         // A region: its toolbar folds by the header's own width (Toolbar), not the window's.
         "region flex flex-col gap-3 border-b px-5 py-4 md:px-6 xl:min-h-[4.5rem] xl:flex-row xl:items-center xl:justify-between xl:gap-6",
+        tabs && "xl:flex-wrap xl:gap-y-2",
         sticky && "relative z-20 bg-card lg:sticky lg:top-0",
         // Over the Dashboard's backdrop scene: nearly opaque, no backdrop blur (it would be redone on every frame of the scene).
         sticky &&
@@ -133,6 +137,8 @@ export function PageHeader({
           {actions}
         </div>
       )}
+      {/* On the bottom hairline: the chosen tab's underline is the header's own edge. */}
+      {tabs && <div className="-mb-4 min-w-0 basis-full">{tabs}</div>}
     </div>
   );
 }

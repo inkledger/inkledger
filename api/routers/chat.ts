@@ -4,7 +4,7 @@ import { createRouter, protectedProcedure } from "../middleware";
 import { issueKeyInput } from "../lib/inputs";
 import { record } from "../lib/audit";
 import { publishEphemeral } from "../lib/userEvents";
-import { fits, limit, SEND_PER_MINUTE } from "../chat/limits";
+import { fits, forget, limit, SEND_PER_MINUTE } from "../chat/limits";
 import {
   addMembers,
   candidates,
@@ -78,6 +78,8 @@ export const chatRouter = createRouter({
     )
     .mutation(({ ctx, input }) => {
       limit(`send:${ctx.user.id}`, SEND_PER_MINUTE, 60_000);
+      // The message ends its writer's typing on the other side: typing again is told at once.
+      forget(`typing:${ctx.user.id}:${input.threadId}`);
       return send(ctx.user.id, { ...input, origin: ctx.clientId });
     }),
 

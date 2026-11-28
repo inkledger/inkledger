@@ -55,8 +55,8 @@ export function notificationTitle(n: NotificationLike): string {
   return `${what}: ${n.issueKey}`;
 }
 
-/** Undismissed notifications plus today's TODO reminders (the bell's badge); shares the polled queries. */
-export function useNotificationCount(): number {
+/** Undismissed notifications, today's TODO reminders and alerts: the Notifications tab's own count. */
+export function useInboxCount(): number {
   const count = trpc.notifications.count.useQuery(undefined, {
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
@@ -64,6 +64,16 @@ export function useNotificationCount(): number {
   const reminders = useTodoReminders().items.length;
   const alerts = useAlerts().data?.length ?? 0;
   return (count.data?.count ?? 0) + reminders + alerts;
+}
+
+/** Unread chat messages (muted and archived chats aside): the Chat tab's count. */
+export function useChatUnread(): number {
+  return trpc.chat.unreadCount.useQuery(undefined, { refetchInterval: 60_000, refetchIntervalInBackground: true }).data?.messages ?? 0;
+}
+
+/** Everything waiting behind the bell (its badge): the inbox and unread chats; shares the polled queries. */
+export function useNotificationCount(): number {
+  return useInboxCount() + useChatUnread();
 }
 
 /**

@@ -13,8 +13,15 @@ const reach = new Map<number, "ok" | "noAccess" | "reconnect" | "unreachable" | 
 const remote = new Map<string, { remoteId: string; key: string; title: string; status: string; category: string }>();
 vi.mock("./access", async (original) => {
   const real = await original<typeof import("./access")>();
+  const byKey = async (conn: { id: number }, key: string) => {
+    const r = reach.get(conn.id) ?? "ok";
+    const found = remote.get(key);
+    if (r !== "ok" || !found) return { reach: r === "ok" ? "noAccess" : r, issue: null };
+    return { reach: "ok", issue: { remoteId: found.remoteId, key: found.key, title: found.title, status: { id: "s", name: found.status, category: found.category } } };
+  };
   return {
     ...real,
+    findIssueByKey: vi.fn(byKey),
     lookIssue: vi.fn(async (conn: { id: number }, ref: { remoteId: string; key: string }) => {
       const r = reach.get(conn.id) ?? "ok";
       const found = remote.get(ref.key) ?? [...remote.values()].find((x) => x.remoteId === ref.remoteId);
@@ -396,6 +403,10 @@ describe("typing", () => {
     // Again at once: the others already show it.
     await (await as(ann)).chat.typing({ threadId: thread });
     expect(heard.get(bob)!.filter((h) => h.e.change === "typing")).toHaveLength(1);
+    // A message ends the typing: typing again right after is told at once.
+    await (await as(ann)).chat.send({ threadId: thread, body: "sent", clientNonce: nonce() });
+    await (await as(ann)).chat.typing({ threadId: thread });
+    expect(heard.get(bob)!.filter((h) => h.e.change === "typing")).toHaveLength(2);
     // Not a member: refused, nobody told.
     expect(await codeOf((await as(cy)).chat.typing({ threadId: thread }))).toBe("NOT_FOUND");
   });

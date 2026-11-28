@@ -92,6 +92,25 @@ export async function lookIssue(conn: Connection, ref: { remoteId: string; key: 
   }
 }
 
+/**
+ * An issue by its key, asked with `conn`'s account (one the user never imported): the tracker's
+ * own lookup by key, which also finds its id. One read, nothing written.
+ */
+export async function findIssueByKey(conn: Connection, key: string): Promise<{ reach: Reach; issue: RemoteIssue | null }> {
+  const b = boundTracker(conn);
+  if (!b) return { reach: "unsupported", issue: null };
+  try {
+    const found = await b.findIssue(callMeta("chat", 15_000), { key });
+    return found.kind === "found" ? { reach: "ok", issue: found.issue } : { reach: "noAccess", issue: null };
+  } catch (e) {
+    if (e instanceof ProviderError) {
+      if (e.kind === "notFound" || e.kind === "forbidden") return { reach: "noAccess", issue: null };
+      if (e.kind === "auth") return { reach: "reconnect", issue: null };
+    }
+    return { reach: "unreachable", issue: null };
+  }
+}
+
 /** A user's own issue row for a thread's issue: by the tracker's id (when known), else by its key, else by an old key it had. */
 export async function ownIssueRow(userId: number, connectionId: number, remoteId: string | null, key: string) {
   const db = getDb();

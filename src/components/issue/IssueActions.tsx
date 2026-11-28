@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/app/Chip";
 import { TimerControls } from "@/components/TimerControls";
 import { FavoriteStar } from "@/components/FavoriteStar";
+import { ChatButton } from "@/components/chat/IssueChat";
 import { MakeTodoButton } from "@/components/todo/MakeTodo";
 import { TriageChip, TriageMenuItem } from "@/components/ideas/TriageButton";
 import { EditIssueButton } from "@/components/issue/ManageIssue";
@@ -261,6 +262,7 @@ export function IssueActions({
       )}
       <PinButton issueKey={i.key} connectionId={i.connectionId} />
       <MakeTodoButton iconOnly label={t("views.todos.onIssueLabel")} initial="" link={{ issueKey: i.key, connectionId: i.connectionId ?? undefined }} />
+      {i.connectionId && <ChatButton issueKey={i.key} connectionId={i.connectionId} />}
       {!i.remote && i.connectionId && <TriageChip issueKey={i.key} connectionId={i.connectionId} />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
