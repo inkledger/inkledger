@@ -40,10 +40,12 @@ export const queriesRouter = createRouter({
   used: protectedProcedure.input(z.object({ query })).mutation(async ({ ctx, input }) => {
     const db = getDb();
     const q = canonical(input.query);
+    // Strictly after the user's last one: two searches in the same millisecond keep the order they were run in.
+    const usedAt = sql`GREATEST(${Date.now()}::bigint, COALESCE((SELECT max(${recentQueries.usedAt}) FROM ${recentQueries} WHERE ${recentQueries.userId} = ${ctx.user.id}), 0) + 1)`;
     await db
       .insert(recentQueries)
-      .values({ userId: ctx.user.id, query: q, usedAt: new Date() })
-      .onConflictDoUpdate({ target: [recentQueries.userId, recentQueries.query], set: { usedAt: new Date() } });
+      .values({ userId: ctx.user.id, query: q, usedAt })
+      .onConflictDoUpdate({ target: [recentQueries.userId, recentQueries.query], set: { usedAt } });
     await db.execute(
       sql`DELETE FROM ${recentQueries} WHERE ${recentQueries.userId} = ${ctx.user.id} AND ${recentQueries.query} NOT IN (SELECT ${recentQueries.query} FROM ${recentQueries} WHERE ${recentQueries.userId} = ${ctx.user.id} ORDER BY ${recentQueries.usedAt} DESC LIMIT ${RECENT_MAX})`,
     );

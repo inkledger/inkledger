@@ -94,7 +94,15 @@ function TimerLogDecision({ d, onAnswered, onAnother }: { d: View; onAnswered: (
     if (!mine) setComment(remote);
   }
   const latest = useRef(comment);
-  const send = (v: string) => patch.mutateAsync({ id: d.id, fields: { comment: v } });
+  // The save on its way, if any: "Later" waits for it too (on a slow server it may land after Later is read).
+  const inFlight = useRef<Promise<unknown> | null>(null);
+  const send = (v: string) => {
+    const p = patch.mutateAsync({ id: d.id, fields: { comment: v } }).finally(() => {
+      if (inFlight.current === p) inFlight.current = null;
+    });
+    inFlight.current = p;
+    return p;
+  };
   const onComment = (v: string) => {
     setComment(v);
     latest.current = v;
@@ -104,12 +112,15 @@ function TimerLogDecision({ d, onAnswered, onAnother }: { d: View; onAnswered: (
       void send(v).catch(() => undefined);
     }, DRAFT_DEBOUNCE_MS);
   };
-  /** What is still waiting to be sent goes now (before "Later" reads it on the server). */
+  /** What is still waiting to be sent goes now, and what is on its way lands (before "Later" reads it on the server). */
   const flush = async () => {
-    if (!pending.current) return;
-    clearTimeout(pending.current);
-    pending.current = null;
-    await send(latest.current).catch(() => undefined);
+    if (pending.current) {
+      clearTimeout(pending.current);
+      pending.current = null;
+      await send(latest.current).catch(() => undefined);
+      return;
+    }
+    await inFlight.current?.catch(() => undefined);
   };
   const issueKey = str(d.payload.issueKey);
   const end = str(d.payload.end);

@@ -131,3 +131,48 @@ test("My issues on a phone: two cards a column, then Show all to the Board", { t
     const total = await tasks.locator("ul[aria-label] > li").count();
     if (total > shown.reduce((a, b) => a + b, 0)) assert.ok(await tasks.getByRole("link", { name: /^Show all/ }).first().isVisible(), "the rest a click away");
   }));
+
+// "Later" while the draft's last save is still on its way (a slow server): it used to read the draft
+// before that save landed, and what was typed was lost. It waits for the save in flight now.
+test("Later waits for a draft save still on its way: what was typed is kept", { skip: nearMidnight(5 * 60_000, 45 * 60_000), timeout: 600_000 }, async () => {
+  const now = Date.now();
+  const app = await start({
+    seed: async db => {
+      await db.q(
+        "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'running', ?, 0, NULL, '', ?, ?)",
+        now - 40 * 60_000, now, now,
+      );
+      await db.q("INSERT INTO settings (user_id, idle_minutes) VALUES (1, 0) ON CONFLICT (user_id) DO UPDATE SET idle_minutes = 0");
+    },
+  });
+  try {
+    const { page, base, db } = app;
+    await page.goto(base + "/");
+    await page.getByRole("button", { name: "Stop and log time on DEMO-101" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Log time on DEMO-101" });
+    await dialog.getByLabel("Comment").waitFor();
+    // The draft's saves reach the server only after a while.
+    let sent = () => {};
+    const started = new Promise(r => (sent = r));
+    await page.route(u => new URL(u).pathname.includes("decisions.patchDraft"), async route => {
+      sent();
+      await new Promise(r => setTimeout(r, 1500));
+      await route.continue();
+    });
+    await dialog.getByLabel("Comment").fill("half of the import done");
+    // Its save has left (the typing pause passed) and is still on its way: Later now.
+    await started;
+    await dialog.getByRole("button", { name: "Later" }).click();
+    await dialog.waitFor({ state: "detached" });
+    let row;
+    for (let i = 0; i < 100; i++) {
+      [row] = await db.q("SELECT state, note FROM timers WHERE issue_key = 'DEMO-101'");
+      if (row?.note) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    assert.deepEqual(row, { state: "paused", note: "half of the import done" }, "the typed comment stays as the timer's note");
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  } finally {
+    await app.stop();
+  }
+});
