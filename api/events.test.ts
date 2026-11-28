@@ -51,6 +51,17 @@ describe("GET /api/events", () => {
     expect(await until("event: timers")).toBe(true);
     expect(got).toContain('"epoch":7');
     expect(got).not.toContain('"epoch":9');
+    // Ephemeral (someone typing): goes out without an id, so the page's place in the stream stays.
+    const { publishEphemeral } = await import("./lib/userEvents");
+    publishEphemeral(user!.id, { type: "chat", threadId: 3, change: "typing", by: 99 });
+    publish(user!.id, { type: "timers", epoch: 8 });
+    expect(await until('"epoch":8')).toBe(true);
+    const typing = got.slice(got.indexOf("event: chat"));
+    expect(typing.split("\n\n")[0]).not.toMatch(/^id:/m);
+    expect(typing.split("\n\n")[0]).toContain('"change":"typing"');
+    // The next numbered event follows the one before it: typing took no number.
+    const ids = [...got.matchAll(/^id: \w+:(\d+)$/gm)].map((m) => Number(m[1]));
+    expect(ids.at(-1)! - ids.at(-2)!).toBe(1);
     closeAllStreams();
     await until("never");
     expect(streamCount()).toBe(0);

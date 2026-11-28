@@ -428,6 +428,13 @@
       "when": 1795705762440,
       "tag": "0060_feedback_public",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795824223499,
+      "tag": "0061_issue_chat",
+      "breakpoints": true
     }
   ]
 }

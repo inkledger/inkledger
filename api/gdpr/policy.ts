@@ -30,6 +30,11 @@ export const USER_DATA: Record<string, TablePolicy> = {
   users: { kind: "special", reason: "the account: account.json (no password hash); deleted last" },
   connections: { kind: "special", reason: "connections.json without secrets; archived first, deleted after their rows" },
   audit_events: { kind: "special", reason: "events by or about the person (audit_events.json); pseudonymised, never deleted" },
+  // Chats are shared by their members: the person's part is exported (chat.json); erased, their
+  // words stay for the others with no name (author set null), and a chat nobody is left in goes.
+  chat_threads: { kind: "special", reason: "the chats the person is in, as their issue and members (chat.json); opener and resolver set null with the account" },
+  chat_messages: { kind: "special", reason: "the person's own chat messages (chat.json); the writer is set null with the account, the words stay for the other members" },
+  chat_files: { kind: "special", reason: "the files the person sent in chats, without their bytes (chat.json); the uploader is set null with the account" },
 
   // The server's own
   roles: { kind: "global", reason: "the server's roles (the person's are in role_assignments)" },
@@ -107,6 +112,8 @@ export const USER_DATA: Record<string, TablePolicy> = {
   decisions: { kind: "user", export: all },
   feedback: { kind: "user", export: { omit: ["screenshot"] } },
   feedback_comments: { kind: "child", parent: "feedback", via: "feedback_id", export: all },
+  chat_members: { kind: "user", export: all },
+  chat_reactions: { kind: "user", export: all },
 
   // Views and layout
   buckets: { kind: "user", export: all },

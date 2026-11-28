@@ -195,10 +195,17 @@ beforeAll(async () => {
   globals.set("teams", await one("INSERT INTO teams (name, created_at) VALUES ('Team', 1) RETURNING *"));
   globals.set("roles", await one("SELECT * FROM roles WHERE key = 'auditor'"));
   globals.set("identity_providers", await one("INSERT INTO identity_providers (kind, name, created_at) VALUES ('oidc', 'IdP', 1) RETURNING *"));
+  // A chat Ann and Bob are both in (shared: no one's own), with a line of the owner's they react to.
+  globals.set("chat_threads", await one("INSERT INTO chat_threads (created_by, tracker_type, tracker_base, issue_remote_id, issue_key, created_at, last_message_at) VALUES (?, 'jira', 'https://jira.example', '1', 'APP-1', 1, 1) RETURNING *", rootId));
+  globals.set("chat_messages", await one("INSERT INTO chat_messages (thread_id, author_id, body, created_at) VALUES (?, ?, 'hello', 1) RETURNING *", globals.get("chat_threads")!.id, rootId));
   for (const t of await seedOrder()) {
     await seedRow(t, annId);
     await seedRow(t, bobId);
   }
+  // Ann's words and a file in the shared chat: exported as hers (chat.json), left nameless when she is erased.
+  const sharedChat = globals.get("chat_threads")!.id;
+  const annLine = await one<{ id: number }>("INSERT INTO chat_messages (thread_id, author_id, body, created_at) VALUES (?, ?, ?, 2) RETURNING id", sharedChat, annId, mark(annId));
+  await q("INSERT INTO chat_files (thread_id, message_id, uploader_id, name, content_type, size, data, created_at) VALUES (?, ?, ?, ?, 'text/plain', 3, ?, 2)", sharedChat, annLine.id, annId, mark(annId) + ".txt", Buffer.from(sentinel(annId, "chat_files", "data")));
   const { record, recordSystem, flushAudit } = await import("../lib/audit");
   const req = new Request("http://localhost/", { headers: { "user-agent": "test", "x-forwarded-for": "203.0.113.7" } });
   await record({ req, remoteAddress: "203.0.113.7", user: { id: annId, username: "ann", displayName: "Ann Example" } }, "auth.signIn", { target: { type: "user", id: annId, ownerUserId: annId }, after: { method: "password", username: "ann" } });
@@ -391,6 +398,8 @@ describe("erasing a person's data", () => {
     }
     expect(left).toEqual([]);
     expect(await q("SELECT id FROM users WHERE id = ?", annId)).toEqual([]);
+    // In a shared chat her words stay for the others, with no name.
+    expect(await q("SELECT author_id FROM chat_messages WHERE body = ?", mark(annId))).toEqual([{ author_id: null }]);
     for (const [n] of TABLES) if (n !== "audit_events") expect.soft(JSON.stringify(await bobsRows(n)), n).toBe(bobBefore.get(n));
   });
 
@@ -445,10 +454,14 @@ describe("erasing a person's data", () => {
 });
 
 /** Bob's rows of a table: his by user_id, or by a parent row of his. */
+/** Shared tables (chats): a person's part is what they wrote or sent. */
+const AUTHORED: Record<string, string> = { chat_messages: "author_id", chat_files: "uploader_id" };
+
 async function bobsRows(n: string): Promise<Row[]> {
   const { USER_DATA } = await import("./policy");
   const p = USER_DATA[n];
   if (n === "users") return q("SELECT * FROM users WHERE id = ?", bobId);
+  if (n in AUTHORED) return q(`SELECT * FROM "${n}" WHERE "${AUTHORED[n]}" = ? ORDER BY 1`, bobId);
   if (n === "connections" || p?.kind === "user") return q(`SELECT * FROM "${n}" WHERE user_id = ? ORDER BY 1`, bobId);
   if (p?.kind === "child") return q(`SELECT * FROM "${n}" WHERE "${p.via}" IN (SELECT id FROM "${p.parent}" WHERE user_id = ?) ORDER BY 1`, bobId);
   return q(`SELECT * FROM "${n}" ORDER BY 1`);

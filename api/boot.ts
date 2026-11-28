@@ -63,6 +63,7 @@ import { registerOpsRoutes } from "./ops/routes";
 import { registerSsoRoutes } from "./sso/routes";
 import { registerScimRoutes } from "./scim/routes";
 import { purgeSsoStates } from "./sso/store";
+import { purgeChat } from "./chat/purge";
 
 // Connect and migrate before answering anything (Postgres; PGlite in tests).
 await initDb();
@@ -263,7 +264,7 @@ if (env.isProduction || env.serveBuild) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit(), purgeSsoStates(), runFeedbackSync()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit(), purgeSsoStates(), purgeChat(), runFeedbackSync()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;

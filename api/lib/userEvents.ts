@@ -9,8 +9,12 @@ import type { UserEvent } from "@contracts/liveEvents";
 
 export type { UserEvent };
 
-/** An event as it goes out: numbered per user, so a page that reconnects gets what it missed. */
-export type Sent = { seq: number; e: UserEvent; origin?: string };
+/**
+ * An event as it goes out: numbered per user, so a page that reconnects gets what it missed.
+ * An ephemeral one (someone typing) is not numbered (seq 0), not kept and goes out without an
+ * id: missing it costs nothing, and it never moves a page's place in the stream.
+ */
+export type Sent = { seq: number; e: UserEvent; origin?: string; ephemeral?: true };
 
 type Listener = (s: Sent) => void;
 
@@ -33,6 +37,18 @@ export function publish(userId: number, e: UserEvent, origin?: string) {
   kept.push(sent);
   if (kept.length > KEEP) kept.splice(0, kept.length - KEEP);
   recent.set(userId, kept);
+  for (const l of listeners.get(userId) ?? []) {
+    try {
+      l(sent);
+    } catch {
+      // One broken stream never stops the others.
+    }
+  }
+}
+
+/** Tells every open page of the user something only worth knowing now: not numbered, not kept, never replayed. */
+export function publishEphemeral(userId: number, e: UserEvent, origin?: string) {
+  const sent: Sent = origin ? { seq: 0, e, origin, ephemeral: true } : { seq: 0, e, ephemeral: true };
   for (const l of listeners.get(userId) ?? []) {
     try {
       l(sent);

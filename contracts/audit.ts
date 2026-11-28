@@ -166,6 +166,12 @@ export const AUDIT_ACTIONS = {
   "feedback.setSharing": ["enabled"],
   "feedback.sendNow": ["sent", "refused", "failed"],
   "feedback.forward": ["sent", "refused", "failed", "updated"],
+  // Chats about an issue: ids and counts, never what was written
+  "chat.open": ["members"],
+  "chat.members.add": ["added"],
+  "chat.leave": [],
+  "chat.message.remove": [],
+  "chat.publish": ["issueKey", "connectionId"],
   // The log itself
   "audit.export": ["format", "rows", "filters"],
   "audit.purge": ["deleted", "before", "retentionDays", "lastPurgedHash"],

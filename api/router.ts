@@ -43,6 +43,7 @@ import { rolesRouter } from "./routers/roles";
 import { teamsRouter } from "./routers/teams";
 import { ssoRouter } from "./routers/sso";
 import { feedbackRouter } from "./routers/feedback";
+import { chatRouter } from "./routers/chat";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
@@ -90,6 +91,7 @@ export const appRouter = createRouter({
   teams: teamsRouter,
   sso: ssoRouter,
   feedback: feedbackRouter,
+  chat: chatRouter,
 });
 
 export type AppRouter = typeof appRouter;

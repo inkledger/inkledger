@@ -1020,6 +1020,13 @@ export const settings = {
         export: "Exported the audit log",
         purge: "Removed events past retention",
       },
+      chat: {
+        open: "Opened a chat about an issue",
+        members: { add: "Asked people into a chat" },
+        leave: "Left a chat",
+        message: { remove: "Removed one of their chat messages" },
+        publish: "Published a chat message on the tracker",
+      },
       feedback: {
         create: "Sent feedback",
         share: "Shared their feedback with the developers",

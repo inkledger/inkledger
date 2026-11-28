@@ -148,6 +148,78 @@
     "type": "query"
   },
   {
+    "path": "chat.addMembers",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.candidates",
+    "type": "query"
+  },
+  {
+    "path": "chat.edit",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.forIssue",
+    "type": "query"
+  },
+  {
+    "path": "chat.leave",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.markRead",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.messages",
+    "type": "query"
+  },
+  {
+    "path": "chat.open",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.prefs",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.react",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.search",
+    "type": "query"
+  },
+  {
+    "path": "chat.send",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.setState",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.thread",
+    "type": "query"
+  },
+  {
+    "path": "chat.threads",
+    "type": "query"
+  },
+  {
+    "path": "chat.typing",
+    "type": "mutation"
+  },
+  {
+    "path": "chat.unreadCount",
+    "type": "query"
+  },
+  {
     "path": "clients.delete",
     "type": "mutation"
   },
